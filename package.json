@@ -1,0 +1,19 @@
+{
+  "name": "badgers-investments",
+  "private": true,
+  "packageManager": "pnpm@9.14.2",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "clean": "turbo run clean --force && rm -rf node_modules"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.0",
+    "typescript": "~5.6.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
