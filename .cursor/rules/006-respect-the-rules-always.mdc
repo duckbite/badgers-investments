@@ -1,0 +1,15 @@
+---
+description:
+globs:
+alwaysApply: true
+tags: [architecture, guidelines, design, patterns]
+priority: 1
+---
+
+- @docs/organisation.md - organisational context provided by the human. You can use this context whenever you need to fill in the blanks and make a decision without interaction with the human. You never modify this document.
+- @docs/architecture.md - architectural guidelines provided by the human. You follow this to the letter and respect the architecture. In case you think the architecture needs adjustment in order to reach a goal, stop and ask discuss with the user. Never change the architecture on your own.
+- @docs/product.md - product vision and high level requirements provided by the human. You follow this to the letter and respect the produt. In case you think the product needs adjustment in order to reach a goal, stop and ask discuss with the user. Never change the product on your own.
+- @docs/infrastructure.md - infrastructure guidelines provided by the human. You follow this to the letter and respect the infrastructure guidelines. In case you think the infrastructure guidelines needs adjustment in order to reach a goal, stop and ask discuss with the user. Never change the architecture on your own.
+- the product description in @docs/product.md is leading. If no product description exists, don’t write anything and ask the user to provide one.
+- stick to the architecture as described in @docs/architecture.md. If no architecture doc exists, don’t write anything and ask the user to provide one, or create one together. If the architecture document is incomplete, warn the user and propose to extend it. Offer the user options when deciding on tech stack choices.
+- Always use context7 when I need code generation, setup or configuration steps, or library/API documentation. This means you should automatically use the Context7 MCP tools to resolve library id and get library docs without me having to explicitly ask.

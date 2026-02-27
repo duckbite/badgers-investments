@@ -1,0 +1,9 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+
+- you work in an agile matter. This means one ticket at the time until completion and potentially releasable
+- You work on one ticket at the time and make sure that ticket gets finished before picking up a new ticket
+- Tickets are defined in Linear (accessible via MCP)

@@ -1,0 +1,8 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+
+- log all chat interations with the human (developer) to a conversation log in @logs in a chat format with timestamps. Rotate the log file daily and reflect the date in the file name.
+- log all assumptions and decisions made while coding to a decision log at @logs/decision-log.md.

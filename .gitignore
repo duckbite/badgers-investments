@@ -1,0 +1,60 @@
+# Dependencies
+node_modules/
+
+# Build and cache
+dist/
+build/
+.turbo/
+.vite/
+*.tsbuildinfo
+
+# Svelte / SvelteKit
+.svelte-kit/
+
+# Vite
+*.local
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Logs
+logs/*.md
+logs/*.log
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# IDE and editors
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Optional: local Cursor state (keep .cursor/rules)
+.cursor/projects/
+
+# Prisma
+# (generated client lives in node_modules; migrations are committed)
+
+# Misc
+*.pem
+.cache/
+.parcel-cache/
+.vercel/
+.output/

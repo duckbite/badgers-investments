@@ -1,0 +1,143 @@
+---
+description: rules to apply when committing code to version control / git
+globs:
+alwaysApply: false
+---
+
+## Commit Message Rule
+
+# Cursor Rule: Commit Message Policy (Conventional Commits)
+
+## Purpose
+When Cursor generates a Git commit message, it MUST:
+- Explain **why** the change was made (not only what changed).
+- Be concise, readable, and standards-compliant.
+- Enable automated changelogs and semantic versioning.
+
+## Output Format
+Return **only** the commit message text. **No** extra commentary, code fences, or explanations.
+
+## Structure
+```
+
+<issue ref> <type>(<scope>): <short summary>
+
+<body>
+
+<footer>
+```
+
+## Issue Ref
+
+* Commit messages that can be tracked to an issue must start with the issue reference (e.g., DB-215).
+* Issue refs must follow the pattern `^([A-Za-z]{2,3}-[0-9]+) [^#\n]+$`
+
+## Types (allowed)
+
+* feat, fix, chore, docs, style, refactor, perf, test, ci, build, revert
+
+## Scopes (common for AWS serverless)
+
+* lambda, apigw, appsync, dynamodb, cf (cloudformation), cloudfront, glue, s3, stepfn, athena
+* auth, api, infra, deps, tooling, schema, security, ux, docs, ci, ai
+
+> If unsure, pick the **smallest accurate scope** or omit scope.
+
+## Formatting Rules
+
+* Subject ≤ **50** chars, **imperative mood**, start with capital, **no period**.
+* Blank line between subject and body.
+* Wrap body at **~72** chars.
+* In the body, state **why** + key **what/how**. Mention trade-offs if relevant.
+* Use bullet points for lists.
+* Reference issues or tickets in the footer (see below).
+
+## Footers
+
+* Breaking API changes:
+
+  ```
+  BREAKING CHANGE: <concise description of the breaking change and migration notes>
+  ```
+
+## Heuristics (infer from diff)
+
+* **Only tests touched** → `test(...)`
+* **Markdown/docs only** → `docs(...)`
+* **Lockfile or versions only** → `chore(deps): ...`
+* **Formatting only (no logic)** → `style(...)`
+* **Move/rename without behavior change** → `refactor(...)`
+* **Performance focus** → `perf(...)`
+* **CI config** → `ci(...)`
+* **Build scripts/tooling** → `build(...)`
+* **Revert** → `revert: <original subject>`
+
+## Path → Scope Mapping (suggestion)
+
+* `src/lambda/**` → lambda
+* `infrastructure/**`, `template.yaml`, `*.cf.yaml` → cf / infra
+* `src/appsync/**`, `schema.graphql` → appsync / schema
+* `src/api/**`, `gateway/**` → apigw / api
+* `src/dynamodb/**`, `tables/**` → dynamodb
+* `glue/**` → glue
+* `athena/**`, `queries/**` → athena
+* `s3/**`, `assets/**` → s3
+* `step-functions/**`, `stateMachines/**` → stepfn
+* `auth/**` → auth
+* `.github/workflows/**`, `ci/**` → ci
+* `docs/**`, `README.md` → docs
+
+## Examples (good)
+
+```
+DB-1 feat(auth): add password reset via email
+
+Introduce /auth/reset endpoint to request email reset links.
+Stores tokens in DynamoDB with TTL and rate limits requests.
+
+Closes #DB-1
+```
+
+```
+DB-2 fix(apigw): handle null userId in /profile
+
+Validate missing userId and return HTTP 400 instead of 500.
+Adds request schema and error response mapping.
+```
+
+```
+DB-3 refactor(lambda): extract S3 upload utility
+
+No behavior change. Reduces duplication across two handlers.
+```
+
+```
+DB-4 chore(deps): bump aws-sdk from 3.540.0 to 3.551.1
+```
+
+```
+DB-5 perf(dynamodb): batch writes for event ingestion
+
+Replace per-item PutItem with BatchWriteItem to cut latency ~35%.
+```
+
+```
+DB-6 feat(appsync): add Query.getUserByEmail
+
+Adds GSI on users table and resolver mapping templates.
+
+BREAKING CHANGE: requires migration to add GSI1 on users(email).
+```
+
+## Anti-patterns (avoid)
+
+* `fixed stuff`
+* `update`
+* `wip`
+* Long subject lines or sentence-cased with trailing period.
+
+## Behavior in Cursor
+
+* **Always** produce a single, final commit message following the rules above.
+* Prefer **why** over exhaustive file listings; include salient details only.
+* If the change is mixed, choose the **dominant** intent; mention secondary items in the body.
