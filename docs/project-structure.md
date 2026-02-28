@@ -18,7 +18,7 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 
 | Path | Description |
 |------|-------------|
-| `apps/web/` | SvelteKit (Svelte 5) frontend. Entry: `src/routes/+page.svelte`. Scripts: `dev`, `build`, `preview`, `check`, `lint`. Build output: `.svelte-kit/` and Vite build artifacts. |
+| `apps/web/` | SvelteKit (Svelte 5) frontend (SPA mode). Routes: root redirects to `login` (`src/routes/+page.ts` → `/login`), Dashboard (`src/routes/dashboard/+page.svelte`), plus `assets`, `ledger`, `performance`, `recommendations`. Shared app shell/nav: `src/routes/+layout.svelte` + `src/routes/+layout.ts` (`ssr=false`). Same-origin health proxies: `src/routes/api/health/+server.ts` and `src/routes/api/ready/+server.ts`. Scripts: `dev`, `build`, `preview`, `check`, `lint`. Build output: `.svelte-kit/` and Vite build artifacts. |
 
 ## Services
 
