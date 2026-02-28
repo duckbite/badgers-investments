@@ -20,6 +20,20 @@ priority: 2
 - Create unit tests for all new functionality
 - Consult user if tests fail after modifications
 - Ensure test coverage for changed code paths
+- **Testing stack consistency**: use **Vitest** for unit/functional tests across frontend and backend.
+- **File co-location**: every source file must be accompanied by a spec file in the same folder.
+  - Source: `foo.ts`
+  - Unit/functional spec: `foo.spec.ts`
+  - Integration spec (DB/Docker/network): `foo.integration.spec.ts` (still co-located)
+- **Backend route testing**: prefer **Fastify `app.inject()`** for HTTP/route tests (no real ports, stable and fast).
+- **Integration tests**:
+  - Keep them co-located but separated by suffix (`*.integration.spec.ts`).
+  - Provide separate scripts so unit tests can run quickly by default and integration tests can be run explicitly.
+- **Coverage**:
+  - Enable coverage reporting in test configuration.
+  - Backend (API) coverage must be **>= 95%** (lines, statements, functions, branches) and should fail the test run if thresholds are not met.
+- **Environment**:
+  - Respect the repo convention that environment variables live at the **repo root** (e.g. root `.env` / `.env.test` patterns), not per-package `.env` files.
 
 ## Examples
 
@@ -27,8 +41,24 @@ priority: 2
 Good: After adding a new API endpoint, run existing API tests and create unit tests for the new endpoint functionality
 </example>
 
+<example>
+Good: Add `services/api/src/modules/health/health-routes.spec.ts` next to `health-routes.ts` and test routes using `app.inject()`. Add `health-routes.integration.spec.ts` only if it truly needs a live database.
+</example>
+
+<example>
+Good: Enforce API coverage by configuring thresholds to >=95% and running coverage in CI.
+</example>
+
 <example type="invalid">
 Bad: Adding new features without creating corresponding unit tests or running existing test suite
+</example>
+
+<example type="invalid">
+Bad: Putting unit tests in a separate `tests/` folder that breaks the one-source-one-spec co-location convention.
+</example>
+
+<example type="invalid">
+Bad: Using Supertest against a real port for basic route tests when `app.inject()` is sufficient.
 </example>
 
 ## Critical Points
@@ -38,4 +68,6 @@ Bad: Adding new features without creating corresponding unit tests or running ex
   - ALWAYS create unit tests for new functionality
   - ALWAYS consult user if tests fail
   - ENSURE test coverage matches code changes
+  - ALWAYS use Vitest and co-located `*.spec.ts` / `*.integration.spec.ts`
+  - ENFORCE backend coverage >= 95%
 </critical>
