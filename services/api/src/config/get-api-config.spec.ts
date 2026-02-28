@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { getApiConfig } from './get-api-config.js';
 
-const ENVIRONMENT_KEYS = ['API_PORT', 'API_DATABASE_URL'] as const;
+const ENVIRONMENT_KEYS = ['API_PORT', 'API_DATABASE_URL', 'DATABASE_URL'] as const;
 type EnvironmentKey = (typeof ENVIRONMENT_KEYS)[number];
 type EnvironmentSnapshot = Readonly<Record<EnvironmentKey, string | undefined>>;
 
@@ -9,6 +9,7 @@ function captureEnvironmentSnapshot(): EnvironmentSnapshot {
   return {
     API_PORT: process.env['API_PORT'],
     API_DATABASE_URL: process.env['API_DATABASE_URL'],
+    DATABASE_URL: process.env['DATABASE_URL'],
   };
 }
 
@@ -42,9 +43,17 @@ describe('getApiConfig', () => {
     restoreEnvironmentSnapshot({ snapshot });
   });
 
-  it('throws when API_DATABASE_URL is missing', () => {
+  it('throws when API_DATABASE_URL and DATABASE_URL are missing', () => {
     deleteEnvironmentVariable({ key: 'API_DATABASE_URL' });
-    expect(() => getApiConfig()).toThrowError('Missing required environment variable: API_DATABASE_URL');
+    deleteEnvironmentVariable({ key: 'DATABASE_URL' });
+    expect(() => getApiConfig()).toThrowError('Missing required environment variable: API_DATABASE_URL (or DATABASE_URL)');
+  });
+
+  it('uses DATABASE_URL when API_DATABASE_URL is missing', () => {
+    deleteEnvironmentVariable({ key: 'API_DATABASE_URL' });
+    setEnvironmentVariable({ key: 'DATABASE_URL', value: 'postgresql://fallback' });
+    const actualConfig = getApiConfig();
+    expect(actualConfig.databaseUrl).toBe('postgresql://fallback');
   });
 
   it('returns default port when API_PORT is missing', () => {

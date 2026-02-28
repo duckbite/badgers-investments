@@ -6,7 +6,7 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 
 | Path | Description |
 |------|-------------|
-| `package.json` | Root package: pnpm workspace scripts (`build`, `dev`, `lint`, `test`), Turborepo and TypeScript as devDependencies. Private; not published. |
+| `package.json` | Root package: pnpm workspace scripts (`build`, `dev`, `dev:up`, `db:*`, `lint`, `test`), Turborepo and TypeScript as devDependencies. Private; not published. |
 | `pnpm-workspace.yaml` | pnpm workspace definition: `apps/*`, `services/*`, `workers/*`, `shared/*/*`, `tools/*`. |
 | `turbo.json` | Turborepo pipeline: `build` (with ^build), `dev` (persistent), `lint`, `test`, `clean`. |
 | `docker-compose.yml` | Local development dependencies (PostgreSQL). |
@@ -58,6 +58,9 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 - `pnpm install` — Install all workspace dependencies.
 - `pnpm build` — Build all packages (Turborepo).
 - `pnpm dev` — Run `dev` in all packages that define it (Turborepo).
+- `pnpm dev:up` — Start DB, apply migrations, then run API + web dev.
+- `pnpm db:up` — Start local Postgres via Docker Compose.
+- `pnpm db:down` — Stop local Postgres via Docker Compose.
 - `pnpm --filter web dev` — Run frontend dev server only.
 - `pnpm --filter api dev` — Run API dev server only.
 - `pnpm --filter worker dev` — Run worker in watch mode only.

@@ -1,0 +1,54 @@
+---
+description: When the user asks the agent to work on a Linear ticket (e.g. "please work on DB-86"), the agent must fetch the ticket in Linear, ensure it is eligible to start, work only on that ticket end-to-end, and move it through the workflow with a completion comment.
+globs:
+alwaysApply: false
+---
+
+# Agile workflow for Linear tickets
+
+## Context
+
+Apply this rule when the user asks the agent to work on a ticket, for example:
+- "please work on DB-86"
+- "pick up DB-123"
+- "can you take DB-10?"
+
+In this organisation, tickets are defined in Linear and are usually prefixed with `DB-`.
+
+## Requirements
+
+- **Single ticket focus**: Work on exactly one ticket at a time, aiming for a potentially releasable outcome before starting any other ticket.
+- **Ticket lookup**: When a user references a ticket ID (for example `DB-86`), look up the ticket in Linear via MCP and use its title/description/acceptance criteria as the source of truth for scope.
+- **Eligibility check**: Before starting work, verify the ticket is in the **Todo** column/state. If it is not, do not start implementation; instead, explain the mismatch and ask for the intended next step.
+- **Move to in progress**: When starting work, move the ticket to **In Progress** in Linear.
+- **Implementation discipline**: Keep changes scoped to the ticket; avoid unrelated refactors, drive-by cleanups, or picking up additional tickets.
+- **Completion**: When the work is done and ready for review, move the ticket to **In Review** in Linear.
+- **Completion comment**: Leave a Linear comment summarizing what was done and which files were modified.
+- **MCP reliability**: If the Linear MCP call fails or times out, retry once. If it still fails, ask the user to provide the ticket title/description (or a screenshot/paste) and proceed using that, explicitly noting the limitation in the Linear comment once connectivity is restored.
+
+## Examples
+
+<example>
+User: "Please work on DB-86"
+Assistant actions:
+- Fetch DB-86 from Linear
+- Confirm it is in Todo
+- Move DB-86 to In Progress
+- Implement the ticket end-to-end
+- Move DB-86 to In Review
+- Comment on DB-86 with summary + files changed
+</example>
+
+<example type="invalid">
+User: "Please work on DB-86"
+Assistant actions:
+- Starts coding immediately without checking Linear
+- Works on DB-86 and also picks up DB-90 in the same session
+- Finishes DB-86 but forgets to move it to In Review or leave a comment
+</example>
+
+<critical>
+ - ALWAYS fetch the referenced ticket from Linear before implementing
+ - ALWAYS move the ticket to In Progress when starting and In Review when done
+ - NEVER work on multiple tickets at the same time
+</critical>

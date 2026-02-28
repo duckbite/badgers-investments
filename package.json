@@ -4,7 +4,16 @@
   "packageManager": "pnpm@9.14.2",
   "scripts": {
     "build": "turbo run build",
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose down",
+    "db:reset": "docker compose down -v && docker compose up -d db",
+    "db:generate": "pnpm --filter api db:generate",
+    "db:migrate": "pnpm --filter api db:migrate",
+    "db:deploy": "pnpm --filter api db:deploy",
     "dev": "turbo run dev",
+    "dev:api": "pnpm --filter api dev",
+    "dev:web": "pnpm --filter web dev",
+    "dev:up": "pnpm db:up && pnpm db:generate && pnpm db:deploy && pnpm dev",
     "lint": "turbo run lint",
     "test": "turbo run test",
     "clean": "turbo run clean --force && rm -rf node_modules"

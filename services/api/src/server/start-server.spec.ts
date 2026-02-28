@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { startServer } from './start-server.js';
 
-const ENVIRONMENT_KEYS = ['API_PORT', 'API_DATABASE_URL'] as const;
+const ENVIRONMENT_KEYS = ['API_PORT', 'API_DATABASE_URL', 'DATABASE_URL'] as const;
 type EnvironmentKey = (typeof ENVIRONMENT_KEYS)[number];
 type EnvironmentSnapshot = Readonly<Record<EnvironmentKey, string | undefined>>;
 
@@ -10,6 +10,7 @@ function captureEnvironmentSnapshot(): EnvironmentSnapshot {
   return {
     API_PORT: process.env['API_PORT'],
     API_DATABASE_URL: process.env['API_DATABASE_URL'],
+    DATABASE_URL: process.env['DATABASE_URL'],
   };
 }
 

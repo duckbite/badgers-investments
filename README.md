@@ -47,7 +47,7 @@ The repo is organised as a monorepo (Turborepo + pnpm):
 
 - **Node.js** (LTS) and **pnpm**
 - **Docker** (for local PostgreSQL)
-- **AWS account** (for production; SES for OTP, optional for local dev with mock or mailhog)
+- **AWS account** (for production; SES for OTP, optional for local dev with mock)
 
 ---
 
@@ -72,16 +72,34 @@ cp .env.example .env
 # Edit .env with your values
 ```
 
+Notes:
+
+- The API reads `API_DATABASE_URL` and also accepts `DATABASE_URL` as a fallback.
+- `SES_*` and `OPENAI_KEY` are only required once the auth/recommendations modules are enabled.
+
 ### 3. Database
 
 Start Postgres (e.g. via Docker) and run migrations:
 
 ```bash
 # Start Postgres
-docker compose up -d db
+pnpm db:up
 
-# Run migrations (when backend exists)
-pnpm --filter api db:deploy
+# Generate Prisma client and apply migrations
+pnpm db:generate
+pnpm db:deploy
+```
+
+To stop the local database:
+
+```bash
+pnpm db:down
+```
+
+To reset it (drops the volume):
+
+```bash
+pnpm db:reset
 ```
 
 ### 4. Run locally
@@ -89,16 +107,17 @@ pnpm --filter api db:deploy
 From the repo root:
 
 ```bash
-# Backend API (when implemented)
-pnpm --filter api dev
-
-# Frontend (when implemented)
-pnpm --filter web dev
+# One command (DB + migrations + API + web)
+pnpm dev:up
 ```
 
-Then open the frontend URL (e.g. `http://localhost:5173`). Log in with email OTP once the backend and SES (or mock) are configured.
+Or, if your database is already running:
 
-*Until the app is implemented, see **Prototype** below for a UI reference you can run.*
+```bash
+pnpm dev
+```
+
+Then open the frontend URL (default `http://localhost:5173`). The API listens on `http://localhost:3000` by default.
 
 ---
 
