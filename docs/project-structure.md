@@ -24,7 +24,7 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 
 | Path | Description |
 |------|-------------|
-| `services/api/` | Fastify backend REST API (Node.js/TypeScript). Entry: `src/index.ts`. Scripts: `dev` (tsx watch), `build` (tsc), `start`, `lint`, `clean`. Build output: `dist/`. |
+| `services/api/` | Fastify backend REST API (Node.js/TypeScript). Entry: `src/index.ts`. Scripts: `dev` (tsx watch), `build` (tsc), `start`, `lint`, `clean`. Build output: `dist/`. Modules live under `src/modules/` (health + domain modules per `docs/architecture.md`). |
 | `services/api/prisma/` | Prisma schema and migrations (PostgreSQL). |
 
 ## Workers

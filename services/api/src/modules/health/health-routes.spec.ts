@@ -20,6 +20,23 @@ describe('healthRoutes', () => {
     await app.close();
   });
 
+  it('GET /ready returns ok when database query succeeds', async () => {
+    vi.spyOn(prismaClient, '$queryRaw').mockResolvedValue([
+      {
+        now: new Date('2026-01-01T00:00:00.000Z'),
+        server_version: 'postgres',
+        current_database: 'badgers',
+        current_user: 'badgers',
+      },
+    ] as unknown as []);
+    const app = await createServer();
+    await app.ready();
+    const response = await app.inject({ method: 'GET', url: '/ready' });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ status: 'ok' });
+    await app.close();
+  });
+
   it('GET /health/db returns ok and metadata when query succeeds', async () => {
     const now: Date = new Date('2026-01-01T00:00:00.000Z');
     vi.spyOn(prismaClient, '$queryRaw').mockResolvedValue([

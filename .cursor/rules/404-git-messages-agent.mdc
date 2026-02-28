@@ -27,6 +27,13 @@ Return **only** the commit message text. **No** extra commentary, code fences, o
 <footer>
 ```
 
+## Forbidden Metadata / Trailers
+
+- Do **not** add any unrequested metadata or branding lines to commit messages.
+- Specifically forbidden (unless the user explicitly asks for it):
+  - `Made-with: Cursor`
+  - any `Generated-by: ...`, `Tool: ...`, or similar “provenance” trailers
+
 ## Issue Ref
 
 * Commit messages that can be tracked to an issue must start with the issue reference (e.g., DB-215).
@@ -135,6 +142,11 @@ BREAKING CHANGE: requires migration to add GSI1 on users(email).
 * `update`
 * `wip`
 * Long subject lines or sentence-cased with trailing period.
+* Any unrequested commit trailers, e.g.:
+
+  ```
+  Made-with: Cursor
+  ```
 
 ## Behavior in Cursor
 

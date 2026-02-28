@@ -16,7 +16,18 @@ type DatabaseHealthResponseBody = {
   };
 };
 
+type ReadyResponseBody = {
+  readonly status: 'ok';
+};
+
 const healthResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['status'],
+  properties: { status: { type: 'string', enum: ['ok'] } },
+} as const;
+
+const readyResponseSchema = {
   type: 'object',
   additionalProperties: false,
   required: ['status'],
@@ -46,6 +57,10 @@ const databaseHealthResponseSchema = {
 export const healthRoutes: FastifyPluginAsync = async (app): Promise<void> => {
   const dbHealthService: DbHealthService = new DbHealthService({ prismaClient });
   app.get('/health', { schema: { response: { 200: healthResponseSchema } } }, async (): Promise<HealthResponseBody> => ({ status: 'ok' }));
+  app.get('/ready', { schema: { response: { 200: readyResponseSchema } } }, async (): Promise<ReadyResponseBody> => {
+    await dbHealthService.getDatabaseConnectionMetadata();
+    return { status: 'ok' };
+  });
   app.get(
     '/health/db',
     { schema: { response: { 200: databaseHealthResponseSchema } } },

@@ -8,7 +8,6 @@ async function main(): Promise<void> {
 
 main().catch((err: unknown) => {
   const error: Error = err instanceof Error ? err : new Error('Unknown error');
-  // eslint-disable-next-line no-console
   console.error(error);
   process.exit(1);
 });
