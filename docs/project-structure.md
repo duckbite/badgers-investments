@@ -47,7 +47,7 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 | `docs/prototype/` | Figma-derived UI prototype (React + Vite); reference only, not part of workspace. |
 | `tools/` | (Reserved) Scripts, codegen, release tooling. |
 | `.cursor/` | Cursor rules and project config. |
-| `logs/` | Conversation and decision logs (see .cursor rules). |
+| `logs/` | Conversation and decision logs (see .cursor rules). Files include `decision-log.md` and daily transcripts like `conversation-YYYY-MM-DD.md`. |
 
 ## Out of workspace
 

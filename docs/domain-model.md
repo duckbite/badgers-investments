@@ -22,7 +22,6 @@ Design priorities:
 
 **Identity and Security**
 - `user_account`
-- `auth_otp_challenge`
 - `user_session`
 
 **Portfolio and Assets**
@@ -69,32 +68,16 @@ Design priorities:
 ## Table Drafts (MVP)
 
 ### `user_account`
-**Purpose:** Email-based login identity and account metadata for passwordless OTP.
+**Purpose:** Username-based login identity and account metadata for session authentication.
 
 Fields:
 - `id` (UUID, PK)
-- `email` (varchar, unique, not null)
+- `username` (varchar, unique, not null)
+- `password_hash` (varchar, not null)
 - `is_active` (boolean, default true)
 - `created_at` (timestamptz, not null)
 - `updated_at` (timestamptz, not null)
 - `last_login_at` (timestamptz, nullable)
-
-### `auth_otp_challenge`
-**Purpose:** Email OTP challenges for passwordless authentication.
-
-Fields:
-- `id` (UUID, PK)
-- `user_id` (UUID, FK → `user_account.id`, nullable for initial bootstrap if needed)
-- `email` (varchar, not null)
-- `otp_code_hash` (varchar, not null)
-- `purpose` (varchar, not null, e.g. `LOGIN`)
-- `expires_at` (timestamptz, not null)
-- `consumed_at` (timestamptz, nullable)
-- `attempt_count` (int, default 0)
-- `max_attempts` (int, default 5)
-- `created_at` (timestamptz, not null)
-- `sent_via_provider` (varchar, nullable; e.g. `SES`)
-- `provider_message_id` (varchar, nullable)
 
 ### `user_session`
 **Purpose:** Server-side session records for cookie-backed authentication.
@@ -630,7 +613,6 @@ No major schema changes needed if ledger + valuation snapshots are present.
 
 ## Minimal MVP Table Set (Lean Start)
 - `user_account`
-- `auth_otp_challenge`
 - `user_session`
 - `portfolio`
 - `asset`

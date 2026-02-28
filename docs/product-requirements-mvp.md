@@ -23,12 +23,13 @@ The MVP prioritises correctness, traceability, and practical usability over broa
 3. Provide portfolio performance insights, including TWR.
 4. Support lot-level drill-down for symbols with multiple transactions.
 5. Generate actionable recommendations (buy/sell/hold) using rules + AI explanation.
-6. Run securely as a single-user app with passwordless email OTP login and Postgres-backed server sessions.
+6. Run securely as a single-user app with username + password login (password stored hashed) and Postgres-backed server sessions.
 7. Deploy locally and in the cloud with a simple, cost-effective architecture.
 
 ## Non-Goals (MVP)
 - Automated trading / broker write access
 - Broker/exchange sync
+- Email OTP / passwordless login
 - SMS OTP authentication
 - Advanced sentiment scraping
 - Multi-user support
@@ -55,13 +56,13 @@ For the MVP, the product supports **stocks and ETFs only**. All other asset clas
 ## Functional Scope (MVP)
 
 ### 1) Authentication and Access
-- Email-based OTP login (passwordless)
-- OTP challenge creation, delivery via AWS SES, verification, and expiry
+- Username + password login
+- Password stored hashed in the database (never plaintext)
 - Session management and logout using Postgres-backed server sessions
 
 **Acceptance**
-- Login succeeds only when a valid, non-expired OTP challenge for the supplied email is verified.
-- Invalid email/OTP combinations are rejected with a generic authentication error.
+- Login succeeds only when valid credentials are provided.
+- Invalid username/password combinations are rejected with a generic authentication error.
 - Protected routes require an active, valid session.
 
 ### 2) Asset and Transaction Ledger Management
@@ -151,7 +152,6 @@ Implementation may be hard-coded initially or DB-backed UI (preferred if modest 
 ### 10) Audit Logging and Activity History
 Log:
 - Login success/failure
-- TOTP setup/reset
 - Asset changes
 - Transaction changes
 - Price refresh runs
@@ -162,7 +162,6 @@ Log:
 - OpenAI API key (secure storage)
 - AI model selection
 - Base currency
-- Auth/TOTP settings
 - Provider settings (if needed)
 
 ## User Flows
@@ -170,12 +169,11 @@ Log:
 ### First-Time Setup
 1. Open app
 2. Log in / initial credentials
-3. Enrol TOTP
-4. Configure base currency, risk config, OpenAI key
-5. Add assets and transactions
-6. Refresh prices
-7. View dashboard
-8. Run first recommendation
+3. Configure base currency, risk config, OpenAI key
+4. Add assets and transactions
+5. Refresh prices
+6. View dashboard
+7. Run first recommendation
 
 ### Ongoing Weekly Review
 1. Log in
@@ -188,7 +186,6 @@ Log:
 
 ## UI / Screen Requirements
 - Login
-- TOTP Setup/Verify
 - Dashboard
 - Assets List
 - Asset Detail
@@ -219,7 +216,7 @@ Log:
 ## Non-Functional Requirements
 ### Security
 - HTTPS (prod)
-- Username/password + TOTP
+- Username + password login
 - Hashed/salted passwords
 - Secure sessions/cookies
 - Input validation
@@ -255,7 +252,7 @@ Log:
 - Generic auth failure messages
 
 ## MVP Release Acceptance Criteria
-1. Secure login with passwordless email OTP and Postgres-backed sessions
+1. Secure login with username + password (hashed) and Postgres-backed sessions
 2. Asset and transaction management for stocks (and ETFs) only
 3. Ledger-derived holdings and valuations
 4. Dashboard with consolidated wealth/allocation

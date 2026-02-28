@@ -11,6 +11,7 @@ This pack contains the initial Architecture Decision Records (ADRs) for the MVP.
 - ADR-004 — Multi-Currency and FX Handling for `TWR_DAILY_V1`
 - ADR-005 — Recommendation Orchestration and Deduplication
 - ADR-006 — Passwordless Email OTP Authentication via AWS SES
+- ADR-011 — Username/Password Authentication (Supersedes ADR-006)
 - ADR-007 — Postgres-Backed Cookie Session Strategy
 - ADR-008 — OpenAI-First Recommendation Integration and Validation Pipeline
 - ADR-009 — API Style and Frontend Integration (REST JSON + Typed DTOs)
@@ -79,7 +80,6 @@ Use **AWS ECS Fargate** for production compute.
 - Worker container/task
 - RDS PostgreSQL
 - EventBridge for schedules
-- SES for email OTP
 - Secrets Manager + KMS for secrets
 - CloudWatch Logs for logging
 
@@ -217,7 +217,7 @@ Use a key derived from:
 ---
 
 ## ADR-006 — Passwordless Email OTP Authentication via AWS SES
-- **Status:** Accepted
+- **Status:** Superseded (see ADR-011)
 - **Date:** 2026-02-23
 
 ### Context
@@ -355,8 +355,7 @@ Use **REST JSON** APIs exposed by Fastify, with **typed client DTOs** for fronte
 - request/correlation IDs recommended
 
 ### Example Endpoints
-- `POST /auth/otp/request`
-- `POST /auth/otp/verify`
+- `POST /auth/login`
 - `POST /auth/logout`
 - `GET /assets`
 - `POST /transactions`
@@ -407,25 +406,55 @@ Use a lightweight baseline:
 
 ---
 
-## Appendix A — Data Model Update Summary for Email OTP (ADR-006 + ADR-007)
+## ADR-011 — Username/Password Authentication (Supersedes ADR-006)
+- **Status:** Accepted
+- **Date:** 2026-02-28
 
-### Replace password/TOTP auth model with email OTP
+### Context
+The MVP authentication requirement changed from passwordless email OTP (ADR-006) to a standard username/password login, while keeping Postgres-backed cookie sessions (ADR-007).
+
+### Decision
+Use **username + password** authentication for the single user.
+
+### Rules
+- Passwords are stored as a one-way **hash** in the database (`user_account.password_hash`).
+- Never store or log plaintext passwords.
+- Login uses a single endpoint `POST /auth/login` which verifies credentials and creates a server-side session (ADR-007).
+- Invalid credentials return a **generic** authentication failure message (no factor disclosure).
+- Apply basic rate limiting to the login endpoint.
+
+### Rationale
+- Removes external dependency on email delivery for basic access.
+- Matches the updated MVP requirement for deterministic local/dev access.
+- Keeps the session strategy unchanged and compatible with ECS deployments.
+
+### Consequences
+**Positive**
+- Works offline/local without email provider setup.
+- Simpler end-user flow for a single-user app.
+
+**Negative**
+- Requires secure password hashing and handling.
+- Requires a password bootstrap/reset strategy (single-user ops decision).
+
+## Appendix A — Data Model Update Summary for Username/Password (ADR-011 + ADR-007)
+
+### Replace email OTP auth model with username/password
 #### `user_account` (updated)
 Recommended fields:
 - `id` (UUID, PK)
-- `email` (varchar, unique, not null)
+- `username` (varchar, unique, not null)
+- `password_hash` (varchar, not null)
 - `is_active` (boolean, default true)
 - `created_at` (timestamptz, not null)
 - `updated_at` (timestamptz, not null)
 - `last_login_at` (timestamptz, nullable)
 
 #### Remove / deprecate
-- `username`
-- `password_hash`
+- `auth_otp_challenge`
 - `user_totp_secret` table
 
 #### Add
-- `auth_otp_challenge`
 - `user_session`
 
 ### Note on logging

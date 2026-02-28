@@ -47,22 +47,22 @@ The MVP covers:
 
 ## 4.1 Authentication and Session Management
 
-### FR-AUTH-001 — Email OTP Login
+### FR-AUTH-001 — Username/Password Login
 The system shall allow the user to log in using:
-- an email address
-- a one-time passcode (OTP) delivered via email
+- a username
+- a password
 
 **Acceptance**
-- Login succeeds only when a valid, non-expired OTP challenge for the supplied email is verified.
-- Invalid email/OTP combinations shall be rejected with a generic authentication error.
+- Login succeeds only when valid credentials are provided.
+- Invalid username/password combinations shall be rejected with a generic authentication error.
 
-### FR-AUTH-002 — Email OTP Challenge Lifecycle
-The system shall support creation, verification, and expiry of email OTP challenges for the single user account, storing only hashed OTP codes.
+### FR-AUTH-002 — Password Storage
+The system shall store the user's password as a one-way hash in the database and shall never store or log plaintext passwords.
 
 **Acceptance**
-- An OTP challenge record is created with hashed code, expiry, and attempt limits.
-- OTP challenges are single-use and marked consumed on successful verification.
-- Expired or exhausted challenges cannot be used to log in.
+- The database stores only a password hash (and associated parameters/salt as required by the hash scheme), never plaintext.
+- Password verification is performed by comparing the provided password to the stored hash.
+- Logs and error responses never include password values.
 
 ### FR-AUTH-003 — Session Handling
 The system shall create an authenticated session after successful login and require authentication for protected routes.
@@ -403,7 +403,7 @@ Portfolio calculations and rule findings shall be reproducible from:
 ## 6. In-Scope vs Out-of-Scope (MVP)
 
 ## 6.1 In Scope
-- Single-user auth with passwordless email OTP and Postgres-backed sessions
+- Single-user auth with username + password (stored hashed) and Postgres-backed sessions
 - Asset and ledger management (stocks and ETFs only in MVP)
 - Wealth dashboard
 - Holdings drill-down
@@ -415,6 +415,7 @@ Portfolio calculations and rule findings shall be reproducible from:
 
 ## 6.2 Out of Scope
 - Auto-trading / broker execution
+- Email OTP / passwordless login
 - SMS OTP
 - Multi-user administration
 - Tax reporting

@@ -12,7 +12,7 @@ A single-user investment monitoring and recommendation web app. Track holdings f
 - **Wealth view:** Dashboard with total value, allocation, P/L, and charts (allocation, portfolio value over time).
 - **Performance:** Time-weighted return (TWR, daily method) with selectable ranges.
 - **Recommendations:** Manual run produces BUY/SELL/HOLD (and optional WATCH) with rationale; rules + OpenAI, with deterministic fallback if AI fails.
-- **Auth:** Passwordless email OTP (AWS SES) and Postgres-backed sessions.
+- **Auth:** Username + password (stored hashed) and Postgres-backed sessions.
 
 ---
 
@@ -21,9 +21,9 @@ A single-user investment monitoring and recommendation web app. Track holdings f
 - **Frontend:** Svelte SPA
 - **Backend:** Fastify (Node.js/TypeScript) REST API
 - **Database:** PostgreSQL (Prisma ORM, migrations)
-- **Auth:** Email OTP via AWS SES; Postgres-backed cookie sessions
+- **Auth:** Username + password (hashed); Postgres-backed cookie sessions
 - **Recommendations:** OpenAI (direct integration); rules engine + deduplication
-- **Deployment:** Local dev; production on AWS (ECS Fargate, RDS Postgres, SES, EventBridge, Secrets Manager, CloudWatch)
+- **Deployment:** Local dev; production on AWS (ECS Fargate, RDS Postgres, EventBridge, Secrets Manager, CloudWatch)
 
 ---
 
@@ -47,7 +47,7 @@ The repo is organised as a monorepo (Turborepo + pnpm):
 
 - **Node.js** (LTS) and **pnpm**
 - **Docker** (for local PostgreSQL)
-- **AWS account** (for production; SES for OTP, optional for local dev with mock)
+- **AWS account** (for production, if deploying to AWS)
 
 ---
 
@@ -63,7 +63,7 @@ pnpm install
 
 ### 2. Environment
 
-Copy the root env template and set required variables (DB credentials/port, API port, database URL, SES config for OTP, OpenAI API key for recommendations).
+Copy the root env template and set required variables (DB credentials/port, API port, database URL, OpenAI API key for recommendations).
 
 All env variables live at the repo root (no per-service `.env` files).
 
@@ -75,7 +75,7 @@ cp .env.example .env
 Notes:
 
 - The API reads `API_DATABASE_URL` and also accepts `DATABASE_URL` as a fallback.
-- `SES_*` and `OPENAI_KEY` are only required once the auth/recommendations modules are enabled.
+- `OPENAI_KEY` is only required once the recommendations module is enabled.
 
 ### 3. Database
 
@@ -142,7 +142,6 @@ Production is designed to run on **AWS**:
 
 - **ECS Fargate** for frontend, backend API, and worker tasks
 - **RDS PostgreSQL** for the database
-- **SES** for email OTP
 - **Secrets Manager + KMS** for secrets
 - **EventBridge** for scheduled jobs (e.g. snapshot rebuilds)
 - **CloudWatch Logs** for application logs

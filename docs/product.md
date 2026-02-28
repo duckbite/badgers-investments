@@ -163,7 +163,7 @@ This enables higher-quality implementation of the core portfolio and recommendat
 ## 10. Product Scope by Phase
 
 ## 10.1 MVP (Phase 1)
-- Passwordless email OTP login (via AWS SES) with Postgres-backed sessions
+- Username + password login (password stored hashed in Postgres) with Postgres-backed sessions
 - Asset management
 - Transaction ledger
 - Wealth dashboard
@@ -266,7 +266,7 @@ Keep the system simple and modular:
 - environment-based config for secrets and provider settings
 
 ## 14.3 Security Strategy
-- passwordless email OTP via AWS SES (no passwords/TOTP in v1)
+- username + password authentication (password stored hashed in DB)
 - encrypted secret storage
 - session security and audit logs
 
@@ -330,7 +330,7 @@ For a single-user product, success should be tracked with pragmatic product metr
 - **recommendation style:** strong buy/sell/hold calls acceptable
 - **source of truth:** transaction ledger
 - **returns:** TWR now, XIRR later
-- **auth:** password + TOTP acceptable
+- **auth:** username + password (hashed)
 - **hosting:** local dev, cloud prod
 
 ---
@@ -338,6 +338,7 @@ For a single-user product, success should be tracked with pragmatic product metr
 ## 18. Out of Scope for MVP (Explicitly)
 
 - Auto-trading execution
+- Email OTP login
 - SMS OTP
 - Multi-user admin/user manager
 - Advanced sentiment scraping

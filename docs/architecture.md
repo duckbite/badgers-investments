@@ -44,7 +44,7 @@ This SAD implements the architectural decisions captured in the ADR pack.
 - Simplicity (MVP / personal-use context)
 - Correctness and reproducibility of calculations
 - Cost-effective cloud hosting
-- Secure passwordless authentication (email OTP)
+- Secure username/password authentication
 - Extensibility for future providers, broker sync, and auto-trading
 - Operable with lightweight logging/monitoring
 
@@ -58,7 +58,6 @@ This SAD implements the architectural decisions captured in the ADR pack.
 - EventBridge-triggered worker tasks
 - PostgreSQL (RDS in prod)
 - Prisma ORM/migrations
-- Email OTP via AWS SES
 - Postgres-backed server sessions
 - OpenAI integration (KISS, direct module)
 - REST JSON APIs with typed DTOs
@@ -89,11 +88,10 @@ Badgers Investments consists of:
 - a **Fastify backend API** for domain logic and persistence,
 - a **worker runtime** for scheduled/heavy jobs,
 - **PostgreSQL** for canonical and derived data,
-- AWS-managed services for email, secrets, scheduling, and logging,
+- AWS-managed services for secrets, scheduling, and logging,
 - **OpenAI** for recommendation synthesis.
 
 ## 5.2 External Dependencies (MVP)
-- **AWS SES** — email OTP delivery
 - **OpenAI API** — recommendation synthesis
 - **AWS EventBridge** — scheduled job triggers
 - **AWS Secrets Manager + KMS** — secret management
@@ -131,7 +129,7 @@ Responsibilities:
 - Manage UI state using Svelte stores
 - Call backend REST APIs with typed DTOs
 - Display charts via Chart.js
-- Handle email OTP login UX and session lifecycle
+- Handle username/password login UX and session lifecycle
 
 ### Backend API (Fastify)
 Responsibilities:
@@ -141,7 +139,7 @@ Responsibilities:
 - Persist canonical data and snapshots
 - Orchestrate recommendation runs (interactive path)
 - Trigger/coordinate rebuilds and jobs
-- Integrate with SES and OpenAI
+- Integrate with OpenAI
 
 ### Worker (Node.js / shared domain code)
 Responsibilities:
@@ -160,7 +158,6 @@ Responsibilities:
 
 ### AWS Services
 - **EventBridge:** trigger worker jobs on schedule
-- **SES:** send OTP emails
 - **Secrets Manager + KMS:** secrets and encryption keys
 - **CloudWatch Logs:** centralised logging for API and worker
 
@@ -175,8 +172,7 @@ Responsibilities:
 ## 8.1 Module List (MVP)
 
 1. **auth**
-   - email OTP request/verify
-   - OTP challenge lifecycle
+   - username/password login
    - login rate limiting hooks
 2. **sessions**
    - session creation/lookup/revocation
@@ -262,24 +258,17 @@ Canonical data is authoritative. Derived data can be invalidated and rebuilt.
 ## 10. Authentication and Session Architecture
 
 ## 10.1 Authentication Model
-- **Passwordless email OTP only**
-- OTPs delivered via **AWS SES**
-- Session-based authentication after OTP verification
+- **Username + password** for single-user login
+- Password stored as a one-way hash in Postgres (`user_account.password_hash`)
+- Session-based authentication after successful credential verification
 
-## 10.2 OTP Challenge Flow
-1. Frontend submits email to `POST /auth/otp/request`
+## 10.2 Login Flow (Username/Password)
+1. Frontend submits username/password to `POST /auth/login`
 2. Backend validates rate limits and user eligibility
-3. Backend generates OTP code and stores **hashed OTP** in `auth_otp_challenge`
-4. Backend sends OTP email via SES
-5. Frontend submits OTP to `POST /auth/otp/verify`
-6. Backend verifies challenge:
-   - not expired
-   - not consumed
-   - attempt limit not exceeded
-   - hash match
-7. Backend creates `user_session`
-8. Backend sets secure session cookie
-9. Frontend proceeds as authenticated user
+3. Backend verifies password against stored hash
+4. Backend creates `user_session`
+5. Backend sets secure session cookie
+6. Frontend proceeds as authenticated user
 
 ## 10.3 Session Model
 - Cookie stores opaque session ID
@@ -288,11 +277,8 @@ Canonical data is authoritative. Derived data can be invalidated and rebuilt.
 - Logout revokes session server-side
 
 ## 10.4 Security Controls (MVP)
-- OTP stored hashed, never plaintext
-- OTP expiry (short TTL)
-- Single-use OTP challenges
-- Attempt limits
-- Endpoint rate limiting (request + verify)
+- Password stored as one-way hash (never plaintext)
+- Endpoint rate limiting on login
 - Secure cookie flags (`HttpOnly`, `Secure` in prod, `SameSite` as required)
 - Minimal mutation logging for auth events (no full audit system)
 
@@ -320,8 +306,7 @@ Canonical data is authoritative. Derived data can be invalidated and rebuilt.
 
 ## 11.3 Example Endpoint Surface (Indicative)
 ### Auth
-- `POST /auth/otp/request`
-- `POST /auth/otp/verify`
+- `POST /auth/login`
 - `POST /auth/logout`
 - `GET /auth/session`
 
@@ -512,7 +497,6 @@ If an equivalent run exists:
 - **Worker Task/Service (ECS Fargate)**
   - Job execution runtime
 - **RDS PostgreSQL**
-- **SES**
 - **EventBridge**
 - **Secrets Manager + KMS**
 - **CloudWatch Logs**
@@ -521,7 +505,7 @@ If an equivalent run exists:
 - Public access terminates at HTTPS load balancer
 - Frontend and backend accessible over HTTPS
 - Backend and worker access RDS in private networking
-- SES/OpenAI called outbound from API/worker tasks
+- OpenAI called outbound from API/worker tasks
 
 ## 17.3 Environment Strategy
 ### MVP Release
@@ -588,20 +572,20 @@ If an equivalent run exists:
 ## 19. Security Architecture Summary
 
 ## 19.1 Identity and Access
-- Passwordless email OTP via SES
+- Username/password login
 - Postgres-backed server sessions
 - Secure cookie session handling
 
 ## 19.2 Data Protection
 - Secrets in Secrets Manager/KMS (prod)
-- OTP codes hashed in DB
+- Password hashes stored in DB (never plaintext)
 - Session IDs opaque
 - HTTPS in production
 - Sensitive values never logged in plaintext
 
 ## 19.3 Application Security Controls (MVP)
 - Input validation for all API endpoints
-- Rate limiting on OTP endpoints
+- Rate limiting on login endpoints
 - Session expiry and revocation
 - Auth checks on protected routes/endpoints
 - Basic CORS and cookie policy hardening for split frontend/backend deployment
@@ -610,15 +594,14 @@ If an equivalent run exists:
 
 ## 20. Data Model Implications (Auth Update + Core Architecture)
 
-This SAD adopts the email-OTP authentication model and supersedes earlier password/TOTP assumptions.
+This SAD adopts the username/password authentication model and supersedes earlier email-OTP assumptions.
 
 ## 20.1 Auth Tables (MVP)
-- `user_account` (email-based identity)
-- `auth_otp_challenge`
+- `user_account` (username-based identity + password hash)
 - `user_session`
 
 ## 20.2 Removed from Earlier Drafts
-- `password_hash` on `user_account`
+- `auth_otp_challenge` (OTP auth removed from MVP)
 - `user_totp_secret`
 
 ## 20.3 Core Domain and Snapshot Tables (MVP)
@@ -635,10 +618,10 @@ This SAD adopts the email-OTP authentication model and supersedes earlier passwo
 
 ## 21. Failure Modes and Degradation Behaviour (MVP)
 
-## 21.1 SES Failure (OTP Delivery)
-- OTP request endpoint returns failure status and retry guidance
-- No session creation without successful OTP verification
-- Log provider error details (sanitised)
+## 21.1 Authentication Failure (Invalid Credentials)
+- Login endpoint returns a generic authentication failure response
+- No session creation without successful credential verification
+- Log attempt outcome (sanitised; no credential data)
 
 ## 21.2 OpenAI Failure / Invalid Output
 - Recommendation run returns explicit failure/partial status
@@ -668,7 +651,7 @@ This SAD adopts the email-OTP authentication model and supersedes earlier passwo
 1. Deterministic financial calculations (FIFO, TWR, FX conversion)
 2. Snapshot invalidation/rebuild correctness
 3. Recommendation deduplication/hash stability
-4. Email OTP challenge lifecycle and session creation
+4. Username/password login and session creation
 5. API contract validation (REST DTOs)
 6. Worker/API shared use-case consistency
 
@@ -678,7 +661,7 @@ This SAD adopts the email-OTP authentication model and supersedes earlier passwo
 - **Integration tests**
   - API + DB (Prisma + Postgres)
   - recommendation orchestration path with mocked OpenAI
-  - auth OTP + session flow with mocked SES
+  - auth login + session flow
 - **Regression fixtures**
   - known portfolios and expected P/L/TWR outputs
 - **Worker job tests**
@@ -712,7 +695,8 @@ This SAD implements the following accepted ADRs:
 - **ADR-003** Snapshot-first data architecture + invalidation
 - **ADR-004** Multi-currency + daily FX handling for `TWR_DAILY_V1`
 - **ADR-005** Recommendation orchestration + deduplication
-- **ADR-006** Passwordless email OTP via SES
+- **ADR-006** Passwordless email OTP via SES (superseded)
+- **ADR-011** Username/password authentication (superseding ADR-006)
 - **ADR-007** Postgres-backed cookie sessions
 - **ADR-008** OpenAI-first integration
 - **ADR-009** REST JSON + typed DTOs
@@ -723,7 +707,7 @@ This SAD implements the following accepted ADRs:
 ## 25. Next Recommended Technical Documents
 
 1. **API Specification (OpenAPI)**
-2. **Data Model v2 (updated for email OTP + snapshots)**
+2. **Data Model v2 (updated for username/password auth + snapshots)**
 3. **Snapshot Rebuild Algorithm Spec**
 4. **Recommendation Engine Technical Spec (payload schemas + validation)**
-5. **AWS Infrastructure Spec (networking, ECS services, IAM, secrets, SES setup)**
+5. **AWS Infrastructure Spec (networking, ECS services, IAM, secrets)**
