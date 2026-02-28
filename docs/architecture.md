@@ -533,7 +533,9 @@ If an equivalent run exists:
 
 ## 17.4 Secrets and Configuration
 ### Local
-- `.env` files (developer-managed)
+- A single root `.env` file (developer-managed) at the repository root.
+- `/.env.example` is committed as the template; `/.env` must never be committed.
+- Do not create per-service `.env` files in subdirectories (all apps/services/workers read env from the root).
 
 ### Production
 - AWS Secrets Manager (encrypted with KMS)

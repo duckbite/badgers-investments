@@ -1,0 +1,526 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("API_DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// -----------------------------
+// Enums (MVP)
+// -----------------------------
+
+enum AssetType {
+  CASH
+  STOCK
+  ETF
+}
+
+enum TransactionType {
+  BUY
+  SELL
+  DEPOSIT
+  WITHDRAWAL
+  FEE
+  ADJUSTMENT
+  DIVIDEND
+  INTEREST
+}
+
+enum CashImpactDirection {
+  IN
+  OUT
+}
+
+enum RecommendationScopeType {
+  PORTFOLIO
+  ASSET
+}
+
+enum RecommendationType {
+  BUY
+  SELL
+  HOLD
+  WATCH
+}
+
+enum RecommendationRunStatus {
+  STARTED
+  COMPLETED
+  PARTIAL
+  FAILED
+}
+
+enum FindingSeverity {
+  INFO
+  WARN
+  HIGH
+}
+
+// -----------------------------
+// Auth / Sessions
+// -----------------------------
+
+model UserAccount {
+  id          String    @id @default(uuid()) @db.Uuid
+  email       String    @unique
+  isActive    Boolean   @default(true) @map("is_active")
+  lastLoginAt DateTime? @map("last_login_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  otpChallenges             AuthOtpChallenge[]
+  sessions                  UserSession[]
+  portfolios                Portfolio[]
+  manualValuationsCreated   AssetValuationManual[]   @relation("AssetValuationManualCreatedBy")
+  transactionsCreated       TransactionLedger[]      @relation("TransactionCreatedBy")
+  transactionsDeleted       TransactionLedger[]      @relation("TransactionDeletedBy")
+  configVersionsCreated     PortfolioConfigVersion[] @relation("PortfolioConfigCreatedBy")
+  recommendationRunsCreated RecommendationRun[]      @relation("RecommendationRunCreatedBy")
+  auditEvents               AuditLog[]               @relation("AuditLogActor")
+
+  @@map("user_account")
+}
+
+model AuthOtpChallenge {
+  id                String    @id @default(uuid()) @db.Uuid
+  userId            String?   @map("user_id") @db.Uuid
+  email             String
+  otpCodeHash       String    @map("otp_code_hash")
+  purpose           String
+  expiresAt         DateTime  @map("expires_at") @db.Timestamptz(6)
+  consumedAt        DateTime? @map("consumed_at") @db.Timestamptz(6)
+  attemptCount      Int       @default(0) @map("attempt_count")
+  maxAttempts       Int       @default(5) @map("max_attempts")
+  sentViaProvider   String?   @map("sent_via_provider")
+  providerMessageId String?   @map("provider_message_id")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user UserAccount? @relation(fields: [userId], references: [id])
+
+  @@index([email, expiresAt], map: "auth_otp_challenge_email_expires_idx")
+  @@map("auth_otp_challenge")
+}
+
+model UserSession {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastSeenAt DateTime  @map("last_seen_at") @db.Timestamptz(6)
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
+  ipAddress  String?   @map("ip_address")
+  userAgent  String?   @map("user_agent")
+  isRevoked  Boolean   @default(false) @map("is_revoked")
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  user UserAccount @relation(fields: [userId], references: [id])
+
+  @@index([userId, expiresAt], map: "user_session_user_expires_idx")
+  @@map("user_session")
+}
+
+// -----------------------------
+// Portfolio / Assets / Ledger
+// -----------------------------
+
+model Portfolio {
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+  name             String
+  baseCurrencyCode String   @map("base_currency_code") @db.Char(3)
+  isActive         Boolean  @default(true) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user                 UserAccount              @relation(fields: [userId], references: [id])
+  assets               Asset[]
+  transactions         TransactionLedger[]
+  configVersions       PortfolioConfigVersion[]
+  recommendationRuns   RecommendationRun[]
+  positionSnapshots    PositionSnapshot[]
+  portfolioSnapshots   PortfolioSnapshot[]
+  performanceSnapshots PerformanceSnapshot[]
+
+  @@index([userId, isActive], map: "portfolio_user_active_idx")
+  @@map("portfolio")
+}
+
+model Asset {
+  id                  String    @id @default(uuid()) @db.Uuid
+  portfolioId         String    @map("portfolio_id") @db.Uuid
+  assetType           AssetType @map("asset_type")
+  name                String
+  symbol              String?
+  isin                String?
+  exchangeCode        String?   @map("exchange_code")
+  currencyCode        String    @map("currency_code") @db.Char(3)
+  countryCode         String?   @map("country_code") @db.Char(2)
+  sector              String?
+  isListedMarketAsset Boolean   @default(false) @map("is_listed_market_asset")
+  ownershipPct        Decimal   @default(100.0) @map("ownership_pct") @db.Decimal(5, 2)
+  isActive            Boolean   @default(true) @map("is_active")
+  notes               String?
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  archivedAt          DateTime? @map("archived_at") @db.Timestamptz(6)
+
+  portfolio           Portfolio              @relation(fields: [portfolioId], references: [id])
+  transactions        TransactionLedger[]
+  manualValuations    AssetValuationManual[]
+  prices              PriceSnapshot[]
+  recommendationItems RecommendationItem[]
+  ruleFindings        RuleFinding[]
+  positionSnapshots   PositionSnapshot[]
+
+  @@index([portfolioId, isActive], map: "asset_portfolio_active_idx")
+  @@index([portfolioId, assetType], map: "asset_portfolio_type_idx")
+  @@map("asset")
+}
+
+model AssetValuationManual {
+  id                 String    @id @default(uuid()) @db.Uuid
+  assetId            String    @map("asset_id") @db.Uuid
+  valuationAmount    Decimal   @map("valuation_amount") @db.Decimal(20, 8)
+  currencyCode       String    @map("currency_code") @db.Char(3)
+  valuationDate      DateTime  @map("valuation_date") @db.Date
+  valuationTimestamp DateTime? @map("valuation_timestamp") @db.Timestamptz(6)
+  sourceType         String    @map("source_type")
+  sourceNote         String?   @map("source_note")
+  createdByUserId    String    @map("created_by_user_id") @db.Uuid
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  asset     Asset       @relation(fields: [assetId], references: [id])
+  createdBy UserAccount @relation("AssetValuationManualCreatedBy", fields: [createdByUserId], references: [id])
+
+  @@index([assetId, valuationDate], map: "asset_valuation_manual_asset_date_idx")
+  @@map("asset_valuation_manual")
+}
+
+model TransactionLedger {
+  id                    String               @id @default(uuid()) @db.Uuid
+  portfolioId           String               @map("portfolio_id") @db.Uuid
+  assetId               String               @map("asset_id") @db.Uuid
+  transactionType       TransactionType      @map("transaction_type")
+  tradeDate             DateTime             @map("trade_date") @db.Date
+  tradeTimestamp        DateTime?            @map("trade_timestamp") @db.Timestamptz(6)
+  quantity              Decimal?             @db.Decimal(28, 12)
+  unitPrice             Decimal?             @map("unit_price") @db.Decimal(20, 8)
+  grossAmount           Decimal?             @map("gross_amount") @db.Decimal(20, 8)
+  feeAmount             Decimal              @default(0) @map("fee_amount") @db.Decimal(20, 8)
+  taxAmount             Decimal?             @map("tax_amount") @db.Decimal(20, 8)
+  currencyCode          String               @map("currency_code") @db.Char(3)
+  fxRateToPortfolioBase Decimal?             @map("fx_rate_to_portfolio_base") @db.Decimal(20, 10)
+  cashImpactAmount      Decimal?             @map("cash_impact_amount") @db.Decimal(20, 8)
+  cashImpactDirection   CashImpactDirection? @map("cash_impact_direction")
+  externalReference     String?              @map("external_reference")
+  sourceType            String               @default("MANUAL") @map("source_type")
+  notes                 String?
+  isDeleted             Boolean              @default(false) @map("is_deleted")
+  deletedAt             DateTime?            @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId       String?              @map("deleted_by_user_id") @db.Uuid
+  createdByUserId       String               @map("created_by_user_id") @db.Uuid
+  createdAt             DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  portfolio Portfolio    @relation(fields: [portfolioId], references: [id])
+  asset     Asset        @relation(fields: [assetId], references: [id])
+  createdBy UserAccount  @relation("TransactionCreatedBy", fields: [createdByUserId], references: [id])
+  deletedBy UserAccount? @relation("TransactionDeletedBy", fields: [deletedByUserId], references: [id])
+
+  lotsSold   TransactionLotLink[] @relation("SellTransaction")
+  lotsBought TransactionLotLink[] @relation("BuyTransaction")
+
+  @@index([portfolioId, tradeDate], map: "transaction_ledger_portfolio_trade_date_idx")
+  @@index([assetId, tradeDate], map: "transaction_ledger_asset_trade_date_idx")
+  @@index([portfolioId, assetId, tradeDate], map: "transaction_ledger_portfolio_asset_trade_date_idx")
+  @@map("transaction_ledger")
+}
+
+model TransactionLotLink {
+  id                String   @id @default(uuid()) @db.Uuid
+  sellTransactionId String   @map("sell_transaction_id") @db.Uuid
+  buyTransactionId  String   @map("buy_transaction_id") @db.Uuid
+  matchedQuantity   Decimal  @map("matched_quantity") @db.Decimal(28, 12)
+  buyUnitPrice      Decimal  @map("buy_unit_price") @db.Decimal(20, 8)
+  sellUnitPrice     Decimal  @map("sell_unit_price") @db.Decimal(20, 8)
+  realisedPnlAmount Decimal  @map("realised_pnl_amount") @db.Decimal(20, 8)
+  currencyCode      String   @map("currency_code") @db.Char(3)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  sellTransaction TransactionLedger @relation("SellTransaction", fields: [sellTransactionId], references: [id])
+  buyTransaction  TransactionLedger @relation("BuyTransaction", fields: [buyTransactionId], references: [id])
+
+  @@index([sellTransactionId], map: "transaction_lot_link_sell_idx")
+  @@index([buyTransactionId], map: "transaction_lot_link_buy_idx")
+  @@map("transaction_lot_link")
+}
+
+// -----------------------------
+// Market data
+// -----------------------------
+
+model MarketDataProvider {
+  id                  String   @id @default(uuid()) @db.Uuid
+  providerKey         String   @unique @map("provider_key")
+  providerType        String   @map("provider_type")
+  isEnabled           Boolean  @default(true) @map("is_enabled")
+  configJsonEncrypted String?  @map("config_json_encrypted")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  prices  PriceSnapshot[]
+  fxRates FxRateSnapshot[]
+
+  @@map("market_data_provider")
+}
+
+model PriceSnapshot {
+  id             String   @id @default(uuid()) @db.Uuid
+  assetId        String   @map("asset_id") @db.Uuid
+  providerId     String?  @map("provider_id") @db.Uuid
+  price          Decimal  @db.Decimal(20, 8)
+  currencyCode   String   @map("currency_code") @db.Char(3)
+  priceTimestamp DateTime @map("price_timestamp") @db.Timestamptz(6)
+  priceDate      DateTime @map("price_date") @db.Date
+  dataQuality    String?  @map("data_quality")
+  rawPayloadHash String?  @map("raw_payload_hash")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  asset    Asset               @relation(fields: [assetId], references: [id])
+  provider MarketDataProvider? @relation(fields: [providerId], references: [id])
+
+  @@unique([assetId, providerId, priceTimestamp], map: "price_snapshot_asset_provider_timestamp_uq")
+  @@index([assetId, priceTimestamp], map: "price_snapshot_asset_timestamp_idx")
+  @@map("price_snapshot")
+}
+
+model FxRateSnapshot {
+  id                String   @id @default(uuid()) @db.Uuid
+  baseCurrencyCode  String   @map("base_currency_code") @db.Char(3)
+  quoteCurrencyCode String   @map("quote_currency_code") @db.Char(3)
+  rate              Decimal  @db.Decimal(20, 10)
+  rateTimestamp     DateTime @map("rate_timestamp") @db.Timestamptz(6)
+  rateDate          DateTime @map("rate_date") @db.Date
+  providerId        String?  @map("provider_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  provider MarketDataProvider? @relation(fields: [providerId], references: [id])
+
+  @@index([baseCurrencyCode, quoteCurrencyCode, rateDate], map: "fx_rate_snapshot_pair_date_idx")
+  @@map("fx_rate_snapshot")
+}
+
+// -----------------------------
+// Recommendation engine
+// -----------------------------
+
+model PortfolioConfigVersion {
+  id                      String   @id @default(uuid()) @db.Uuid
+  portfolioId             String   @map("portfolio_id") @db.Uuid
+  versionNumber           Int      @map("version_number")
+  isActive                Boolean  @default(true) @map("is_active")
+  riskProfileType         String   @map("risk_profile_type")
+  riskScore               Int?     @map("risk_score")
+  baseCurrencyCode        String   @map("base_currency_code") @db.Char(3)
+  targetAllocationsJson   Json     @map("target_allocations_json")
+  concentrationLimitsJson Json     @map("concentration_limits_json")
+  preferencesJson         Json?    @map("preferences_json")
+  aiPromptOverridesJson   Json?    @map("ai_prompt_overrides_json")
+  notes                   String?
+  createdByUserId         String   @map("created_by_user_id") @db.Uuid
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  portfolio Portfolio           @relation(fields: [portfolioId], references: [id])
+  createdBy UserAccount         @relation("PortfolioConfigCreatedBy", fields: [createdByUserId], references: [id])
+  runs      RecommendationRun[]
+
+  @@unique([portfolioId, versionNumber], map: "portfolio_config_version_portfolio_version_uq")
+  @@map("portfolio_config_version")
+}
+
+model RecommendationRun {
+  id                          String                  @id @default(uuid()) @db.Uuid
+  portfolioId                 String                  @map("portfolio_id") @db.Uuid
+  configVersionId             String                  @map("config_version_id") @db.Uuid
+  runTriggerType              String                  @map("run_trigger_type")
+  runStatus                   RecommendationRunStatus @map("run_status")
+  startedAt                   DateTime                @map("started_at") @db.Timestamptz(6)
+  completedAt                 DateTime?               @map("completed_at") @db.Timestamptz(6)
+  portfolioValuationTimestamp DateTime?               @map("portfolio_valuation_timestamp") @db.Timestamptz(6)
+  priceDataFreshnessSummary   Json?                   @map("price_data_freshness_summary")
+  analyticsInputHash          String?                 @map("analytics_input_hash")
+  analyticsSummaryJson        Json?                   @map("analytics_summary_json")
+  aiProviderKey               String?                 @map("ai_provider_key")
+  aiModelName                 String?                 @map("ai_model_name")
+  aiRequestId                 String?                 @map("ai_request_id")
+  aiPromptVersion             String?                 @map("ai_prompt_version")
+  aiStatus                    String?                 @map("ai_status")
+  aiErrorMessage              String?                 @map("ai_error_message")
+  portfolioLevelSummary       String?                 @map("portfolio_level_summary")
+  ruleSetVersion              String?                 @map("rule_set_version")
+  analyticsSchemaVersion      String?                 @map("analytics_schema_version")
+  calculationMethodVersion    String?                 @map("calculation_method_version")
+  createdByUserId             String?                 @map("created_by_user_id") @db.Uuid
+  createdAt                   DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  portfolio     Portfolio              @relation(fields: [portfolioId], references: [id])
+  configVersion PortfolioConfigVersion @relation(fields: [configVersionId], references: [id])
+  createdBy     UserAccount?           @relation("RecommendationRunCreatedBy", fields: [createdByUserId], references: [id])
+
+  items    RecommendationItem[]
+  findings RuleFinding[]
+
+  @@index([portfolioId, startedAt], map: "recommendation_run_portfolio_started_idx")
+  @@map("recommendation_run")
+}
+
+model RecommendationItem {
+  id                  String                  @id @default(uuid()) @db.Uuid
+  recommendationRunId String                  @map("recommendation_run_id") @db.Uuid
+  scopeType           RecommendationScopeType @map("scope_type")
+  assetId             String?                 @map("asset_id") @db.Uuid
+  recommendationType  RecommendationType      @map("recommendation_type")
+  strengthScore       Decimal?                @map("strength_score") @db.Decimal(5, 2)
+  confidenceScore     Decimal?                @map("confidence_score") @db.Decimal(5, 2)
+  priorityRank        Int?                    @map("priority_rank")
+  headline            String?
+  rationale           String
+  assumptions         String?
+  suggestedActionJson Json?                   @map("suggested_action_json")
+  createdAt           DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  run   RecommendationRun @relation(fields: [recommendationRunId], references: [id])
+  asset Asset?            @relation(fields: [assetId], references: [id])
+
+  @@index([recommendationRunId], map: "recommendation_item_run_idx")
+  @@index([assetId], map: "recommendation_item_asset_idx")
+  @@map("recommendation_item")
+}
+
+model RuleFinding {
+  id                  String                  @id @default(uuid()) @db.Uuid
+  recommendationRunId String                  @map("recommendation_run_id") @db.Uuid
+  ruleCode            String                  @map("rule_code")
+  severity            FindingSeverity
+  scopeType           RecommendationScopeType @map("scope_type")
+  assetId             String?                 @map("asset_id") @db.Uuid
+  findingText         String                  @map("finding_text")
+  metricsJson         Json?                   @map("metrics_json")
+  triggered           Boolean                 @default(true)
+  createdAt           DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  run   RecommendationRun @relation(fields: [recommendationRunId], references: [id])
+  asset Asset?            @relation(fields: [assetId], references: [id])
+
+  @@index([recommendationRunId], map: "rule_finding_run_idx")
+  @@index([assetId], map: "rule_finding_asset_idx")
+  @@map("rule_finding")
+}
+
+// -----------------------------
+// Audit / Ops
+// -----------------------------
+
+model AuditLog {
+  id             String   @id @default(uuid()) @db.Uuid
+  eventType      String   @map("event_type")
+  entityType     String?  @map("entity_type")
+  entityId       String?  @map("entity_id")
+  actorUserId    String?  @map("actor_user_id") @db.Uuid
+  eventTimestamp DateTime @map("event_timestamp") @db.Timestamptz(6)
+  ipAddress      String?  @map("ip_address")
+  userAgent      String?  @map("user_agent")
+  metadataJson   Json?    @map("metadata_json")
+  beforeJson     Json?    @map("before_json")
+  afterJson      Json?    @map("after_json")
+
+  actor UserAccount? @relation("AuditLogActor", fields: [actorUserId], references: [id])
+
+  @@index([eventTimestamp], map: "audit_log_timestamp_idx")
+  @@index([entityType, entityId], map: "audit_log_entity_idx")
+  @@map("audit_log")
+}
+
+model JobRunLog {
+  id           String    @id @default(uuid()) @db.Uuid
+  jobType      String    @map("job_type")
+  triggerType  String    @map("trigger_type")
+  status       String
+  startedAt    DateTime  @map("started_at") @db.Timestamptz(6)
+  completedAt  DateTime? @map("completed_at") @db.Timestamptz(6)
+  summaryJson  Json?     @map("summary_json")
+  errorMessage String?   @map("error_message")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([jobType, startedAt], map: "job_run_log_job_started_idx")
+  @@map("job_run_log")
+}
+
+// -----------------------------
+// Snapshot-first derived tables
+// -----------------------------
+
+model PositionSnapshot {
+  id                          String   @id @default(uuid()) @db.Uuid
+  portfolioId                 String   @map("portfolio_id") @db.Uuid
+  assetId                     String   @map("asset_id") @db.Uuid
+  snapshotTimestamp           DateTime @map("snapshot_timestamp") @db.Timestamptz(6)
+  quantityHeld                Decimal? @map("quantity_held") @db.Decimal(28, 12)
+  costBasisAmount             Decimal? @map("cost_basis_amount") @db.Decimal(20, 8)
+  marketPrice                 Decimal? @map("market_price") @db.Decimal(20, 8)
+  marketPriceCurrencyCode     String?  @map("market_price_currency_code") @db.Char(3)
+  marketValueAmount           Decimal? @map("market_value_amount") @db.Decimal(20, 8)
+  ownedMarketValueAmount      Decimal? @map("owned_market_value_amount") @db.Decimal(20, 8)
+  unrealisedPnlAmount         Decimal? @map("unrealised_pnl_amount") @db.Decimal(20, 8)
+  realisedPnlCumulativeAmount Decimal? @map("realised_pnl_cumulative_amount") @db.Decimal(20, 8)
+  allocationPct               Decimal? @map("allocation_pct") @db.Decimal(7, 4)
+  dataSourceSummaryJson       Json?    @map("data_source_summary_json")
+  createdAt                   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  portfolio Portfolio @relation(fields: [portfolioId], references: [id])
+  asset     Asset     @relation(fields: [assetId], references: [id])
+
+  @@index([portfolioId, snapshotTimestamp], map: "position_snapshot_portfolio_ts_idx")
+  @@index([assetId, snapshotTimestamp], map: "position_snapshot_asset_ts_idx")
+  @@map("position_snapshot")
+}
+
+model PortfolioSnapshot {
+  id                          String   @id @default(uuid()) @db.Uuid
+  portfolioId                 String   @map("portfolio_id") @db.Uuid
+  snapshotTimestamp           DateTime @map("snapshot_timestamp") @db.Timestamptz(6)
+  totalMarketValueAmount      Decimal? @map("total_market_value_amount") @db.Decimal(20, 8)
+  totalOwnedMarketValueAmount Decimal? @map("total_owned_market_value_amount") @db.Decimal(20, 8)
+  totalUnrealisedPnlAmount    Decimal? @map("total_unrealised_pnl_amount") @db.Decimal(20, 8)
+  totalRealisedPnlAmount      Decimal? @map("total_realised_pnl_amount") @db.Decimal(20, 8)
+  cashValueAmount             Decimal? @map("cash_value_amount") @db.Decimal(20, 8)
+  allocationByAssetTypeJson   Json?    @map("allocation_by_asset_type_json")
+  allocationByAssetJson       Json?    @map("allocation_by_asset_json")
+  createdAt                   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  portfolio Portfolio @relation(fields: [portfolioId], references: [id])
+
+  @@index([portfolioId, snapshotTimestamp], map: "portfolio_snapshot_portfolio_ts_idx")
+  @@map("portfolio_snapshot")
+}
+
+model PerformanceSnapshot {
+  id                      String   @id @default(uuid()) @db.Uuid
+  portfolioId             String   @map("portfolio_id") @db.Uuid
+  periodStart             DateTime @map("period_start") @db.Date
+  periodEnd               DateTime @map("period_end") @db.Date
+  asOfTimestamp           DateTime @map("as_of_timestamp") @db.Timestamptz(6)
+  twrReturn               Decimal  @map("twr_return") @db.Decimal(20, 10)
+  valuationStartAmount    Decimal? @map("valuation_start_amount") @db.Decimal(20, 8)
+  valuationEndAmount      Decimal? @map("valuation_end_amount") @db.Decimal(20, 8)
+  externalCashFlowsAmount Decimal? @map("external_cash_flows_amount") @db.Decimal(20, 8)
+  calculationMethod       String   @map("calculation_method")
+  calculationVersion      String   @map("calculation_version")
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  portfolio Portfolio @relation(fields: [portfolioId], references: [id])
+
+  @@index([portfolioId, asOfTimestamp], map: "performance_snapshot_portfolio_asof_idx")
+  @@map("performance_snapshot")
+}

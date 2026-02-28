@@ -9,6 +9,8 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 | `package.json` | Root package: pnpm workspace scripts (`build`, `dev`, `lint`, `test`), Turborepo and TypeScript as devDependencies. Private; not published. |
 | `pnpm-workspace.yaml` | pnpm workspace definition: `apps/*`, `services/*`, `workers/*`, `shared/*/*`, `tools/*`. |
 | `turbo.json` | Turborepo pipeline: `build` (with ^build), `dev` (persistent), `lint`, `test`, `clean`. |
+| `docker-compose.yml` | Local development dependencies (PostgreSQL). |
+| `.env.example` | Root environment template (copy to `.env`). All env variables live at repo root. |
 | `README.md` | How to run, test, and deploy the application. |
 | `.gitignore` | Ignored paths (node_modules, build outputs, env files, etc.). |
 
@@ -23,6 +25,7 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 | Path | Description |
 |------|-------------|
 | `services/api/` | Fastify backend REST API (Node.js/TypeScript). Entry: `src/index.ts`. Scripts: `dev` (tsx watch), `build` (tsc), `start`, `lint`, `clean`. Build output: `dist/`. |
+| `services/api/prisma/` | Prisma schema and migrations (PostgreSQL). |
 
 ## Workers
 

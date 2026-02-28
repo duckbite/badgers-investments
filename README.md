@@ -63,7 +63,9 @@ pnpm install
 
 ### 2. Environment
 
-Copy the example env and set required variables (database URL, SES config for OTP, OpenAI API key for recommendations):
+Copy the root env template and set required variables (DB credentials/port, API port, database URL, SES config for OTP, OpenAI API key for recommendations).
+
+All env variables live at the repo root (no per-service `.env` files).
 
 ```bash
 cp .env.example .env
@@ -75,11 +77,11 @@ cp .env.example .env
 Start Postgres (e.g. via Docker) and run migrations:
 
 ```bash
-# Example: start Postgres
-docker run -d --name badgers-db -e POSTGRES_USER=badgers -e POSTGRES_PASSWORD=local -e POSTGRES_DB=badgers -p 5432:5432 postgres:16
+# Start Postgres
+docker compose up -d db
 
 # Run migrations (when backend exists)
-pnpm --filter api db:migrate
+pnpm --filter api db:deploy
 ```
 
 ### 4. Run locally
