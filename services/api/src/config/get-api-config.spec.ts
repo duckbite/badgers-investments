@@ -1,5 +1,27 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { getApiConfig } from './get-api-config.js';
+
+const ENVIRONMENT_KEYS = ['API_PORT', 'API_DATABASE_URL'] as const;
+type EnvironmentKey = (typeof ENVIRONMENT_KEYS)[number];
+type EnvironmentSnapshot = Readonly<Record<EnvironmentKey, string | undefined>>;
+
+function captureEnvironmentSnapshot(): EnvironmentSnapshot {
+  return {
+    API_PORT: process.env['API_PORT'],
+    API_DATABASE_URL: process.env['API_DATABASE_URL'],
+  };
+}
+
+function restoreEnvironmentSnapshot(input: { readonly snapshot: EnvironmentSnapshot }): void {
+  for (const key of ENVIRONMENT_KEYS) {
+    const value: string | undefined = input.snapshot[key];
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
+  }
+}
 
 function setEnvironmentVariable(input: { readonly key: string; readonly value: string }): void {
   process.env[input.key] = input.value;
@@ -10,6 +32,16 @@ function deleteEnvironmentVariable(input: { readonly key: string }): void {
 }
 
 describe('getApiConfig', () => {
+  let snapshot: EnvironmentSnapshot;
+
+  beforeEach(() => {
+    snapshot = captureEnvironmentSnapshot();
+  });
+
+  afterEach(() => {
+    restoreEnvironmentSnapshot({ snapshot });
+  });
+
   it('throws when API_DATABASE_URL is missing', () => {
     deleteEnvironmentVariable({ key: 'API_DATABASE_URL' });
     expect(() => getApiConfig()).toThrowError('Missing required environment variable: API_DATABASE_URL');
