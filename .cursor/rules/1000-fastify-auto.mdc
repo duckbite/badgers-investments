@@ -1,5 +1,7 @@
 ---
-alwaysApply: true
+description:
+alwaysApply: false
+globs: services/api/src/**/*.ts
 ---
 
 You are a senior TypeScript programmer with experience in the Fastify framework and a preference for clean programming and design patterns.
@@ -117,3 +119,4 @@ Testing:
 - Use test doubles (mocks, stubs) to simulate dependencies.
 - Write end-to-end tests using Fastify's inject method for simulating requests.
 - Create a /health route for health checks or smoke tests in each module.
+

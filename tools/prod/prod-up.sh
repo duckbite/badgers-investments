@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+BOOTSTRAP_DIR="${ROOT_DIR}/infra/terraform/bootstrap"
+PROD_DIR="${ROOT_DIR}/infra/terraform/envs/prod"
+
+function require_command() {
+  local command_name="$1"
+  if ! command -v "${command_name}" >/dev/null 2>&1; then
+    echo "Missing required command: ${command_name}" >&2
+    exit 1
+  fi
+}
+
+require_command terraform
+require_command aws
+require_command docker
+require_command git
+require_command curl
+require_command python3
+
+if [[ ! -f "${PROD_DIR}/terraform.tfvars" ]]; then
+  echo "Missing ${PROD_DIR}/terraform.tfvars. Copy terraform.tfvars.example and fill it in." >&2
+  exit 1
+fi
+
+AWS_REGION_FROM_TFVARS="$(python3 - <<'PY'
+import re
+from pathlib import Path
+content = Path("infra/terraform/envs/prod/terraform.tfvars").read_text(encoding="utf-8")
+m = re.search(r'^\s*aws_region\s*=\s*\"([^\"]+)\"\s*$', content, re.M)
+print(m.group(1) if m else "")
+PY
+)"
+
+if [[ -z "${AWS_REGION_FROM_TFVARS}" ]]; then
+  echo "Missing aws_region in infra/terraform/envs/prod/terraform.tfvars" >&2
+  exit 1
+fi
+
+GIT_SHA="$(git -C "${ROOT_DIR}" rev-parse --short=12 HEAD)"
+
+echo "Using region: ${AWS_REGION_FROM_TFVARS}"
+echo "Using image tag: ${GIT_SHA}"
+
+echo "Bootstrapping Terraform state backend."
+terraform -chdir="${BOOTSTRAP_DIR}" init -upgrade
+terraform -chdir="${BOOTSTRAP_DIR}" apply -auto-approve -var="aws_region=${AWS_REGION_FROM_TFVARS}"
+
+STATE_BUCKET="$(terraform -chdir="${BOOTSTRAP_DIR}" output -raw state_bucket_name)"
+STATE_TABLE="$(terraform -chdir="${BOOTSTRAP_DIR}" output -raw state_lock_table_name)"
+STATE_KEY="$(terraform -chdir="${BOOTSTRAP_DIR}" output -raw state_key)"
+
+BACKEND_FILE="${PROD_DIR}/backend.hcl"
+cat > "${BACKEND_FILE}" <<EOF
+bucket         = "${STATE_BUCKET}"
+dynamodb_table = "${STATE_TABLE}"
+key            = "${STATE_KEY}"
+region         = "${AWS_REGION_FROM_TFVARS}"
+encrypt        = true
+EOF
+
+echo "Applying production infrastructure (phase 1: shared infra only)."
+terraform -chdir="${PROD_DIR}" init -upgrade -reconfigure -backend-config="${BACKEND_FILE}"
+terraform -chdir="${PROD_DIR}" apply -auto-approve -var-file="terraform.tfvars" -var="enable_services=false"
+
+echo "Building and pushing Docker images to ECR."
+"${ROOT_DIR}/tools/prod/deploy-prod.sh" "${GIT_SHA}"
+
+echo "Applying production infrastructure (phase 2: ECS services enabled)."
+terraform -chdir="${PROD_DIR}" apply -auto-approve -var-file="terraform.tfvars" \
+  -var="enable_services=true" \
+  -var="web_image_tag=${GIT_SHA}" \
+  -var="api_image_tag=${GIT_SHA}" \
+  -var="worker_image_tag=${GIT_SHA}"
+
+echo "Running Prisma migrations via ECS one-off task."
+"${ROOT_DIR}/tools/prod/run-migrations.sh" "${GIT_SHA}"
+
+echo "Running smoke tests."
+"${ROOT_DIR}/tools/prod/smoke-test.sh"
+
+echo "Done."
+

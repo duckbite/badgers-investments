@@ -6,7 +6,7 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 
 | Path | Description |
 |------|-------------|
-| `package.json` | Root package: pnpm workspace scripts (`build`, `dev`, `dev:up`, `db:*`, `lint`, `test`), Turborepo and TypeScript as devDependencies. Private; not published. |
+| `package.json` | Root package: pnpm workspace scripts (`build`, `dev`, `lint`, `test`), Turborepo and TypeScript as devDependencies. Private; not published. |
 | `pnpm-workspace.yaml` | pnpm workspace definition: `apps/*`, `services/*`, `workers/*`, `shared/*/*`, `tools/*`. |
 | `turbo.json` | Turborepo pipeline: `build` (with ^build), `dev` (persistent), `lint`, `test`, `clean`. |
 | `docker-compose.yml` | Local development dependencies (PostgreSQL). |
@@ -18,7 +18,7 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 
 | Path | Description |
 |------|-------------|
-| `apps/web/` | SvelteKit (Svelte 5) frontend (SPA mode). Routes: root redirects to `login` (`src/routes/+page.ts` → `/login`), Dashboard (`src/routes/dashboard/+page.svelte`), plus `assets`, `ledger`, `performance`, `recommendations`. Shared app shell/nav: `src/routes/+layout.svelte` + `src/routes/+layout.ts` (`ssr=false`). Same-origin health proxies: `src/routes/api/health/+server.ts` and `src/routes/api/ready/+server.ts`. Scripts: `dev`, `build`, `preview`, `check`, `lint`. Build output: `.svelte-kit/` and Vite build artifacts. |
+| `apps/web/` | SvelteKit (Svelte 5) frontend. Entry: `src/routes/+page.svelte`. Scripts: `dev`, `build`, `preview`, `check`, `lint`. Build output: `.svelte-kit/` and Vite build artifacts. |
 
 ## Services
 
@@ -47,7 +47,7 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 | `docs/prototype/` | Figma-derived UI prototype (React + Vite); reference only, not part of workspace. |
 | `tools/` | (Reserved) Scripts, codegen, release tooling. |
 | `.cursor/` | Cursor rules and project config. |
-| `logs/` | Conversation and decision logs (see .cursor rules). Files include `decision-log.md` and daily transcripts like `conversation-YYYY-MM-DD.md`. |
+| `logs/` | Conversation and decision logs (see .cursor rules). |
 
 ## Out of workspace
 
@@ -58,9 +58,6 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 - `pnpm install` — Install all workspace dependencies.
 - `pnpm build` — Build all packages (Turborepo).
 - `pnpm dev` — Run `dev` in all packages that define it (Turborepo).
-- `pnpm dev:up` — Start DB, apply migrations, then run API + web dev.
-- `pnpm db:up` — Start local Postgres via Docker Compose.
-- `pnpm db:down` — Stop local Postgres via Docker Compose.
 - `pnpm --filter web dev` — Run frontend dev server only.
 - `pnpm --filter api dev` — Run API dev server only.
 - `pnpm --filter worker dev` — Run worker in watch mode only.

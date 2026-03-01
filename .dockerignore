@@ -1,0 +1,12 @@
+.git
+.github
+.cursor
+.turbo
+**/.svelte-kit
+**/dist
+**/node_modules
+**/.pnpm-store
+logs
+docs/prototype/node_modules
+**/*.log
+**/.DS_Store

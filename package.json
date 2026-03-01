@@ -16,7 +16,17 @@
     "dev:up": "pnpm db:up && pnpm db:generate && pnpm db:deploy && pnpm dev",
     "lint": "turbo run lint",
     "test": "turbo run test",
-    "clean": "turbo run clean --force && rm -rf node_modules"
+    "clean": "turbo run clean --force && rm -rf node_modules",
+
+    "infra:bootstrap": "terraform -chdir=infra/terraform/bootstrap init -upgrade && terraform -chdir=infra/terraform/bootstrap apply",
+    "infra:prod:apply": "terraform -chdir=infra/terraform/envs/prod init -upgrade && terraform -chdir=infra/terraform/envs/prod apply",
+    "deploy:prod": "bash tools/prod/deploy-prod.sh",
+    "smoke:prod": "bash tools/prod/smoke-test.sh",
+    "prod:up": "bash tools/prod/prod-up.sh",
+
+    "infra:fmt": "docker run --rm -v \"$PWD\":/workspace -w /workspace hashicorp/terraform:1.12.2 fmt -recursive infra/terraform",
+    "infra:validate": "docker run --rm -v \"$PWD\":/workspace -w /workspace hashicorp/terraform:1.12.2 -chdir=infra/terraform/envs/prod init -backend=false -upgrade && docker run --rm -v \"$PWD\":/workspace -w /workspace hashicorp/terraform:1.12.2 -chdir=infra/terraform/envs/prod validate",
+    "infra:tflint": "docker run --rm -v \"$PWD\":/workspace -v \"$PWD/.tflint.d\":/root/.tflint.d -w /workspace --entrypoint sh ghcr.io/terraform-linters/tflint:v0.55.0 -lc \"tflint --chdir=infra/terraform/envs/prod --init && tflint --chdir=infra/terraform/envs/prod\""
   },
   "devDependencies": {
     "turbo": "^2.3.0",

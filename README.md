@@ -146,7 +146,65 @@ Production is designed to run on **AWS**:
 - **EventBridge** for scheduled jobs (e.g. snapshot rebuilds)
 - **CloudWatch Logs** for application logs
 
-Deploy steps and infra definitions will live under `infra/` (e.g. Terraform or CDK) and CI under `.github/` when added.
+Infrastructure-as-code lives under `infra/terraform/` (Terraform).
+
+### Prerequisites (production)
+
+- Docker (to run Terraform/tflint via containers)
+- AWS CLI configured for the target account
+- Terraform optional (scripts can run via Docker)
+
+### Terraform quality checks (before applying)
+
+From the repo root:
+
+```bash
+# Format Terraform code
+pnpm infra:fmt
+
+# Initializes providers (backend disabled) and validates config.
+# Also generates/updates: infra/terraform/envs/prod/.terraform.lock.hcl
+pnpm infra:validate
+
+# Runs tflint (auto-initializes plugins, cached under ./.tflint.d)
+pnpm infra:tflint
+```
+
+### One-command production bring-up
+
+1) Create your production variables file:
+
+```bash
+cp infra/terraform/envs/prod/terraform.tfvars.example infra/terraform/envs/prod/terraform.tfvars
+```
+
+2) Fill in at least `aws_region` and (if using Route53-managed DNS) `route53_zone_id`, then run:
+
+```bash
+pnpm prod:up
+```
+
+`pnpm prod:up` performs:
+
+- Bootstrap Terraform remote state (S3 + DynamoDB lock)
+- `terraform apply` for shared infra
+- Build + push Docker images to ECR (tagged by current git SHA)
+- `terraform apply` again to enable ECS services with the new image tags
+- Run Prisma migrations as a one-off ECS task
+- Smoke tests:
+  - `https://api.investments.badgers.nl/health`
+  - `https://api.investments.badgers.nl/ready`
+  - `https://investments.badgers.nl/`
+
+### Manual production commands (optional)
+
+```bash
+# Build + push images (expects an image tag argument, typically git SHA)
+pnpm deploy:prod
+
+# Smoke test production domains
+pnpm smoke:prod
+```
 
 ---
 

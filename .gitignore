@@ -11,6 +11,10 @@ build/
 # Svelte / SvelteKit
 .svelte-kit/
 
+# Terraform
+**/.terraform/
+.tflint.d/
+
 # Vite
 *.local
 
