@@ -14,6 +14,10 @@ build/
 # Terraform
 **/.terraform/
 .tflint.d/
+infra/terraform/envs/prod/backend.hcl
+infra/terraform/envs/prod/terraform.tfvars
+infra/terraform/bootstrap/terraform.tfstate
+infra/terraform/bootstrap/terraform.tfstate.backup
 
 # Vite
 *.local

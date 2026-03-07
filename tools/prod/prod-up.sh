@@ -50,16 +50,15 @@ terraform -chdir="${BOOTSTRAP_DIR}" init -upgrade
 terraform -chdir="${BOOTSTRAP_DIR}" apply -auto-approve -var="aws_region=${AWS_REGION_FROM_TFVARS}"
 
 STATE_BUCKET="$(terraform -chdir="${BOOTSTRAP_DIR}" output -raw state_bucket_name)"
-STATE_TABLE="$(terraform -chdir="${BOOTSTRAP_DIR}" output -raw state_lock_table_name)"
 STATE_KEY="$(terraform -chdir="${BOOTSTRAP_DIR}" output -raw state_key)"
 
 BACKEND_FILE="${PROD_DIR}/backend.hcl"
 cat > "${BACKEND_FILE}" <<EOF
 bucket         = "${STATE_BUCKET}"
-dynamodb_table = "${STATE_TABLE}"
 key            = "${STATE_KEY}"
 region         = "${AWS_REGION_FROM_TFVARS}"
 encrypt        = true
+use_lockfile   = true
 EOF
 
 echo "Applying production infrastructure (phase 1: shared infra only)."
