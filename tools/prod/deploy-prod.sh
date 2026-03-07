@@ -24,6 +24,10 @@ require_command aws
 require_command docker
 require_command python3
 
+AWS_PROFILE="${AWS_PROFILE:-default}"
+export AWS_PROFILE
+export AWS_SDK_LOAD_CONFIG="${AWS_SDK_LOAD_CONFIG:-1}"
+
 if [[ ! -f "${PROD_DIR}/backend.hcl" ]]; then
   echo "Missing ${PROD_DIR}/backend.hcl. Run prod:up at least once." >&2
   exit 1

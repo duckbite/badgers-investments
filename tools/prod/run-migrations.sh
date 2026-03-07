@@ -23,6 +23,10 @@ require_command terraform
 require_command aws
 require_command python3
 
+AWS_PROFILE="${AWS_PROFILE:-default}"
+export AWS_PROFILE
+export AWS_SDK_LOAD_CONFIG="${AWS_SDK_LOAD_CONFIG:-1}"
+
 terraform -chdir="${PROD_DIR}" init -upgrade -reconfigure -backend-config="${PROD_DIR}/backend.hcl" >/dev/null
 
 CLUSTER_ARN="$(terraform -chdir="${PROD_DIR}" output -raw ecs_cluster_arn)"

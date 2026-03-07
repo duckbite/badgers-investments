@@ -21,6 +21,10 @@ require_command git
 require_command curl
 require_command python3
 
+AWS_PROFILE="${AWS_PROFILE:-default}"
+export AWS_PROFILE
+export AWS_SDK_LOAD_CONFIG="${AWS_SDK_LOAD_CONFIG:-1}"
+
 if [[ ! -f "${PROD_DIR}/terraform.tfvars" ]]; then
   echo "Missing ${PROD_DIR}/terraform.tfvars. Copy terraform.tfvars.example and fill it in." >&2
   exit 1
@@ -43,6 +47,7 @@ fi
 GIT_SHA="$(git -C "${ROOT_DIR}" rev-parse --short=12 HEAD)"
 
 echo "Using region: ${AWS_REGION_FROM_TFVARS}"
+echo "Using AWS profile: ${AWS_PROFILE}"
 echo "Using image tag: ${GIT_SHA}"
 
 echo "Bootstrapping Terraform state backend."
