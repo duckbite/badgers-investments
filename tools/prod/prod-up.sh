@@ -73,6 +73,7 @@ EOF
 
 echo "Applying production infrastructure (phase 1: shared infra only)."
 terraform -chdir="${PROD_DIR}" init -upgrade -reconfigure -backend-config="${BACKEND_FILE}"
+bash "${ROOT_DIR}/tools/infra/import-github-actions-oidc-provider.sh" "infra/terraform/envs/prod" "module.github_actions_oidc.aws_iam_openid_connect_provider.github_actions" "https://token.actions.githubusercontent.com"
 terraform -chdir="${PROD_DIR}" apply -auto-approve -var-file="terraform.tfvars" -var="enable_services=false"
 
 echo "Building and pushing Docker images to ECR."

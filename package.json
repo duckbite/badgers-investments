@@ -19,7 +19,7 @@
     "clean": "turbo run clean --force && rm -rf node_modules",
 
     "infra:bootstrap": "terraform -chdir=infra/terraform/bootstrap init -upgrade && terraform -chdir=infra/terraform/bootstrap apply",
-    "infra:prod:apply": "terraform -chdir=infra/terraform/envs/prod init -upgrade && terraform -chdir=infra/terraform/envs/prod apply",
+    "infra:prod:apply": "terraform -chdir=infra/terraform/envs/prod init -upgrade && bash tools/infra/import-github-actions-oidc-provider.sh infra/terraform/envs/prod module.github_actions_oidc.aws_iam_openid_connect_provider.github_actions https://token.actions.githubusercontent.com && terraform -chdir=infra/terraform/envs/prod apply",
     "deploy:prod": "bash tools/prod/deploy-prod.sh",
     "smoke:prod": "bash tools/prod/smoke-test.sh",
     "prod:up": "bash tools/prod/prod-up.sh",
