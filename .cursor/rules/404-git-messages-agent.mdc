@@ -1,12 +1,21 @@
 ---
-description: rules to apply when committing code to version control / git
-globs:
+description: Enforce source-control workflow and commit policy whenever the user requests any git/GitHub action (create/switch branch, stage/commit, push/force-push, open/update PR/MR, merge/rebase/cherry-pick, tag/release). Outcome: prefer feature branches (no direct commits on default branch unless explicitly requested), safer force-push (`--force-with-lease`), and Conventional Commits commit-message formatting.
 alwaysApply: false
 ---
-
 ## Commit Message Rule
 
 # Cursor Rule: Commit Message Policy (Conventional Commits)
+
+## When to apply this rule
+
+Apply this rule whenever the user asks to do anything involving source control, including:
+
+- creating/switching branches
+- staging/committing
+- pushing (including force-push)
+- creating/updating a PR/MR
+- merging/rebasing/cherry-picking
+- tagging/releasing
 
 ## Purpose
 When Cursor generates a Git commit message, it MUST:
@@ -153,3 +162,14 @@ BREAKING CHANGE: requires migration to add GSI1 on users(email).
 * **Always** produce a single, final commit message following the rules above.
 * Prefer **why** over exhaustive file listings; include salient details only.
 * If the change is mixed, choose the **dominant** intent; mention secondary items in the body.
+
+## Branching rule (feature branch required)
+
+When performing git operations (commit/push/PR) Cursor MUST enforce the following:
+
+* **No direct commits to default branches**: Do **not** commit on `main` / `master` (or the repo’s default branch) unless the user explicitly requests it.
+* **Require a feature branch**: If the current branch is `main` / `master` / default branch, create and switch to a new feature branch **before** staging or committing.
+* **Branch naming**:
+  * If an issue ref exists, prefer `<issue-ref>/<short-kebab-summary>` (example: `DB-135/github-actions-cicd`).
+  * Otherwise prefer `chore/<short-kebab-summary>` or `fix/<short-kebab-summary>` depending on dominant intent.
+* **Force push safety**: If rewriting history is required to update a PR branch, prefer `git push --force-with-lease` and avoid plain `--force` unless the user explicitly requests it.
