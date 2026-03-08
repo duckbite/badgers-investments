@@ -25,7 +25,7 @@
     "prod:up": "bash tools/prod/prod-up.sh",
 
     "infra:fmt": "docker run --rm -v \"$PWD\":/workspace -w /workspace hashicorp/terraform:1.12.2 fmt -recursive infra/terraform",
-    "infra:validate": "docker run --rm -v \"$PWD\":/workspace -w /workspace hashicorp/terraform:1.12.2 -chdir=infra/terraform/envs/prod init -backend=false -upgrade && docker run --rm -v \"$PWD\":/workspace -w /workspace hashicorp/terraform:1.12.2 -chdir=infra/terraform/envs/prod validate",
+    "infra:validate": "docker run --rm -v \"$PWD\":/workspace -v \"$HOME/.aws\":/root/.aws:ro -e AWS_PROFILE=default -e AWS_SDK_LOAD_CONFIG=1 -w /workspace hashicorp/terraform:1.12.2 -chdir=infra/terraform/envs/prod init -backend=false -upgrade && docker run --rm -v \"$PWD\":/workspace -v \"$HOME/.aws\":/root/.aws:ro -e AWS_PROFILE=default -e AWS_SDK_LOAD_CONFIG=1 -w /workspace hashicorp/terraform:1.12.2 -chdir=infra/terraform/envs/prod validate",
     "infra:tflint": "docker run --rm -v \"$PWD\":/workspace -v \"$PWD/.tflint.d\":/root/.tflint.d -w /workspace --entrypoint sh ghcr.io/terraform-linters/tflint:v0.55.0 -lc \"tflint --chdir=infra/terraform/envs/prod --init && tflint --chdir=infra/terraform/envs/prod\""
   },
   "devDependencies": {
