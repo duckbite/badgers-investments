@@ -13,6 +13,7 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 | `.env.example` | Root environment template (copy to `.env`). All env variables live at repo root. |
 | `README.md` | How to run, test, and deploy the application. |
 | `.gitignore` | Ignored paths (node_modules, build outputs, env files, etc.). |
+| `.github/` | GitHub Actions workflows (CI/CD). |
 
 ## Apps
 
