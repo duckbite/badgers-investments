@@ -188,13 +188,19 @@ pnpm prod:up
 
 - Bootstrap Terraform remote state (S3 + DynamoDB lock)
 - `terraform apply` for shared infra
-- Build + push Docker images to ECR (tagged by current git SHA)
+- Build + push Docker images to ECR (multi-arch; uses an immutable per-run image tag by default)
 - `terraform apply` again to enable ECS services with the new image tags
 - Run Prisma migrations as a one-off ECS task
 - Smoke tests:
   - `https://api.investments.badgers.nl/health`
   - `https://api.investments.badgers.nl/ready`
   - `https://investments.badgers.nl/`
+
+Notes:
+
+- ECR repositories are configured with **immutable tags**, so rerunning `pnpm prod:up` will generate a **new** image tag per run.
+- Override the tag if needed: `PROD_IMAGE_TAG=... pnpm prod:up`
+- Override build platforms if needed: `DOCKER_PLATFORMS=linux/amd64,linux/arm64 pnpm deploy:prod <tag>`
 
 ### Manual production commands (optional)
 

@@ -121,13 +121,23 @@ variable "availability_zone_count" {
   }
 }
 
-variable "db_engine_version" {
+variable "db_engine_major_version" {
   type        = string
-  description = "Postgres engine version."
-  default     = "16.3"
+  description = "Postgres major version (used to select the latest available engine version per region)."
+  default     = "16"
   validation {
-    condition     = can(regex("^\\d+\\.\\d+(\\.\\d+)?$", var.db_engine_version))
-    error_message = "db_engine_version must look like a semantic version string (e.g. 16.3)."
+    condition     = can(regex("^\\d+$", var.db_engine_major_version))
+    error_message = "db_engine_major_version must be a number-like string (e.g. \"16\")."
+  }
+}
+
+variable "db_engine_version_override" {
+  type        = string
+  description = "Optional full Postgres engine version override (e.g. 16.13). Leave empty to use latest for the major version."
+  default     = ""
+  validation {
+    condition     = var.db_engine_version_override == "" || can(regex("^\\d+\\.\\d+(\\.\\d+)?$", var.db_engine_version_override))
+    error_message = "db_engine_version_override must be empty or look like a semantic version string (e.g. 16.13)."
   }
 }
 

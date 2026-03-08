@@ -28,10 +28,29 @@ print(m.group(1) if m else "api.investments.badgers.nl")
 PY
 )"
 
+function wait_for_http_200() {
+  local url="$1"
+  local label="$2"
+  local max_attempts="${3:-30}"
+  local sleep_seconds="${4:-5}"
+  local attempt=1
+  while [[ "${attempt}" -le "${max_attempts}" ]]; do
+    if curl -fsSL --max-time 10 "${url}" >/dev/null; then
+      echo "${label} OK: ${url}"
+      return 0
+    fi
+    echo "${label} not ready yet (attempt ${attempt}/${max_attempts}): ${url}"
+    sleep "${sleep_seconds}"
+    attempt=$((attempt + 1))
+  done
+  echo "${label} FAILED after ${max_attempts} attempts: ${url}" >&2
+  return 1
+}
+
 echo "Checking API health."
-curl -fsSL "https://${API_DOMAIN}/health" >/dev/null
+wait_for_http_200 "https://${API_DOMAIN}/health" "API health"
 echo "Checking API readiness."
-curl -fsSL "https://${API_DOMAIN}/ready" >/dev/null
+wait_for_http_200 "https://${API_DOMAIN}/ready" "API readiness"
 echo "Checking web root."
-curl -fsSL "https://${WEB_DOMAIN}/" >/dev/null
+wait_for_http_200 "https://${WEB_DOMAIN}/" "Web root"
 

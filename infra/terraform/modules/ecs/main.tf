@@ -73,6 +73,12 @@ resource "aws_iam_role_policy" "task_secrets_access" {
   policy = data.aws_iam_policy_document.task_secrets_access.json
 }
 
+resource "aws_iam_role_policy" "execution_secrets_access" {
+  name   = "${var.name_prefix}-exec-secrets-access"
+  role   = aws_iam_role.execution.id
+  policy = data.aws_iam_policy_document.task_secrets_access.json
+}
+
 resource "aws_ecs_task_definition" "api" {
   count                    = var.enable_services ? 1 : 0
   family                   = "${var.name_prefix}-api"

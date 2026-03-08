@@ -17,6 +17,11 @@ cp infra/terraform/envs/prod/terraform.tfvars.example infra/terraform/envs/prod/
 pnpm prod:up
 ```
 
+Notes:
+
+- ECR repositories use **immutable tags**. `pnpm prod:up` generates a fresh per-run image tag by default. Override with `PROD_IMAGE_TAG=... pnpm prod:up`.
+- Images are built and pushed as **multi-arch** (`linux/amd64,linux/arm64`) via Docker buildx. Override with `DOCKER_PLATFORMS=...` if needed.
+
 ### Formatting / validation / linting
 
 ```bash

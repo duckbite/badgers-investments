@@ -4,9 +4,16 @@ resource "random_password" "db_password" {
   override_special = "!#$%&*()-_=+[]{}<>:?"
 }
 
+data "aws_rds_engine_version" "postgres" {
+  engine  = "postgres"
+  version = var.engine_major_version
+  latest  = true
+}
+
 locals {
   db_name     = "badgers_investments"
   db_username = "badgers"
+  resolved_engine_version = var.engine_version_override == "" ? data.aws_rds_engine_version.postgres.version : var.engine_version_override
 }
 
 resource "aws_db_subnet_group" "main" {
@@ -18,7 +25,7 @@ resource "aws_db_subnet_group" "main" {
 resource "aws_db_instance" "main" {
   identifier            = "${var.name_prefix}-postgres"
   engine                = "postgres"
-  engine_version        = var.engine_version
+  engine_version        = local.resolved_engine_version
   instance_class        = var.instance_class
   allocated_storage     = var.allocated_storage_gb
   max_allocated_storage = var.max_allocated_storage_gb

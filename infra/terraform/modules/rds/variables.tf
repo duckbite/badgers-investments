@@ -18,9 +18,23 @@ variable "db_security_group_id" {
   description = "Security group ID to attach to the RDS instance."
 }
 
-variable "engine_version" {
+variable "engine_major_version" {
   type        = string
-  description = "Postgres engine version."
+  description = "Postgres major version (e.g. 16)."
+  validation {
+    condition     = can(regex("^\\d+$", var.engine_major_version))
+    error_message = "engine_major_version must be a number-like string (e.g. \"16\")."
+  }
+}
+
+variable "engine_version_override" {
+  type        = string
+  description = "Optional full engine version override (e.g. 16.13). Leave empty to use latest for the major version."
+  default     = ""
+  validation {
+    condition     = var.engine_version_override == "" || can(regex("^\\d+\\.\\d+(\\.\\d+)?$", var.engine_version_override))
+    error_message = "engine_version_override must be empty or look like a semantic version string."
+  }
 }
 
 variable "instance_class" {

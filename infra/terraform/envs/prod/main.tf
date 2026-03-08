@@ -28,7 +28,8 @@ module "database" {
   vpc_id                   = module.network.vpc_id
   private_subnet_ids       = module.network.private_subnet_ids
   db_security_group_id     = module.network.db_security_group_id
-  engine_version           = var.db_engine_version
+  engine_major_version     = var.db_engine_major_version
+  engine_version_override  = var.db_engine_version_override
   instance_class           = var.db_instance_class
   allocated_storage_gb     = var.db_allocated_storage
   backup_retention_days    = var.db_backup_retention_days

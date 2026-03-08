@@ -45,10 +45,15 @@ if [[ -z "${AWS_REGION_FROM_TFVARS}" ]]; then
 fi
 
 GIT_SHA="$(git -C "${ROOT_DIR}" rev-parse --short=12 HEAD)"
+if [[ -n "${PROD_IMAGE_TAG:-}" ]]; then
+  IMAGE_TAG="${PROD_IMAGE_TAG}"
+else
+  IMAGE_TAG="${GIT_SHA}-$(date -u +%Y%m%d%H%M%S)"
+fi
 
 echo "Using region: ${AWS_REGION_FROM_TFVARS}"
 echo "Using AWS profile: ${AWS_PROFILE}"
-echo "Using image tag: ${GIT_SHA}"
+echo "Using image tag: ${IMAGE_TAG}"
 
 echo "Bootstrapping Terraform state backend."
 terraform -chdir="${BOOTSTRAP_DIR}" init -upgrade
@@ -71,20 +76,20 @@ terraform -chdir="${PROD_DIR}" init -upgrade -reconfigure -backend-config="${BAC
 terraform -chdir="${PROD_DIR}" apply -auto-approve -var-file="terraform.tfvars" -var="enable_services=false"
 
 echo "Building and pushing Docker images to ECR."
-"${ROOT_DIR}/tools/prod/deploy-prod.sh" "${GIT_SHA}"
+bash "${ROOT_DIR}/tools/prod/deploy-prod.sh" "${IMAGE_TAG}"
 
 echo "Applying production infrastructure (phase 2: ECS services enabled)."
 terraform -chdir="${PROD_DIR}" apply -auto-approve -var-file="terraform.tfvars" \
   -var="enable_services=true" \
-  -var="web_image_tag=${GIT_SHA}" \
-  -var="api_image_tag=${GIT_SHA}" \
-  -var="worker_image_tag=${GIT_SHA}"
+  -var="web_image_tag=${IMAGE_TAG}" \
+  -var="api_image_tag=${IMAGE_TAG}" \
+  -var="worker_image_tag=${IMAGE_TAG}"
 
 echo "Running Prisma migrations via ECS one-off task."
-"${ROOT_DIR}/tools/prod/run-migrations.sh" "${GIT_SHA}"
+bash "${ROOT_DIR}/tools/prod/run-migrations.sh" "${IMAGE_TAG}"
 
 echo "Running smoke tests."
-"${ROOT_DIR}/tools/prod/smoke-test.sh"
+bash "${ROOT_DIR}/tools/prod/smoke-test.sh"
 
 echo "Done."
 
