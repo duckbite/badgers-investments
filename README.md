@@ -212,6 +212,36 @@ pnpm deploy:prod
 pnpm smoke:prod
 ```
 
+### CI/CD (GitHub Actions)
+
+This repo uses **GitHub Actions** for CI/CD:
+
+- **Pull requests** run: `pnpm lint`, `pnpm test`, `pnpm build`
+- **Push to `main`** runs a production deploy (build + push images, ECS rolling deploy, migrations, smoke tests)
+
+#### Required GitHub configuration
+
+**Secrets** (GitHub repo settings):
+
+- `AWS_ROLE_ARN` — IAM role to assume via OIDC (see Terraform output `github_actions_deploy_role_arn`).
+
+**Variables** (GitHub repo settings):
+
+- `AWS_REGION` — AWS region (e.g. `us-east-1`)
+- `ECR_REPO_PREFIX` — ECR repo prefix (defaults to `badgers-investments-prod` in Terraform naming)
+- `ECS_CLUSTER_NAME` — ECS cluster name (Terraform output `ecs_cluster_name`)
+- `ECS_API_SERVICE_NAME` — API ECS service name (Terraform output `ecs_api_service_name`)
+- `ECS_WEB_SERVICE_NAME` — Web ECS service name (Terraform output `ecs_web_service_name`)
+- `ECS_SUBNET_IDS_CSV` — Private subnet IDs (CSV) (Terraform output `private_subnet_ids_csv`)
+- `ECS_SECURITY_GROUP_ID` — ECS security group ID (Terraform output `ecs_security_group_id`)
+- `API_DOMAIN` — API domain (e.g. `api.investments.badgers.nl`)
+- `WEB_DOMAIN` — Web domain (e.g. `investments.badgers.nl`)
+- `DOCKER_PLATFORMS` — Optional override (default: `linux/amd64,linux/arm64`)
+
+#### Rollback
+
+Use the **“Deploy production (AWS ECS)”** workflow (`workflow_dispatch`) and pass a previous `image_tag` (for example an older git SHA) to redeploy that version.
+
 ---
 
 ## Documentation

@@ -84,3 +84,15 @@ module "ecs" {
   enable_services  = var.enable_services
 }
 
+module "github_actions_oidc" {
+  source                 = "../../modules/github-actions-oidc"
+  name_prefix            = "${var.project_name}-${var.environment}"
+  github_org             = var.github_org
+  github_repo            = var.github_repo
+  github_ref             = var.github_ref
+  ecr_repository_arns    = [module.ecr.web_repository_arn, module.ecr.api_repository_arn, module.ecr.worker_repository_arn]
+  ecs_execution_role_arn = module.ecs.execution_role_arn
+  ecs_task_role_arn      = module.ecs.task_role_arn
+  tags                   = local.tags
+}
+

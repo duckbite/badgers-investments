@@ -141,6 +141,24 @@ variable "db_engine_version_override" {
   }
 }
 
+variable "github_org" {
+  type        = string
+  description = "GitHub org/user for OIDC trust policy."
+  default     = "duckbite"
+}
+
+variable "github_repo" {
+  type        = string
+  description = "GitHub repository name for OIDC trust policy."
+  default     = "badgers-investments"
+}
+
+variable "github_ref" {
+  type        = string
+  description = "Git ref for production deploys (used in OIDC subject claim)."
+  default     = "refs/heads/main"
+}
+
 variable "db_instance_class" {
   type        = string
   description = "RDS instance class."

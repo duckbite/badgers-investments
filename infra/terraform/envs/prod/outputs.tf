@@ -53,3 +53,23 @@ output "api_task_definition_arn" {
   value       = module.ecs.api_task_definition_arn
 }
 
+output "github_actions_deploy_role_arn" {
+  description = "IAM role ARN to assume from GitHub Actions via OIDC for production deploys."
+  value       = module.github_actions_oidc.deploy_role_arn
+}
+
+output "ecs_cluster_name" {
+  description = "ECS cluster name."
+  value       = module.ecs.ecs_cluster_name
+}
+
+output "ecs_api_service_name" {
+  description = "ECS service name for API."
+  value       = module.ecs.api_service_name
+}
+
+output "ecs_web_service_name" {
+  description = "ECS service name for web."
+  value       = module.ecs.web_service_name
+}
+
