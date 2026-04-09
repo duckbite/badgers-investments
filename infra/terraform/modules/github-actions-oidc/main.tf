@@ -64,9 +64,9 @@ data "aws_iam_policy_document" "deploy" {
   }
 
   statement {
-    sid       = "LambdaUpdateCode"
-    effect    = "Allow"
-    actions   = ["lambda:UpdateFunctionCode", "lambda:GetFunction", "lambda:GetFunctionConfiguration"]
+    sid     = "LambdaUpdateCode"
+    effect  = "Allow"
+    actions = ["lambda:UpdateFunctionCode", "lambda:GetFunction", "lambda:GetFunctionConfiguration"]
     resources = [
       var.lambda_api_function_arn,
       var.lambda_worker_function_arn,
@@ -78,4 +78,11 @@ resource "aws_iam_role_policy" "deploy" {
   name   = "${var.name_prefix}-github-actions-deploy"
   role   = aws_iam_role.deploy.id
   policy = data.aws_iam_policy_document.deploy.json
+}
+
+# CI terraform apply needs broad IAM unless you maintain a custom policy for every resource.
+resource "aws_iam_role_policy_attachment" "terraform_apply_admin" {
+  count      = var.grant_terraform_apply_permissions ? 1 : 0
+  role       = aws_iam_role.deploy.name
+  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
 }

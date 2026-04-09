@@ -75,3 +75,9 @@ variable "github_ref" {
   description = "Git ref for production deploys (used in OIDC subject claim)."
   default     = "refs/heads/main"
 }
+
+variable "github_actions_grant_terraform_apply" {
+  type        = bool
+  description = "Attach AdministratorAccess to the GitHub OIDC deploy role so CI can terraform apply. Apply once with elevated credentials, then enable; see README."
+  default     = false
+}

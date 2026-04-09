@@ -44,3 +44,9 @@ variable "tags" {
   description = "Tags to apply to IAM resources."
   default     = {}
 }
+
+variable "grant_terraform_apply_permissions" {
+  type        = bool
+  description = "When true, attach AdministratorAccess so this role can run terraform apply in GitHub Actions (state + full stack). Prefer a dedicated ops account; narrow policies are possible but high-maintenance."
+  default     = false
+}

@@ -15,7 +15,7 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 | `.github/` | GitHub Actions workflows (CI/CD). |
 | `.github/workflows/ci-reusable.yml` | Reusable workflow: `pnpm lint`, `test`, `build` (Turbo). Called from PR **CI** and from **main** deploy workflow. |
 | `.github/workflows/ci.yml` | Pull-request **CI** only (calls `ci-reusable.yml`). |
-| `.github/workflows/deploy-prod.yml` | **Main** branch CD: CI → path-gated serverless deploy (Terraform validate when relevant → Lambda bundles + static web → S3/CloudFront + smoke). |
+| `.github/workflows/deploy-prod.yml` | **Main** branch CD: CI → path-gated **Terraform validate + apply** when `infra/**` changes (plus optional manual toggles) → Lambda bundles + static web → S3/CloudFront + smoke. |
 
 ## Apps
 

@@ -5,6 +5,15 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      terraform_apply:
+        description: Run terraform apply for prod (requires PROD_* secrets)
+        type: boolean
+        default: true
+      deploy_application:
+        description: Build and deploy Lambda bundles + static web to S3/CloudFront
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -25,7 +34,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       should_deploy: ${{ steps.decide.outputs.should_deploy }}
-      infra: ${{ steps.decide.outputs.infra }}
+      terraform: ${{ steps.decide.outputs.terraform }}
+      deploy_app: ${{ steps.decide.outputs.deploy_app }}
       deploy_ref: ${{ steps.decide.outputs.deploy_ref }}
     steps:
       - name: Checkout (path filter)
@@ -67,8 +77,23 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TA="${{ github.event.inputs.terraform_apply }}"
+            DA="${{ github.event.inputs.deploy_application }}"
+            if [[ "$TA" != "true" && "$DA" != "true" ]]; then
+              echo "Select at least one of terraform_apply or deploy_application." >&2
+              exit 1
+            fi
+            if [[ "$TA" == "true" ]]; then
+              echo "terraform=true" >>"$GITHUB_OUTPUT"
+            else
+              echo "terraform=false" >>"$GITHUB_OUTPUT"
+            fi
+            if [[ "$DA" == "true" ]]; then
+              echo "deploy_app=true" >>"$GITHUB_OUTPUT"
+            else
+              echo "deploy_app=false" >>"$GITHUB_OUTPUT"
+            fi
             echo "should_deploy=true" >>"$GITHUB_OUTPUT"
-            echo "infra=true" >>"$GITHUB_OUTPUT"
             echo "deploy_ref=${{ github.sha }}" >>"$GITHUB_OUTPUT"
             exit 0
           fi
@@ -80,45 +105,104 @@ jobs:
           REF="${{ github.event.after }}"
 
           echo "deploy_ref=${REF}" >>"$GITHUB_OUTPUT"
-          echo "infra=${INFRA}" >>"$GITHUB_OUTPUT"
+          echo "terraform=${INFRA}" >>"$GITHUB_OUTPUT"
 
           if [[ "${INFRA}" == "true" || "${BACKEND}" == "true" || "${FRONTEND}" == "true" || "${CDW}" == "true" ]]; then
+            echo "deploy_app=true" >>"$GITHUB_OUTPUT"
             echo "should_deploy=true" >>"$GITHUB_OUTPUT"
           else
+            echo "deploy_app=false" >>"$GITHUB_OUTPUT"
             echo "should_deploy=false" >>"$GITHUB_OUTPUT"
           fi
 
-  infra_precheck:
-    name: Terraform validate (prod)
+  prod_infra:
+    name: Terraform validate & apply (prod)
     needs: [qualify]
     if: needs.qualify.outputs.should_deploy == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
     env:
-      TURBO_TELEMETRY_DISABLED: "1"
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      TF_IN_AUTOMATION: "1"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           ref: ${{ needs.qualify.outputs.deploy_ref }}
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
         with:
-          version: 9.14.2
-          run_install: false
+          terraform_version: 1.12.2
+          terraform_wrapper: false
 
-      - name: Terraform validate (prod)
-        if: needs.qualify.outputs.infra == 'true' || github.event_name == 'workflow_dispatch'
-        run: pnpm infra:validate
+      - name: Terraform validate (no backend)
+        if: needs.qualify.outputs.terraform == 'true'
+        working-directory: infra/terraform/envs/prod
+        run: |
+          set -euo pipefail
+          terraform init -backend=false -input=false -upgrade
+          terraform validate
 
-      - name: Skip Terraform (no infra path changes)
-        if: needs.qualify.outputs.infra != 'true' && github.event_name == 'push'
-        run: echo "No infra/terraform paths in this push; skipping terraform validate."
+      - name: Skip Terraform validate
+        if: needs.qualify.outputs.terraform != 'true'
+        run: echo "No infra/** changes (and workflow did not request Terraform); skipping validate/apply."
+
+      - name: Verify AWS region (vars)
+        if: needs.qualify.outputs.terraform == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${AWS_REGION:-}" ]]; then
+            echo "Missing GitHub Actions variable AWS_REGION (needed for Terraform apply)." >&2
+            exit 1
+          fi
+
+      - name: Configure AWS credentials (OIDC)
+        if: needs.qualify.outputs.terraform == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Write prod backend + tfvars from secrets
+        if: needs.qualify.outputs.terraform == 'true'
+        shell: bash
+        env:
+          BACKEND_HCL: ${{ secrets.PROD_TF_BACKEND_HCL }}
+          TFVARS_FILE: ${{ secrets.PROD_TFVARS }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${BACKEND_HCL}" || -z "${TFVARS_FILE}" ]]; then
+            echo "Missing GitHub secret PROD_TF_BACKEND_HCL and/or PROD_TFVARS." >&2
+            echo "Copy your local backend.hcl and terraform.tfvars content into those repo secrets." >&2
+            exit 1
+          fi
+          printf '%s\n' "${BACKEND_HCL}" > infra/terraform/envs/prod/backend.ci.hcl
+          printf '%s\n' "${TFVARS_FILE}" > infra/terraform/envs/prod/terraform.ci.tfvars
+
+      - name: Terraform init (remote state)
+        if: needs.qualify.outputs.terraform == 'true'
+        working-directory: infra/terraform/envs/prod
+        run: terraform init -input=false -upgrade -reconfigure -backend-config=backend.ci.hcl
+
+      - name: Terraform apply
+        if: needs.qualify.outputs.terraform == 'true'
+        working-directory: infra/terraform/envs/prod
+        run: terraform apply -input=false -auto-approve -var-file=terraform.ci.tfvars
+
+      - name: Terraform outputs (summary)
+        if: needs.qualify.outputs.terraform == 'true'
+        working-directory: infra/terraform/envs/prod
+        run: terraform output -no-color >> "$GITHUB_STEP_SUMMARY"
 
   deploy:
     name: Sync web + Lambda code + smoke
-    needs: [qualify, infra_precheck]
-    if: needs.qualify.outputs.should_deploy == 'true'
+    needs: [qualify, prod_infra]
+    if: needs.qualify.outputs.should_deploy == 'true' && needs.qualify.outputs.deploy_app == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:

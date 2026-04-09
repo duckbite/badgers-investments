@@ -16,6 +16,8 @@ build/
 **/.terraform/
 .tflint.d/
 infra/terraform/envs/prod/backend.hcl
+infra/terraform/envs/prod/backend.ci.hcl
+infra/terraform/envs/prod/terraform.ci.tfvars
 infra/terraform/envs/dev/backend.hcl
 infra/terraform/envs/prod/terraform.tfvars
 infra/terraform/bootstrap/terraform.tfstate

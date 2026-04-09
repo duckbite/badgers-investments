@@ -48,13 +48,14 @@ module "worker_lambda" {
 module "github_actions_oidc" {
   source = "../../modules/github-actions-oidc"
 
-  name_prefix    = "${var.project_name}-${var.environment}"
-  github_org     = var.github_org
-  github_repo    = var.github_repo
-  github_ref     = var.github_ref
-  web_s3_bucket_arn          = module.static_site.bucket_arn
-  cloudfront_distribution_arn = module.static_site.cloudfront_distribution_arn
-  lambda_api_function_arn    = module.api_lambda.function_arn
-  lambda_worker_function_arn = module.worker_lambda.function_arn
-  tags                       = local.tags
+  name_prefix                       = "${var.project_name}-${var.environment}"
+  github_org                        = var.github_org
+  github_repo                       = var.github_repo
+  github_ref                        = var.github_ref
+  web_s3_bucket_arn                 = module.static_site.bucket_arn
+  cloudfront_distribution_arn       = module.static_site.cloudfront_distribution_arn
+  lambda_api_function_arn           = module.api_lambda.function_arn
+  lambda_worker_function_arn        = module.worker_lambda.function_arn
+  grant_terraform_apply_permissions = var.github_actions_grant_terraform_apply
+  tags                              = local.tags
 }

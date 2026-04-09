@@ -214,13 +214,24 @@ pnpm smoke:prod
 ### CI/CD (GitHub Actions)
 
 - **Pull requests:** **CI** only — `pnpm lint`, `pnpm test`, `pnpm build` (`ci-reusable.yml`).
-- **Push to `main`:** **Deploy production (serverless)** — CI must pass; deploy runs only when paths touch `infra/`, backend, frontend, or workflow files. Steps: optional Terraform validate → build static web (with `PUBLIC_API_BASE_URL=https://$API_DOMAIN`) → bundle API + worker Lambdas → `aws lambda update-function-code` → `aws s3 sync` → CloudFront invalidation → HTTPS smoke tests.
+- **Push to `main`:** **Deploy production (serverless)** — CI must pass.
+  - **`infra/**` changed:** run **Terraform validate** + **`terraform apply`** (needs `PROD_*` secrets), then **app deploy** (infra changes are included in the path gate that triggers deploy, so Lambdas and static assets refresh after infra updates).
+  - **App-only change:** skip Terraform; run app deploy only.
+- **Workflow dispatch:** Toggle **terraform apply** and/or **deploy application** (e.g. redeploy app without `apply`).
 
 #### GitHub configuration
 
-**Secret**
+**Secrets**
 
 - `AWS_ROLE_ARN` — assume via OIDC (Terraform output `github_actions_deploy_role_arn`).
+- `PROD_TF_BACKEND_HCL` — paste full contents of `infra/terraform/envs/prod/backend.hcl` (same fields as `infra/terraform/envs/prod/backend.hcl.example`).
+- `PROD_TFVARS` — paste full contents of `infra/terraform/envs/prod/terraform.tfvars` (include `github_actions_grant_terraform_apply = true` once you want CI to apply; see below).
+
+**Terraform in CI (one-time bootstrap)**
+
+1. Run **`pnpm prod:up`** locally (or otherwise apply) so the OIDC role and state exist.
+2. In `terraform.tfvars`, set **`github_actions_grant_terraform_apply = true`**, then apply again (locally or manually). This attaches **AdministratorAccess** to the GitHub Actions deploy role so CI can manage the full stack and state. *Use a dedicated AWS account if possible; replace with a narrower custom policy if you outgrow this.*
+3. Copy **`backend.hcl`** and **`terraform.tfvars`** into secrets **`PROD_TF_BACKEND_HCL`** and **`PROD_TFVARS`**. Keep them in sync when you change backend or variables.
 
 **Variables** (copy from `terraform output` after apply)
 

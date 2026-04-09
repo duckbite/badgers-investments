@@ -27,3 +27,5 @@ Apply prod (after `backend.hcl` + `terraform.tfvars`):
 ```bash
 pnpm prod:up
 ```
+
+To let **GitHub Actions** run `terraform apply` on `infra/**` changes: set `github_actions_grant_terraform_apply = true` in `terraform.tfvars`, apply once (locally or CI), add GitHub secrets **`PROD_TF_BACKEND_HCL`** and **`PROD_TFVARS`** (full contents of `backend.hcl` and `terraform.tfvars`), and see root **README** CI/CD section. The OIDC role gains **AdministratorAccess** when this flag is true (acceptable for small accounts; narrow policies are possible but tedious).

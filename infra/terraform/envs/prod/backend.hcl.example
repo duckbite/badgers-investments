@@ -1,0 +1,10 @@
+# Copy to backend.hcl (gitignored) or paste into GitHub secret PROD_TF_BACKEND_HCL.
+# bucket: output from bootstrap (terraform -chdir=infra/terraform/bootstrap output -raw state_bucket_name)
+# region: must match the S3 bucket region used for state.
+# Optional: add dynamodb_table = "..." if you use DynamoDB state locking instead of use_lockfile.
+
+bucket       = "YOUR_TF_STATE_BUCKET"
+key          = "badgers-investments/prod/terraform.tfstate"
+region       = "eu-west-1"
+encrypt      = true
+use_lockfile = true
