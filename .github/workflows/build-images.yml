@@ -7,6 +7,11 @@ on:
         description: Image tag to push (should be immutable, typically git SHA).
         required: true
         type: string
+      checkout_ref:
+        description: Git ref (SHA, branch) to check out before build; empty uses the caller default SHA.
+        required: false
+        type: string
+        default: ""
     secrets:
       aws_role_arn:
         description: AWS IAM role ARN to assume via OIDC.
@@ -28,6 +33,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.checkout_ref != '' && inputs.checkout_ref || github.sha }}
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -85,6 +92,7 @@ jobs:
               .
           }
 
+          # Order: back-end images (API, worker) then front-end (web), after infra validation in the caller workflow.
           build_and_push "services/api/Dockerfile" "${API_REPO}" "${IMAGE_TAG}"
           build_and_push "workers/worker/Dockerfile" "${WORKER_REPO}" "${IMAGE_TAG}"
           build_and_push "apps/web/Dockerfile" "${WEB_REPO}" "${IMAGE_TAG}"
