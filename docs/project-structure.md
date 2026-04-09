@@ -9,8 +9,7 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 | `package.json` | Root package: pnpm workspace scripts (`build`, `dev`, `lint`, `test`), Turborepo and TypeScript as devDependencies. Private; not published. |
 | `pnpm-workspace.yaml` | pnpm workspace definition: `apps/*`, `services/*`, `workers/*`, `shared/*/*`, `tools/*`. |
 | `turbo.json` | Turborepo pipeline: `build` (with ^build), `dev` (persistent), `lint`, `test`, `clean`. |
-| `docker-compose.yml` | Local development dependencies (PostgreSQL). |
-| `.env.example` | Root environment template (copy to `.env`). All env variables live at repo root. |
+| `.env.example` | Root environment template (copy to `.env`). DynamoDB and API settings; all env variables live at repo root. |
 | `README.md` | How to run, test, and deploy the application. |
 | `.gitignore` | Ignored paths (node_modules, build outputs, env files, etc.). |
 | `.github/` | GitHub Actions workflows (CI/CD). |
@@ -26,7 +25,10 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 | Path | Description |
 |------|-------------|
 | `services/api/` | Fastify backend REST API (Node.js/TypeScript). Entry: `src/index.ts`. Scripts: `dev` (tsx watch), `build` (tsc), `start`, `lint`, `clean`. Build output: `dist/`. Modules live under `src/modules/` (health + domain modules per `docs/architecture.md`). |
-| `services/api/prisma/` | Prisma schema and migrations (PostgreSQL). |
+| `services/api/src/config/get-dynamo-db-config.ts` | DynamoDB settings from env (`API_DYNAMODB_*`, region fallbacks); required for the API. |
+| `services/api/src/db/create-dynamo-db-client.ts` | Factory for `DynamoDBClient` (optional custom endpoint for tools like LocalStack). |
+| `services/api/src/modules/health/dynamo-db-health-service.ts` | Readiness: `DescribeTable` on the configured table. |
+| `services/api/src/scripts/dynamodb-smoke-write.ts` | Dev CLI: put+delete smoke item; run via `pnpm dynamodb:smoke-write` from repo root. |
 
 ## Workers
 
@@ -38,7 +40,16 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 
 | Path | Description |
 |------|-------------|
-| `shared/typescript/base/` | Shared TypeScript configs: `base.json` (strict, ESNext), `node.json` (Node/backend), `svelte.json` (Svelte/frontend). Consumed by apps, services, and workers via `extends`. Package: `@badgers-investments/tsconfig-base`. |
+| `shared/typescript/base/` | Shared TypeScript configs: `base.json` (strict, ESNext), `node.json` (Node/backend), `svelte.json` (Svelte/ browser). Consumed by apps, services, and workers via `extends`. Package: `@badgers-investments/tsconfig-base`. |
+
+## Infrastructure
+
+| Path | Description |
+|------|-------------|
+| `infra/terraform/bootstrap/` | Remote state bucket + state-lock DynamoDB table. |
+| `infra/terraform/envs/dev/` | Terraform workspace for **dev** application DynamoDB (`badgers-investments-dev-ddb` by default). |
+| `infra/terraform/envs/prod/` | Production stack (VPC, ECS, ALB, etc.). |
+| `infra/terraform/modules/app-dynamodb-table/` | Reusable on-demand DynamoDB table (`PK` / `SK`, optional **`GSI1`** mirroring prod). |
 
 ## Docs and tooling
 
@@ -46,7 +57,7 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 |------|-------------|
 | `docs/` | Product, architecture, requirements, ADRs, domain model, recommendation spec, prototype. |
 | `docs/prototype/` | Figma-derived UI prototype (React + Vite); reference only, not part of workspace. |
-| `tools/` | (Reserved) Scripts, codegen, release tooling. |
+| `tools/` | Scripts, codegen, release tooling. |
 | `.cursor/` | Cursor rules and project config. |
 | `logs/` | Conversation and decision logs (see .cursor rules). |
 
@@ -62,3 +73,5 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 - `pnpm --filter web dev` — Run frontend dev server only.
 - `pnpm --filter api dev` — Run API dev server only.
 - `pnpm --filter worker dev` — Run worker in watch mode only.
+- `pnpm dynamodb:smoke-write` — Verify DynamoDB put/delete using root `.env` (requires `API_DYNAMODB_TABLE_NAME` and region env).
+- `pnpm infra:dev:init` / `pnpm infra:dev:apply` — Create **dev** app DynamoDB table via Terraform (requires `infra/terraform/envs/dev/backend.hcl`; see `backend.hcl.example`).

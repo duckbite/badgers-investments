@@ -163,7 +163,7 @@ This enables higher-quality implementation of the core portfolio and recommendat
 ## 10. Product Scope by Phase
 
 ## 10.1 MVP (Phase 1)
-- Username + password login (password stored hashed in Postgres) with Postgres-backed sessions
+- Username + password login (password stored hashed in DynamoDB) with DynamoDB-backed sessions
 - Asset management
 - Transaction ledger
 - Wealth dashboard
@@ -255,7 +255,7 @@ Because this is personal-use only and you requested strong calls:
 ## 14.1 Architecture Strategy
 Keep the system simple and modular:
 - Separate Svelte frontend SPA, Fastify-based Node.js backend API, and worker runtime
-- PostgreSQL database
+- Amazon DynamoDB for application persistence
 - service modules for ledger, valuation, recommendations
 - provider adapters for market data and AI
 

@@ -5,9 +5,7 @@ locals {
   api_image    = "${var.api_ecr_repository_url}:${var.api_image_tag}"
   worker_image = "${var.worker_ecr_repository_url}:${var.worker_image_tag}"
 
-  secret_api_database_url = "${var.secrets_arn}:API_DATABASE_URL::"
-  secret_database_url     = "${var.secrets_arn}:API_DATABASE_URL::"
-  secret_cookie_secret    = "${var.secrets_arn}:COOKIE_SECRET::"
+  secret_cookie_secret = "${var.secrets_arn}:COOKIE_SECRET::"
 }
 
 resource "aws_ecs_cluster" "main" {
@@ -79,6 +77,32 @@ resource "aws_iam_role_policy" "execution_secrets_access" {
   policy = data.aws_iam_policy_document.task_secrets_access.json
 }
 
+resource "aws_iam_role_policy" "task_dynamodb" {
+  name = "${var.name_prefix}-task-dynamodb"
+  role = aws_iam_role.task.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:DescribeTable",
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:Query",
+          "dynamodb:Scan",
+        ]
+        Resource = [
+          var.dynamodb_table_arn,
+          "${var.dynamodb_table_arn}/index/*",
+        ]
+      },
+    ]
+  })
+}
+
 resource "aws_ecs_task_definition" "api" {
   count                    = var.enable_services ? 1 : 0
   family                   = "${var.name_prefix}-api"
@@ -98,11 +122,11 @@ resource "aws_ecs_task_definition" "api" {
         { containerPort = 3000, hostPort = 3000, protocol = "tcp" }
       ]
       environment = [
-        { name = "API_PORT", value = "3000" }
+        { name = "API_PORT", value = "3000" },
+        { name = "API_DYNAMODB_TABLE_NAME", value = var.dynamodb_table_name },
+        { name = "API_DYNAMODB_REGION", value = var.aws_region },
       ]
       secrets = [
-        { name = "API_DATABASE_URL", valueFrom = local.secret_api_database_url },
-        { name = "DATABASE_URL", valueFrom = local.secret_database_url },
         { name = "COOKIE_SECRET", valueFrom = local.secret_cookie_secret }
       ]
       logConfiguration = {
@@ -171,9 +195,9 @@ resource "aws_ecs_task_definition" "worker" {
       name      = "worker"
       image     = local.worker_image
       essential = true
-      secrets = [
-        { name = "API_DATABASE_URL", valueFrom = local.secret_api_database_url },
-        { name = "DATABASE_URL", valueFrom = local.secret_database_url }
+      environment = [
+        { name = "API_DYNAMODB_TABLE_NAME", value = var.dynamodb_table_name },
+        { name = "API_DYNAMODB_REGION", value = var.aws_region },
       ]
       logConfiguration = {
         logDriver = "awslogs"

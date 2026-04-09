@@ -63,6 +63,21 @@ variable "secrets_arn" {
   description = "Secrets Manager secret ARN containing JSON configuration."
 }
 
+variable "aws_region" {
+  type        = string
+  description = "AWS region (injected as API_DYNAMODB_REGION for tasks)."
+}
+
+variable "dynamodb_table_name" {
+  type        = string
+  description = "DynamoDB table name for application data."
+}
+
+variable "dynamodb_table_arn" {
+  type        = string
+  description = "DynamoDB table ARN for IAM policy (include account/region)."
+}
+
 variable "web_image_tag" {
   type        = string
   description = "Docker image tag for web."

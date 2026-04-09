@@ -121,23 +121,12 @@ variable "availability_zone_count" {
   }
 }
 
-variable "db_engine_major_version" {
+variable "dynamodb_table_name" {
   type        = string
-  description = "Postgres major version (used to select the latest available engine version per region)."
-  default     = "16"
+  description = "DynamoDB table name for application data (must exist; Terraform does not create it here)."
   validation {
-    condition     = can(regex("^\\d+$", var.db_engine_major_version))
-    error_message = "db_engine_major_version must be a number-like string (e.g. \"16\")."
-  }
-}
-
-variable "db_engine_version_override" {
-  type        = string
-  description = "Optional full Postgres engine version override (e.g. 16.13). Leave empty to use latest for the major version."
-  default     = ""
-  validation {
-    condition     = var.db_engine_version_override == "" || can(regex("^\\d+\\.\\d+(\\.\\d+)?$", var.db_engine_version_override))
-    error_message = "db_engine_version_override must be empty or look like a semantic version string (e.g. 16.13)."
+    condition     = length(trimspace(var.dynamodb_table_name)) > 0
+    error_message = "dynamodb_table_name must be non-empty."
   }
 }
 
@@ -157,83 +146,5 @@ variable "github_ref" {
   type        = string
   description = "Git ref for production deploys (used in OIDC subject claim)."
   default     = "refs/heads/main"
-}
-
-variable "db_instance_class" {
-  type        = string
-  description = "RDS instance class."
-  default     = "db.t4g.micro"
-  validation {
-    condition     = length(trimspace(var.db_instance_class)) > 0
-    error_message = "db_instance_class must be a non-empty string."
-  }
-}
-
-variable "db_allocated_storage" {
-  type        = number
-  description = "Allocated storage in GB."
-  default     = 20
-  validation {
-    condition     = var.db_allocated_storage >= 20
-    error_message = "db_allocated_storage must be at least 20 GB."
-  }
-}
-
-variable "db_backup_retention_days" {
-  type        = number
-  description = "Backup retention period in days."
-  default     = 7
-  validation {
-    condition     = var.db_backup_retention_days >= 0 && var.db_backup_retention_days <= 35
-    error_message = "db_backup_retention_days must be between 0 and 35."
-  }
-}
-
-variable "db_max_allocated_storage" {
-  type        = number
-  description = "Maximum storage in GB for autoscaling."
-  default     = 100
-  validation {
-    condition     = var.db_max_allocated_storage >= var.db_allocated_storage
-    error_message = "db_max_allocated_storage must be >= db_allocated_storage."
-  }
-}
-
-variable "db_backup_window" {
-  type        = string
-  description = "Preferred backup window (UTC) in format HH:MM-HH:MM."
-  default     = "03:00-04:00"
-  validation {
-    condition     = can(regex("^\\d{2}:\\d{2}-\\d{2}:\\d{2}$", var.db_backup_window))
-    error_message = "db_backup_window must be in format HH:MM-HH:MM."
-  }
-}
-
-variable "db_maintenance_window" {
-  type        = string
-  description = "Preferred maintenance window (UTC) in format ddd:HH:MM-ddd:HH:MM."
-  default     = "sun:04:00-sun:05:00"
-  validation {
-    condition     = can(regex("^(mon|tue|wed|thu|fri|sat|sun):\\d{2}:\\d{2}-(mon|tue|wed|thu|fri|sat|sun):\\d{2}:\\d{2}$", var.db_maintenance_window))
-    error_message = "db_maintenance_window must be in format ddd:HH:MM-ddd:HH:MM."
-  }
-}
-
-variable "db_deletion_protection" {
-  type        = bool
-  description = "Enable RDS deletion protection."
-  default     = true
-}
-
-variable "db_skip_final_snapshot" {
-  type        = bool
-  description = "Skip final snapshot on deletion (not recommended for real prod)."
-  default     = false
-}
-
-variable "db_apply_immediately" {
-  type        = bool
-  description = "Apply RDS modifications immediately."
-  default     = true
 }
 

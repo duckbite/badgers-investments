@@ -15,6 +15,7 @@ build/
 **/.terraform/
 .tflint.d/
 infra/terraform/envs/prod/backend.hcl
+infra/terraform/envs/dev/backend.hcl
 infra/terraform/envs/prod/terraform.tfvars
 infra/terraform/bootstrap/terraform.tfstate
 infra/terraform/bootstrap/terraform.tfstate.backup
@@ -56,9 +57,6 @@ Thumbs.db
 
 # Optional: local Cursor state (keep .cursor/rules)
 .cursor/projects/
-
-# Prisma
-# (generated client lives in node_modules; migrations are committed)
 
 # Misc
 *.pem

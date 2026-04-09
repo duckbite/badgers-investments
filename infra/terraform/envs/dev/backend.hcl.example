@@ -1,0 +1,9 @@
+# Copy to backend.hcl (gitignored) after running bootstrap.
+# Replace bucket with: terraform -chdir=infra/terraform/bootstrap output -raw state_bucket_name
+# Replace region with your aws_region.
+
+bucket       = "YOUR_TF_STATE_BUCKET"
+key          = "badgers-investments/dev/terraform.tfstate"
+region       = "us-east-1"
+encrypt      = true
+use_lockfile = true
