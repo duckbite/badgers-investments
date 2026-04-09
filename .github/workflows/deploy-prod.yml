@@ -1,4 +1,4 @@
-name: Deploy production (AWS ECS)
+name: Deploy production (serverless)
 
 on:
   push:
@@ -6,10 +6,14 @@ on:
       - main
   workflow_dispatch:
     inputs:
-      image_tag:
-        description: "Image tag to deploy (default: current commit SHA)."
-        required: false
-        type: string
+      terraform_apply:
+        description: Run terraform apply for prod (requires PROD_* secrets)
+        type: boolean
+        default: true
+      deploy_application:
+        description: Build and deploy Lambda bundles + static web to S3/CloudFront
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -30,9 +34,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       should_deploy: ${{ steps.decide.outputs.should_deploy }}
-      infra: ${{ steps.decide.outputs.infra }}
+      terraform: ${{ steps.decide.outputs.terraform }}
+      deploy_app: ${{ steps.decide.outputs.deploy_app }}
       deploy_ref: ${{ steps.decide.outputs.deploy_ref }}
-      image_tag: ${{ steps.decide.outputs.image_tag }}
     steps:
       - name: Checkout (path filter)
         if: github.event_name == 'push'
@@ -56,8 +60,6 @@ jobs:
               - 'pnpm-workspace.yaml'
               - 'package.json'
               - 'turbo.json'
-              - 'services/api/Dockerfile'
-              - 'workers/worker/Dockerfile'
             frontend:
               - 'apps/web/**'
               - 'shared/**'
@@ -65,9 +67,7 @@ jobs:
               - 'pnpm-workspace.yaml'
               - 'package.json'
               - 'turbo.json'
-              - 'apps/web/Dockerfile'
             cd_workflow:
-              - '.github/workflows/build-images.yml'
               - '.github/workflows/deploy-prod.yml'
               - '.github/workflows/ci-reusable.yml'
 
@@ -77,15 +77,24 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            REF="${{ github.sha }}"
-            TAG="${{ inputs.image_tag }}"
-            if [[ -z "${TAG}" ]]; then
-              TAG="${REF}"
+            TA="${{ github.event.inputs.terraform_apply }}"
+            DA="${{ github.event.inputs.deploy_application }}"
+            if [[ "$TA" != "true" && "$DA" != "true" ]]; then
+              echo "Select at least one of terraform_apply or deploy_application." >&2
+              exit 1
+            fi
+            if [[ "$TA" == "true" ]]; then
+              echo "terraform=true" >>"$GITHUB_OUTPUT"
+            else
+              echo "terraform=false" >>"$GITHUB_OUTPUT"
+            fi
+            if [[ "$DA" == "true" ]]; then
+              echo "deploy_app=true" >>"$GITHUB_OUTPUT"
+            else
+              echo "deploy_app=false" >>"$GITHUB_OUTPUT"
             fi
             echo "should_deploy=true" >>"$GITHUB_OUTPUT"
-            echo "infra=true" >>"$GITHUB_OUTPUT"
-            echo "deploy_ref=${REF}" >>"$GITHUB_OUTPUT"
-            echo "image_tag=${TAG}" >>"$GITHUB_OUTPUT"
+            echo "deploy_ref=${{ github.sha }}" >>"$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -96,57 +105,104 @@ jobs:
           REF="${{ github.event.after }}"
 
           echo "deploy_ref=${REF}" >>"$GITHUB_OUTPUT"
-          echo "image_tag=${REF}" >>"$GITHUB_OUTPUT"
-          echo "infra=${INFRA}" >>"$GITHUB_OUTPUT"
+          echo "terraform=${INFRA}" >>"$GITHUB_OUTPUT"
 
           if [[ "${INFRA}" == "true" || "${BACKEND}" == "true" || "${FRONTEND}" == "true" || "${CDW}" == "true" ]]; then
+            echo "deploy_app=true" >>"$GITHUB_OUTPUT"
             echo "should_deploy=true" >>"$GITHUB_OUTPUT"
           else
+            echo "deploy_app=false" >>"$GITHUB_OUTPUT"
             echo "should_deploy=false" >>"$GITHUB_OUTPUT"
           fi
 
-  infra_precheck:
-    name: Infra validation (before images)
+  prod_infra:
+    name: Terraform validate & apply (prod)
     needs: [qualify]
     if: needs.qualify.outputs.should_deploy == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
     env:
-      TURBO_TELEMETRY_DISABLED: "1"
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      TF_IN_AUTOMATION: "1"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           ref: ${{ needs.qualify.outputs.deploy_ref }}
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
         with:
-          version: 9.14.2
-          run_install: false
+          terraform_version: 1.12.2
+          terraform_wrapper: false
 
-      - name: Terraform validate (prod)
-        if: needs.qualify.outputs.infra == 'true' || github.event_name == 'workflow_dispatch'
-        run: pnpm infra:validate
+      - name: Terraform validate (no backend)
+        if: needs.qualify.outputs.terraform == 'true'
+        working-directory: infra/terraform/envs/prod
+        run: |
+          set -euo pipefail
+          terraform init -backend=false -input=false -upgrade
+          terraform validate
 
-      - name: Skip Terraform (no infra / CD workflow path changes)
-        if: needs.qualify.outputs.infra != 'true' && github.event_name == 'push'
-        run: echo "No infra/terraform paths in this push; skipping terraform validate."
+      - name: Skip Terraform validate
+        if: needs.qualify.outputs.terraform != 'true'
+        run: echo "No infra/** changes (and workflow did not request Terraform); skipping validate/apply."
 
-  build_images:
-    name: Build and push images
-    needs: [qualify, infra_precheck]
-    if: needs.qualify.outputs.should_deploy == 'true'
-    uses: ./.github/workflows/build-images.yml
-    with:
-      image_tag: ${{ needs.qualify.outputs.image_tag }}
-      checkout_ref: ${{ needs.qualify.outputs.deploy_ref }}
-    secrets:
-      aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
+      - name: Verify AWS region (vars)
+        if: needs.qualify.outputs.terraform == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${AWS_REGION:-}" ]]; then
+            echo "Missing GitHub Actions variable AWS_REGION (needed for Terraform apply)." >&2
+            exit 1
+          fi
+
+      - name: Configure AWS credentials (OIDC)
+        if: needs.qualify.outputs.terraform == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Write prod backend + tfvars from secrets
+        if: needs.qualify.outputs.terraform == 'true'
+        shell: bash
+        env:
+          BACKEND_HCL: ${{ secrets.PROD_TF_BACKEND_HCL }}
+          TFVARS_FILE: ${{ secrets.PROD_TFVARS }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${BACKEND_HCL}" || -z "${TFVARS_FILE}" ]]; then
+            echo "Missing GitHub secret PROD_TF_BACKEND_HCL and/or PROD_TFVARS." >&2
+            echo "Copy your local backend.hcl and terraform.tfvars content into those repo secrets." >&2
+            exit 1
+          fi
+          printf '%s\n' "${BACKEND_HCL}" > infra/terraform/envs/prod/backend.ci.hcl
+          printf '%s\n' "${TFVARS_FILE}" > infra/terraform/envs/prod/terraform.ci.tfvars
+
+      - name: Terraform init (remote state)
+        if: needs.qualify.outputs.terraform == 'true'
+        working-directory: infra/terraform/envs/prod
+        run: terraform init -input=false -upgrade -reconfigure -backend-config=backend.ci.hcl
+
+      - name: Terraform apply
+        if: needs.qualify.outputs.terraform == 'true'
+        working-directory: infra/terraform/envs/prod
+        run: terraform apply -input=false -auto-approve -var-file=terraform.ci.tfvars
+
+      - name: Terraform outputs (summary)
+        if: needs.qualify.outputs.terraform == 'true'
+        working-directory: infra/terraform/envs/prod
+        run: terraform output -no-color >> "$GITHUB_STEP_SUMMARY"
 
   deploy:
-    name: Deploy to ECS + smoke test
-    needs: [qualify, build_images]
-    if: needs.qualify.outputs.should_deploy == 'true'
+    name: Sync web + Lambda code + smoke
+    needs: [qualify, prod_infra]
+    if: needs.qualify.outputs.should_deploy == 'true' && needs.qualify.outputs.deploy_app == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
@@ -154,14 +210,14 @@ jobs:
       id-token: write
     env:
       AWS_REGION: ${{ vars.AWS_REGION }}
-      ECR_REPO_PREFIX: ${{ vars.ECR_REPO_PREFIX }}
-      ECS_CLUSTER_NAME: ${{ vars.ECS_CLUSTER_NAME }}
-      ECS_API_SERVICE_NAME: ${{ vars.ECS_API_SERVICE_NAME }}
-      ECS_WEB_SERVICE_NAME: ${{ vars.ECS_WEB_SERVICE_NAME }}
+      S3_WEB_BUCKET: ${{ vars.S3_WEB_BUCKET }}
+      CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}
+      LAMBDA_API_FUNCTION_NAME: ${{ vars.LAMBDA_API_FUNCTION_NAME }}
+      LAMBDA_WORKER_FUNCTION_NAME: ${{ vars.LAMBDA_WORKER_FUNCTION_NAME }}
       API_DOMAIN: ${{ vars.API_DOMAIN }}
       WEB_DOMAIN: ${{ vars.WEB_DOMAIN }}
-      IMAGE_TAG: ${{ needs.qualify.outputs.image_tag }}
       TURBO_TELEMETRY_DISABLED: "1"
+      PUBLIC_API_BASE_URL: https://${{ vars.API_DOMAIN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -174,77 +230,75 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Resolve ECR repositories
-        id: ecr
+      - name: Verify GitHub vars
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -z "${AWS_REGION}" ]]; then
-            echo "Missing vars.AWS_REGION" >&2
-            exit 1
-          fi
-          if [[ -z "${ECR_REPO_PREFIX}" ]]; then
-            echo "Missing vars.ECR_REPO_PREFIX (e.g. badgers-investments-prod)" >&2
-            exit 1
-          fi
-          AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
-          echo "api_repo=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_PREFIX}-api" >> "$GITHUB_OUTPUT"
-          echo "web_repo=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_PREFIX}-web" >> "$GITHUB_OUTPUT"
+          for v in AWS_REGION S3_WEB_BUCKET CLOUDFRONT_DISTRIBUTION_ID LAMBDA_API_FUNCTION_NAME LAMBDA_WORKER_FUNCTION_NAME API_DOMAIN WEB_DOMAIN; do
+            eval "val=\${$v:-}"
+            if [[ -z "$val" ]]; then
+              echo "Missing GitHub Actions variable: $v" >&2
+              exit 1
+            fi
+          done
 
-      - name: Deploy API and web services (rolling)
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.14.2
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build static web
+        run: pnpm --filter web build
+
+      - name: Build Lambda bundles
+        run: |
+          pnpm --filter api build:lambda
+          pnpm --filter worker build:lambda
+
+      - name: Package and upload API Lambda
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -z "${ECS_CLUSTER_NAME}" ]]; then
-            echo "Missing vars.ECS_CLUSTER_NAME" >&2
-            exit 1
-          fi
-          if [[ -z "${ECS_API_SERVICE_NAME}" || -z "${ECS_WEB_SERVICE_NAME}" ]]; then
-            echo "Missing vars.ECS_API_SERVICE_NAME or vars.ECS_WEB_SERVICE_NAME" >&2
-            exit 1
-          fi
+          (cd services/api/dist-lambda && zip -qr "$GITHUB_WORKSPACE/api-lambda.zip" .)
+          aws lambda update-function-code \
+            --function-name "${LAMBDA_API_FUNCTION_NAME}" \
+            --zip-file "fileb://${GITHUB_WORKSPACE}/api-lambda.zip"
 
-          API_IMAGE="${{ steps.ecr.outputs.api_repo }}:${IMAGE_TAG}"
-          WEB_IMAGE="${{ steps.ecr.outputs.web_repo }}:${IMAGE_TAG}"
+      - name: Package and upload worker Lambda
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd workers/worker/dist-lambda && zip -qr "$GITHUB_WORKSPACE/worker-lambda.zip" .)
+          aws lambda update-function-code \
+            --function-name "${LAMBDA_WORKER_FUNCTION_NAME}" \
+            --zip-file "fileb://${GITHUB_WORKSPACE}/worker-lambda.zip"
 
-          function register_new_task_definition() {
-            local service_name="$1"
-            local container_name="$2"
-            local new_image="$3"
+      - name: Sync web to S3
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws s3 sync apps/web/build "s3://${S3_WEB_BUCKET}/" --delete
 
-            CURRENT_TD_ARN="$(aws ecs describe-services --cluster "${ECS_CLUSTER_NAME}" --services "${service_name}" --query 'services[0].taskDefinition' --output text)"
-            CURRENT_TD_JSON="$(aws ecs describe-task-definition --task-definition "${CURRENT_TD_ARN}" --query 'taskDefinition' --output json)"
-
-            NEW_TD_JSON="$(echo "${CURRENT_TD_JSON}" | jq \
-              --arg container_name "${container_name}" \
-              --arg new_image "${new_image}" \
-              'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy) |
-               .containerDefinitions = (.containerDefinitions | map(if .name == $container_name then .image = $new_image else . end))')"
-
-            aws ecs register-task-definition --cli-input-json "${NEW_TD_JSON}" --query 'taskDefinition.taskDefinitionArn' --output text
-          }
-
-          echo "Registering new API task definition."
-          NEW_API_TD_ARN="$(register_new_task_definition "${ECS_API_SERVICE_NAME}" "api" "${API_IMAGE}")"
-          echo "Registering new web task definition."
-          NEW_WEB_TD_ARN="$(register_new_task_definition "${ECS_WEB_SERVICE_NAME}" "web" "${WEB_IMAGE}")"
-
-          echo "Updating ECS services."
-          aws ecs update-service --cluster "${ECS_CLUSTER_NAME}" --service "${ECS_API_SERVICE_NAME}" --task-definition "${NEW_API_TD_ARN}" >/dev/null
-          aws ecs update-service --cluster "${ECS_CLUSTER_NAME}" --service "${ECS_WEB_SERVICE_NAME}" --task-definition "${NEW_WEB_TD_ARN}" >/dev/null
-
-          echo "Waiting for ECS services to stabilize."
-          aws ecs wait services-stable --cluster "${ECS_CLUSTER_NAME}" --services "${ECS_API_SERVICE_NAME}" "${ECS_WEB_SERVICE_NAME}"
+      - name: Invalidate CloudFront
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${CLOUDFRONT_DISTRIBUTION_ID}" \
+            --paths "/*"
 
       - name: Smoke test
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -z "${API_DOMAIN}" || -z "${WEB_DOMAIN}" ]]; then
-            echo "Missing vars.API_DOMAIN or vars.WEB_DOMAIN" >&2
-            exit 1
-          fi
-
           function wait_for_http_200() {
             local url="$1"
             local label="$2"

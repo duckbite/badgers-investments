@@ -54,7 +54,7 @@ This SAD implements the architectural decisions captured in the ADR pack.
 
 ## 4.1 In Scope
 - Svelte frontend + Fastify backend API
-- ECS Fargate deployment
+- Serverless AWS deployment (S3 + CloudFront, API Gateway + Lambda, scheduled Lambda worker)
 - EventBridge-triggered worker tasks
 - Amazon DynamoDB (managed NoSQL in prod)
 - AWS SDK for DynamoDB (application repositories; no ORM required)
@@ -114,7 +114,7 @@ Badgers Investments consists of:
 ## 6.2 Why This Style
 - Keeps the codebase simple for a single-user MVP
 - Supports separate concerns (interactive API vs scheduled/heavy jobs)
-- Aligns with ECS Fargate deployment and EventBridge scheduling
+- Aligns with API Gateway + Lambda, static CDN hosting, and EventBridge scheduling
 - Preserves future extensibility without premature microservices
 
 ---
@@ -489,11 +489,11 @@ If an equivalent run exists:
 ## 17. Deployment Architecture (AWS)
 
 ## 17.1 Production Deployment Components
-- **Frontend Service (ECS Fargate)**
+- **Frontend (S3 + CloudFront static SPA)**
   - Serves Svelte app
-- **Backend API Service (ECS Fargate)**
+- **Backend API Service (API Gateway HTTP API + Lambda, Fastify)**
   - Fastify REST API
-- **Worker Task/Service (ECS Fargate)**
+- **Worker (EventBridge-scheduled Lambda)**
   - Job execution runtime
 - **Amazon DynamoDB**
 - **EventBridge**
@@ -522,7 +522,7 @@ If an equivalent run exists:
 
 ### Production
 - AWS Secrets Manager (encrypted with KMS)
-- Environment variables injected into ECS tasks (secret refs)
+- Secrets and env injected into Lambda (Terraform / Secrets Manager); browser uses `PUBLIC_API_BASE_URL` for API calls
 - No secrets stored in frontend bundle
 - No plaintext secret logging
 
@@ -690,7 +690,7 @@ This SAD adopts the username/password authentication model and supersedes earlie
 
 This SAD implements the following accepted ADRs:
 - **ADR-001** Frontend/Backend split and module boundaries
-- **ADR-002** ECS Fargate deployment topology
+- **ADR-002** (superseded) ECS topology; **ADR-012** serverless production topology
 - **ADR-003** Snapshot-first data architecture + invalidation
 - **ADR-004** Multi-currency + daily FX handling for `TWR_DAILY_V1`
 - **ADR-005** Recommendation orchestration + deduplication
@@ -709,4 +709,4 @@ This SAD implements the following accepted ADRs:
 2. **Data Model v2 (updated for username/password auth + snapshots)**
 3. **Snapshot Rebuild Algorithm Spec**
 4. **Recommendation Engine Technical Spec (payload schemas + validation)**
-5. **AWS Infrastructure Spec (networking, ECS services, IAM, secrets)**
+5. **AWS Infrastructure Spec (CloudFront, API Gateway, Lambda, IAM, secrets)**

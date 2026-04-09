@@ -1,5 +1,3 @@
-data "aws_caller_identity" "current" {}
-
 data "tls_certificate" "github_actions" {
   url = "https://token.actions.githubusercontent.com"
 }
@@ -44,60 +42,35 @@ resource "aws_iam_role" "deploy" {
 
 data "aws_iam_policy_document" "deploy" {
   statement {
-    sid       = "EcrAuth"
-    effect    = "Allow"
-    actions   = ["ecr:GetAuthorizationToken"]
-    resources = ["*"]
-  }
-
-  statement {
-    sid    = "EcrPushPull"
+    sid    = "S3WebSync"
     effect = "Allow"
     actions = [
-      "ecr:BatchCheckLayerAvailability",
-      "ecr:BatchGetImage",
-      "ecr:CompleteLayerUpload",
-      "ecr:DescribeImages",
-      "ecr:DescribeRepositories",
-      "ecr:GetDownloadUrlForLayer",
-      "ecr:InitiateLayerUpload",
-      "ecr:ListImages",
-      "ecr:PutImage",
-      "ecr:UploadLayerPart"
+      "s3:GetObject",
+      "s3:PutObject",
+      "s3:DeleteObject",
+      "s3:ListBucket",
     ]
-    resources = var.ecr_repository_arns
-  }
-
-  statement {
-    sid     = "EcsDeploy"
-    effect  = "Allow"
-    actions = [
-      "ecs:DescribeClusters",
-      "ecs:DescribeServices",
-      "ecs:DescribeTaskDefinition",
-      "ecs:DescribeTasks",
-      "ecs:ListTasks",
-      "ecs:RegisterTaskDefinition",
-      "ecs:RunTask",
-      "ecs:UpdateService",
-      "ecs:TagResource"
-    ]
-    resources = ["*"]
-  }
-
-  statement {
-    sid     = "IamPassRoleForEcsTasks"
-    effect  = "Allow"
-    actions = ["iam:PassRole"]
     resources = [
-      var.ecs_execution_role_arn,
-      var.ecs_task_role_arn
+      var.web_s3_bucket_arn,
+      "${var.web_s3_bucket_arn}/*",
     ]
-    condition {
-      test     = "StringEquals"
-      variable = "iam:PassedToService"
-      values   = ["ecs-tasks.amazonaws.com"]
-    }
+  }
+
+  statement {
+    sid       = "CloudFrontInvalidate"
+    effect    = "Allow"
+    actions   = ["cloudfront:CreateInvalidation", "cloudfront:GetDistribution"]
+    resources = [var.cloudfront_distribution_arn]
+  }
+
+  statement {
+    sid     = "LambdaUpdateCode"
+    effect  = "Allow"
+    actions = ["lambda:UpdateFunctionCode", "lambda:GetFunction", "lambda:GetFunctionConfiguration"]
+    resources = [
+      var.lambda_api_function_arn,
+      var.lambda_worker_function_arn,
+    ]
   }
 }
 
@@ -107,3 +80,9 @@ resource "aws_iam_role_policy" "deploy" {
   policy = data.aws_iam_policy_document.deploy.json
 }
 
+# CI terraform apply needs broad IAM unless you maintain a custom policy for every resource.
+resource "aws_iam_role_policy_attachment" "terraform_apply_admin" {
+  count      = var.grant_terraform_apply_permissions ? 1 : 0
+  role       = aws_iam_role.deploy.name
+  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
+}

@@ -1,40 +1,31 @@
-## Terraform (AWS)
+# Terraform — Badgers Investments
 
-This folder contains infrastructure-as-code for Badgers Investments: **bootstrap** (remote state), **dev** (application DynamoDB for local development), and **prod** (ECS Fargate + ALB + ACM + Secrets Manager + CloudWatch Logs).
+Infrastructure-as-code for **bootstrap** (remote state), **dev** (optional DynamoDB application table for local development), and **prod** (**serverless**: S3 + CloudFront, API Gateway + Lambda, scheduled worker Lambda, Secrets Manager, Route53 where configured).
 
-### Layout
+## Layout
 
-- `bootstrap/`: **S3** remote state bucket and **DynamoDB** state lock table.
-- `envs/dev/`: **Application DynamoDB** table for development (default name `badgers-investments-dev-ddb`).
-- `envs/prod/`: Production networking, ECR, ALB/ACM/DNS, ECS; references an application DynamoDB table by name (`dynamodb_table_name` in `terraform.tfvars`).
-- `modules/`: Shared modules (`app-dynamodb-table`, network, ecr, secrets, alb, ecs, github-actions-oidc).
+- **`bootstrap/`** — S3 remote state bucket and DynamoDB state lock table.
+- **`envs/dev/`** — Application DynamoDB table for developers (`app-dynamodb-table`).
+- **`envs/prod/`** — Production serverless stack: static site, HTTP API + Lambda, worker Lambda + EventBridge rule, GitHub Actions OIDC deploy role. Expects an **existing** application DynamoDB table name in `terraform.tfvars` (`dynamodb_table_name`); Terraform does not create that table in prod.
+- **`modules/`** — `app-dynamodb-table`, `api_lambda`, `github-actions-oidc`, `secrets`, `static_site`, `worker_lambda`.
 
-### Dev application table (DynamoDB)
+## Conventions
 
-From repo root (after bootstrap and editing `infra/terraform/envs/dev/backend.hcl`):
+- **Region:** set `aws_region` in each env’s `terraform.tfvars`.
+- **Secrets:** prod Lambda reads `COOKIE_SECRET` from Secrets Manager; Terraform injects it into the API Lambda environment from the `secrets` module JSON.
 
-```bash
-cp infra/terraform/envs/dev/terraform.tfvars.example infra/terraform/envs/dev/terraform.tfvars
-pnpm infra:dev:init
-pnpm infra:dev:apply
-```
-
-Use `terraform output` in `envs/dev` for table name and ARN. Point local `.env` at `API_DYNAMODB_TABLE_NAME=badgers-investments-dev-ddb` (default in `.env.example`).
-
-### Production (single command)
-
-```bash
-cp infra/terraform/envs/prod/terraform.tfvars.example infra/terraform/envs/prod/terraform.tfvars
-pnpm prod:up
-```
-
-Set `dynamodb_table_name` in prod `terraform.tfvars` to your **production** application table (create via Terraform, console, or reuse a module like `modules/app-dynamodb-table` in a separate state if you prefer).
-
-### Formatting / validation / linting
+## Useful commands (repo root)
 
 ```bash
 pnpm infra:fmt
-pnpm infra:validate      # prod env (Dockerized in package.json)
-pnpm infra:dev:validate   # dev env (local Terraform when installed)
+pnpm infra:validate   # prod env, backend disabled in container/local
 pnpm infra:tflint
 ```
+
+Apply prod (after `backend.hcl` + `terraform.tfvars`):
+
+```bash
+pnpm prod:up
+```
+
+To let **GitHub Actions** run `terraform apply` on `infra/**` changes: set `github_actions_grant_terraform_apply = true` in `terraform.tfvars`, apply once (locally or CI), add GitHub secrets **`PROD_TF_BACKEND_HCL`** and **`PROD_TFVARS`** (full contents of `backend.hcl` and `terraform.tfvars`), and see root **README** CI/CD section. The OIDC role gains **AdministratorAccess** when this flag is true (acceptable for small accounts; narrow policies are possible but tedious).

@@ -16,6 +16,9 @@ terraform {
       source  = "hashicorp/tls"
       version = "~> 4.1"
     }
+    archive = {
+      source  = "hashicorp/archive"
+      version = "~> 2.4"
+    }
   }
 }
-

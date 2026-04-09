@@ -12,3 +12,7 @@ github_org  = "duckbite"
 github_repo = "badgers-investments"
 github_ref  = "refs/heads/main"
 
+# After OIDC role exists, set true and re-apply (locally or CI) so GitHub Actions can terraform apply.
+# Broadens the deploy role with AdministratorAccess; see README.
+github_actions_grant_terraform_apply = false
+

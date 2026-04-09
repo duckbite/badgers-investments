@@ -1,100 +1,62 @@
 #!/usr/bin/env bash
-
+#
+# Local / emergency deploy: build Lambda zips and static web, upload to AWS.
+# Requires: AWS CLI, pnpm, terraform outputs (or env overrides), credentials.
+# Prefer GitHub Actions “Deploy production (serverless)” for normal releases.
+#
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-PROD_DIR="${ROOT_DIR}/infra/terraform/envs/prod"
+cd "${ROOT_DIR}"
 
-IMAGE_TAG="${1:-}"
-if [[ -z "${IMAGE_TAG}" ]]; then
-  echo "Usage: deploy-prod.sh <image-tag>" >&2
+if ! command -v aws >/dev/null 2>&1; then
+  echo "aws CLI required" >&2
   exit 1
 fi
 
-function require_command() {
-  local command_name="$1"
-  if ! command -v "${command_name}" >/dev/null 2>&1; then
-    echo "Missing required command: ${command_name}" >&2
-    exit 1
-  fi
-}
-
-require_command terraform
-require_command aws
-require_command docker
-require_command python3
-
-AWS_PROFILE="${AWS_PROFILE:-default}"
-export AWS_PROFILE
-export AWS_SDK_LOAD_CONFIG="${AWS_SDK_LOAD_CONFIG:-1}"
-
-function ensure_buildx_builder() {
-  local builder_name="badgers-investments"
-  if ! docker buildx inspect "${builder_name}" >/dev/null 2>&1; then
-    docker buildx create --name "${builder_name}" --use >/dev/null
-  else
-    docker buildx use "${builder_name}" >/dev/null
-  fi
-  docker buildx inspect --bootstrap >/dev/null
-}
-
-function does_ecr_image_tag_exist() {
-  local repository_url="$1"
-  local image_tag="$2"
-  local aws_region="$3"
-  local repository_name="${repository_url#*/}"
-  aws ecr describe-images --repository-name "${repository_name}" --image-ids "imageTag=${image_tag}" --region "${aws_region}" >/dev/null 2>&1
-}
-
+PROD_DIR="${ROOT_DIR}/infra/terraform/envs/prod"
 if [[ ! -f "${PROD_DIR}/backend.hcl" ]]; then
-  echo "Missing ${PROD_DIR}/backend.hcl. Run prod:up at least once." >&2
+  echo "Missing ${PROD_DIR}/backend.hcl. Initialize prod Terraform backend first." >&2
   exit 1
 fi
 
 terraform -chdir="${PROD_DIR}" init -upgrade -reconfigure -backend-config="${PROD_DIR}/backend.hcl" >/dev/null
 
-WEB_REPO="$(terraform -chdir="${PROD_DIR}" output -raw web_ecr_repository_url)"
-API_REPO="$(terraform -chdir="${PROD_DIR}" output -raw api_ecr_repository_url)"
-WORKER_REPO="$(terraform -chdir="${PROD_DIR}" output -raw worker_ecr_repository_url)"
+BUCKET="$(terraform -chdir="${PROD_DIR}" output -raw web_s3_bucket_id)"
+DIST_ID="$(terraform -chdir="${PROD_DIR}" output -raw cloudfront_distribution_id)"
+API_FN="$(terraform -chdir="${PROD_DIR}" output -raw lambda_api_function_name)"
+WORKER_FN="$(terraform -chdir="${PROD_DIR}" output -raw lambda_worker_function_name)"
 
-AWS_REGION="$(python3 - <<'PY'
-import re
-from pathlib import Path
-content = Path("infra/terraform/envs/prod/terraform.tfvars").read_text(encoding="utf-8")
-m = re.search(r'^\s*aws_region\s*=\s*\"([^\"]+)\"\s*$', content, re.M)
-print(m.group(1) if m else "")
-PY
-)"
+# Region: environment or terraform.tfvars
+if [[ -z "${AWS_REGION:-}" ]]; then
+  AWS_REGION="$(grep -E '^\s*aws_region\s*=' "${PROD_DIR}/terraform.tfvars" 2>/dev/null | head -1 | sed 's/.*=\s*"\([^"]*\)".*/\1/' || true)"
+fi
+if [[ -z "${AWS_REGION:-}" ]]; then
+  echo "Set AWS_REGION or add aws_region to terraform.tfvars" >&2
+  exit 1
+fi
+export AWS_REGION
 
-if [[ -z "${AWS_REGION}" ]]; then
-  echo "Missing aws_region in infra/terraform/envs/prod/terraform.tfvars" >&2
+echo "Building web (PUBLIC_API_BASE_URL required for browser API calls)."
+if [[ -z "${PUBLIC_API_BASE_URL:-}" ]]; then
+  echo "Set PUBLIC_API_BASE_URL (e.g. https://api.example.com)" >&2
   exit 1
 fi
 
-AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
-aws ecr get-login-password --region "${AWS_REGION}" | docker login --username AWS --password-stdin "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+pnpm install --frozen-lockfile
+pnpm --filter web build
+pnpm --filter api build:lambda
+pnpm --filter worker build:lambda
 
-PLATFORMS="${DOCKER_PLATFORMS:-linux/amd64,linux/arm64}"
-ensure_buildx_builder
+echo "Uploading Lambdas."
+(cd services/api/dist-lambda && zip -qr "${ROOT_DIR}/api-lambda.zip" .)
+(cd workers/worker/dist-lambda && zip -qr "${ROOT_DIR}/worker-lambda.zip" .)
+aws lambda update-function-code --function-name "${API_FN}" --zip-file "fileb://${ROOT_DIR}/api-lambda.zip" --region "${AWS_REGION}"
+aws lambda update-function-code --function-name "${WORKER_FN}" --zip-file "fileb://${ROOT_DIR}/worker-lambda.zip" --region "${AWS_REGION}"
+rm -f "${ROOT_DIR}/api-lambda.zip" "${ROOT_DIR}/worker-lambda.zip"
 
-echo "Building API image."
-if does_ecr_image_tag_exist "${API_REPO}" "${IMAGE_TAG}" "${AWS_REGION}"; then
-  echo "API image tag already exists in ECR. Skipping push: ${API_REPO}:${IMAGE_TAG}"
-else
-  docker buildx build --platform "${PLATFORMS}" -f "${ROOT_DIR}/services/api/Dockerfile" -t "${API_REPO}:${IMAGE_TAG}" --push "${ROOT_DIR}"
-fi
+echo "Syncing static site to s3://${BUCKET}"
+aws s3 sync apps/web/build "s3://${BUCKET}/" --delete --region "${AWS_REGION}"
 
-echo "Building worker image."
-if does_ecr_image_tag_exist "${WORKER_REPO}" "${IMAGE_TAG}" "${AWS_REGION}"; then
-  echo "Worker image tag already exists in ECR. Skipping push: ${WORKER_REPO}:${IMAGE_TAG}"
-else
-  docker buildx build --platform "${PLATFORMS}" -f "${ROOT_DIR}/workers/worker/Dockerfile" -t "${WORKER_REPO}:${IMAGE_TAG}" --push "${ROOT_DIR}"
-fi
-
-echo "Building web image."
-if does_ecr_image_tag_exist "${WEB_REPO}" "${IMAGE_TAG}" "${AWS_REGION}"; then
-  echo "Web image tag already exists in ECR. Skipping push: ${WEB_REPO}:${IMAGE_TAG}"
-else
-  docker buildx build --platform "${PLATFORMS}" -f "${ROOT_DIR}/apps/web/Dockerfile" -t "${WEB_REPO}:${IMAGE_TAG}" --push "${ROOT_DIR}"
-fi
-
+aws cloudfront create-invalidation --distribution-id "${DIST_ID}" --paths "/*" --region us-east-1 >/dev/null
+echo "Deploy finished. Invalidate CloudFront (${DIST_ID}) submitted."

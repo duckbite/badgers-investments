@@ -1,8 +1,3 @@
-output "alb_dns_name" {
-  description = "DNS name of the production ALB."
-  value       = module.alb.alb_dns_name
-}
-
 output "web_url" {
   description = "Web URL."
   value       = "https://${var.web_domain}"
@@ -13,44 +8,24 @@ output "api_url" {
   value       = "https://${var.api_domain}"
 }
 
-output "dns_records_to_create" {
-  description = "DNS records that must exist for ACM validation / aliasing when Route53 is not managed."
-  value       = module.alb.dns_records_to_create
+output "web_s3_bucket_id" {
+  description = "S3 bucket for static web assets (GitHub Actions sync)."
+  value       = module.static_site.bucket_id
 }
 
-output "web_ecr_repository_url" {
-  description = "ECR repository URL for web."
-  value       = module.ecr.web_repository_url
+output "cloudfront_distribution_id" {
+  description = "CloudFront distribution ID for cache invalidation."
+  value       = module.static_site.cloudfront_distribution_id
 }
 
-output "api_ecr_repository_url" {
-  description = "ECR repository URL for api."
-  value       = module.ecr.api_repository_url
+output "lambda_api_function_name" {
+  description = "API Lambda function name for update-function-code."
+  value       = module.api_lambda.function_name
 }
 
-output "worker_ecr_repository_url" {
-  description = "ECR repository URL for worker."
-  value       = module.ecr.worker_repository_url
-}
-
-output "ecs_cluster_arn" {
-  description = "ECS cluster ARN."
-  value       = module.ecs.ecs_cluster_arn
-}
-
-output "private_subnet_ids_csv" {
-  description = "Private subnet IDs as a comma-separated list."
-  value       = join(",", module.network.private_subnet_ids)
-}
-
-output "ecs_security_group_id" {
-  description = "Security group ID for ECS tasks."
-  value       = module.network.ecs_security_group_id
-}
-
-output "api_task_definition_arn" {
-  description = "Task definition ARN for API."
-  value       = module.ecs.api_task_definition_arn
+output "lambda_worker_function_name" {
+  description = "Worker Lambda function name for update-function-code."
+  value       = module.worker_lambda.function_name
 }
 
 output "github_actions_deploy_role_arn" {
@@ -58,18 +33,12 @@ output "github_actions_deploy_role_arn" {
   value       = module.github_actions_oidc.deploy_role_arn
 }
 
-output "ecs_cluster_name" {
-  description = "ECS cluster name."
-  value       = module.ecs.ecs_cluster_name
+output "static_site_acm_validation_records" {
+  description = "ACM DNS validation for CloudFront cert (us-east-1) when Route53 is not managed in Terraform."
+  value       = module.static_site.acm_validation_records
 }
 
-output "ecs_api_service_name" {
-  description = "ECS service name for API."
-  value       = module.ecs.api_service_name
+output "api_lambda_id" {
+  description = "HTTP API id (debug)."
+  value       = module.api_lambda.api_gateway_id
 }
-
-output "ecs_web_service_name" {
-  description = "ECS service name for web."
-  value       = module.ecs.web_service_name
-}
-
