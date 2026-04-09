@@ -1,0 +1,5 @@
+aws_region = "us-east-1"
+
+# Optional overrides:
+# app_dynamodb_table_name = "badgers-investments-dev-ddb"
+# app_dynamodb_pitr_enabled = false

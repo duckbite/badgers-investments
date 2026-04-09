@@ -100,10 +100,10 @@ Basic Principles:
 - Validation:
 - Validate input with JSON schemas and ajv for Fastify's built-in validation.
 - Use DTOs or input types for handling structured data.
-- Prisma ORM:
-- Use Prisma Client to interact with your database.
-- Create services to manage entities and abstract database operations from the handlers.
-- Use Prisma's schema for generating types and migrations.
+- DynamoDB (AWS SDK v3):
+- Use `@aws-sdk/client-dynamodb` / `@aws-sdk/lib-dynamodb` and repository-style modules to interact with your tables.
+- Create services to manage entities and abstract DynamoDB operations from the handlers.
+- Model access patterns explicitly (keys, GSIs); avoid ad-hoc relational queries.
 - A core folder for shared utilities:
 - Middleware for common request handling.
 - Global error handlers.

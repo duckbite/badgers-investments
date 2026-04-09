@@ -85,9 +85,6 @@ terraform -chdir="${PROD_DIR}" apply -auto-approve -var-file="terraform.tfvars" 
   -var="api_image_tag=${IMAGE_TAG}" \
   -var="worker_image_tag=${IMAGE_TAG}"
 
-echo "Running Prisma migrations via ECS one-off task."
-bash "${ROOT_DIR}/tools/prod/run-migrations.sh" "${IMAGE_TAG}"
-
 echo "Running smoke tests."
 bash "${ROOT_DIR}/tools/prod/smoke-test.sh"
 

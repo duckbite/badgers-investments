@@ -1,14 +1,11 @@
-import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
-import { prismaClient } from '../db/prisma-client.js';
+import fastify from 'fastify';
 import { registerModules } from './register-modules.js';
 
 export async function createServer(): Promise<FastifyInstance> {
-  const app: FastifyInstance = Fastify({ logger: true });
-  app.addHook('onClose', async (): Promise<void> => {
-    await prismaClient.$disconnect();
+  const app: FastifyInstance = fastify({
+    logger: true,
   });
   await registerModules({ app });
   return app;
 }
-

@@ -403,7 +403,7 @@ Portfolio calculations and rule findings shall be reproducible from:
 ## 6. In-Scope vs Out-of-Scope (MVP)
 
 ## 6.1 In Scope
-- Single-user auth with username + password (stored hashed) and Postgres-backed sessions
+- Single-user auth with username + password (stored hashed) and DynamoDB-backed sessions
 - Asset and ledger management (stocks and ETFs only in MVP)
 - Wealth dashboard
 - Holdings drill-down

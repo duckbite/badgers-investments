@@ -12,7 +12,7 @@ This pack contains the initial Architecture Decision Records (ADRs) for the MVP.
 - ADR-005 — Recommendation Orchestration and Deduplication
 - ADR-006 — Passwordless Email OTP Authentication via AWS SES
 - ADR-011 — Username/Password Authentication (Supersedes ADR-006)
-- ADR-007 — Postgres-Backed Cookie Session Strategy
+- ADR-007 — DynamoDB-Backed Cookie Session Strategy
 - ADR-008 — OpenAI-First Recommendation Integration and Validation Pipeline
 - ADR-009 — API Style and Frontend Integration (REST JSON + Typed DTOs)
 - ADR-010 — Charting and Observability Baseline (Chart.js + CloudWatch Logs)
@@ -78,7 +78,7 @@ Use **AWS ECS Fargate** for production compute.
 - Frontend container service (Svelte)
 - Backend API container service (Fastify)
 - Worker container/task
-- RDS PostgreSQL
+- Amazon DynamoDB
 - EventBridge for schedules
 - Secrets Manager + KMS for secrets
 - CloudWatch Logs for logging
@@ -269,15 +269,15 @@ Use **passwordless email OTP authentication** delivered via **AWS SES**.
 
 ---
 
-## ADR-007 — Postgres-Backed Cookie Session Strategy
+## ADR-007 — DynamoDB-Backed Cookie Session Strategy
 - **Status:** Accepted
 - **Date:** 2026-02-23
 
 ### Context
-You chose cookie-based server sessions and followed the recommendation for Postgres-backed storage.
+You chose cookie-based server sessions with DynamoDB-backed storage.
 
 ### Decision
-Use **server-side sessions stored in PostgreSQL**, with an opaque session ID in a secure cookie.
+Use **server-side sessions stored in Amazon DynamoDB**, with an opaque session ID in a secure cookie.
 
 ### `user_session` (recommended fields)
 - `id` (UUID or opaque token id, PK)
@@ -411,7 +411,7 @@ Use a lightweight baseline:
 - **Date:** 2026-02-28
 
 ### Context
-The MVP authentication requirement changed from passwordless email OTP (ADR-006) to a standard username/password login, while keeping Postgres-backed cookie sessions (ADR-007).
+The MVP authentication requirement changed from passwordless email OTP (ADR-006) to a standard username/password login, while keeping DynamoDB-backed cookie sessions (ADR-007).
 
 ### Decision
 Use **username + password** authentication for the single user.

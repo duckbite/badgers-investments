@@ -1,8 +1,11 @@
+data "aws_caller_identity" "current" {}
+
 locals {
   tags = {
     Project     = var.project_name
     Environment = var.environment
   }
+  dynamodb_table_arn = "arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${var.dynamodb_table_name}"
 }
 
 module "network" {
@@ -22,31 +25,10 @@ module "ecr" {
   tags        = local.tags
 }
 
-module "database" {
-  source                   = "../../modules/rds"
-  name_prefix              = "${var.project_name}-${var.environment}"
-  vpc_id                   = module.network.vpc_id
-  private_subnet_ids       = module.network.private_subnet_ids
-  db_security_group_id     = module.network.db_security_group_id
-  engine_major_version     = var.db_engine_major_version
-  engine_version_override  = var.db_engine_version_override
-  instance_class           = var.db_instance_class
-  allocated_storage_gb     = var.db_allocated_storage
-  backup_retention_days    = var.db_backup_retention_days
-  max_allocated_storage_gb = var.db_max_allocated_storage
-  backup_window            = var.db_backup_window
-  maintenance_window       = var.db_maintenance_window
-  deletion_protection      = var.db_deletion_protection
-  skip_final_snapshot      = var.db_skip_final_snapshot
-  apply_immediately        = var.db_apply_immediately
-  tags                     = local.tags
-}
-
 module "secrets" {
-  source       = "../../modules/secrets"
-  name_prefix  = "${var.project_name}-${var.environment}"
-  database_url = module.database.database_url
-  tags         = local.tags
+  source      = "../../modules/secrets"
+  name_prefix = "${var.project_name}-${var.environment}"
+  tags        = local.tags
 }
 
 module "alb" {
@@ -76,6 +58,9 @@ module "ecs" {
   api_ecr_repository_url    = module.ecr.api_repository_url
   worker_ecr_repository_url = module.ecr.worker_repository_url
   secrets_arn               = module.secrets.app_secret_arn
+  aws_region                = var.aws_region
+  dynamodb_table_name       = var.dynamodb_table_name
+  dynamodb_table_arn        = local.dynamodb_table_arn
   tags                      = local.tags
 
   web_image_tag    = var.web_image_tag

@@ -56,9 +56,9 @@ This SAD implements the architectural decisions captured in the ADR pack.
 - Svelte frontend + Fastify backend API
 - ECS Fargate deployment
 - EventBridge-triggered worker tasks
-- PostgreSQL (RDS in prod)
-- Prisma ORM/migrations
-- Postgres-backed server sessions
+- Amazon DynamoDB (managed NoSQL in prod)
+- AWS SDK for DynamoDB (application repositories; no ORM required)
+- DynamoDB-backed server sessions
 - OpenAI integration (KISS, direct module)
 - REST JSON APIs with typed DTOs
 - Full snapshot layer from day one
@@ -87,7 +87,7 @@ Badgers Investments consists of:
 - a **Svelte frontend** for user interaction,
 - a **Fastify backend API** for domain logic and persistence,
 - a **worker runtime** for scheduled/heavy jobs,
-- **PostgreSQL** for canonical and derived data,
+- **Amazon DynamoDB** for canonical and derived data,
 - AWS-managed services for secrets, scheduling, and logging,
 - **OpenAI** for recommendation synthesis.
 
@@ -96,7 +96,7 @@ Badgers Investments consists of:
 - **AWS EventBridge** — scheduled job triggers
 - **AWS Secrets Manager + KMS** — secret management
 - **CloudWatch Logs** — application logs
-- **RDS PostgreSQL** — managed relational database
+- **Amazon DynamoDB** — managed primary datastore
 
 ---
 
@@ -134,7 +134,7 @@ Responsibilities:
 ### Backend API (Fastify)
 Responsibilities:
 - Expose REST JSON endpoints
-- Authenticate requests via Postgres-backed sessions (cookie session ID)
+- Authenticate requests via DynamoDB-backed sessions (cookie session ID)
 - Execute domain logic and validations
 - Persist canonical data and snapshots
 - Orchestrate recommendation runs (interactive path)
@@ -148,7 +148,7 @@ Responsibilities:
 - Run price/FX import jobs (future)
 - Reuse same domain services/use cases as API where possible
 
-### PostgreSQL (RDS in prod)
+### Amazon DynamoDB
 Responsibilities:
 - Store canonical domain data (ledger, assets, valuations, FX, configs)
 - Store authentication challenges/sessions
@@ -212,7 +212,7 @@ Responsibilities:
 ## 8.2 Layering Rules
 - Route handlers should be thin and call application services/use-cases.
 - Domain calculation logic must not live in frontend or route handlers.
-- Database access should be encapsulated in repositories/services (Prisma-based).
+- Database access should be encapsulated in repositories/services (DynamoDB SDK / Document Client).
 - `rules` and `performance` modules should be deterministic and testable without API/runtime dependencies.
 - Worker and API should call shared use-case services, not duplicate orchestration logic.
 
@@ -243,14 +243,13 @@ Canonical data is authoritative. Derived data can be invalidated and rebuilt.
 ---
 
 ## 9.2 Database Technology
-- **Local development:** Dockerised PostgreSQL
-- **Production:** AWS RDS PostgreSQL (or Postgres-compatible managed DB)
-- **ORM / migrations:** Prisma
+- **Local development:** Real Amazon DynamoDB in AWS (dev table); optional custom endpoint for emulators
+- **Production:** Amazon DynamoDB
+- **Access:** AWS SDK v3 (`@aws-sdk/client-dynamodb`, `@aws-sdk/lib-dynamodb`); schema evolves via application-level versioning and table design (no relational migrations)
 
 ## 9.3 Precision and Numeric Handling (Critical)
-- Use Postgres `numeric/decimal` for monetary values, quantities, rates, and returns.
-- Avoid JavaScript floating-point (`number`) for financial calculations.
-- Use Prisma decimal types end-to-end in domain services.
+- Store and compute monetary values, quantities, rates, and returns using **decimal-safe representations** (e.g. arbitrary-precision types or normalised decimal strings in DynamoDB attributes — never IEEE-754 `number` as the source of truth).
+- Avoid JavaScript floating-point (`number`) for financial calculations in domain logic.
 - Apply rounding only at display/output boundaries, not during core calculations unless explicitly required.
 
 ---
@@ -259,7 +258,7 @@ Canonical data is authoritative. Derived data can be invalidated and rebuilt.
 
 ## 10.1 Authentication Model
 - **Username + password** for single-user login
-- Password stored as a one-way hash in Postgres (`user_account.password_hash`)
+- Password stored as a one-way hash in DynamoDB (`user_account` item attribute `password_hash` or equivalent)
 - Session-based authentication after successful credential verification
 
 ## 10.2 Login Flow (Username/Password)
@@ -272,7 +271,7 @@ Canonical data is authoritative. Derived data can be invalidated and rebuilt.
 
 ## 10.3 Session Model
 - Cookie stores opaque session ID
-- Session record stored in Postgres (`user_session`)
+- Session record stored in DynamoDB (`user_session` item or equivalent access pattern)
 - Session validation on protected endpoints
 - Logout revokes session server-side
 
@@ -496,7 +495,7 @@ If an equivalent run exists:
   - Fastify REST API
 - **Worker Task/Service (ECS Fargate)**
   - Job execution runtime
-- **RDS PostgreSQL**
+- **Amazon DynamoDB**
 - **EventBridge**
 - **Secrets Manager + KMS**
 - **CloudWatch Logs**
@@ -504,7 +503,7 @@ If an equivalent run exists:
 ## 17.2 Networking (Conceptual)
 - Public access terminates at HTTPS load balancer
 - Frontend and backend accessible over HTTPS
-- Backend and worker access RDS in private networking
+- Backend and worker access DynamoDB via AWS APIs (IAM-scoped)
 - OpenAI called outbound from API/worker tasks
 
 ## 17.3 Environment Strategy
@@ -573,7 +572,7 @@ If an equivalent run exists:
 
 ## 19.1 Identity and Access
 - Username/password login
-- Postgres-backed server sessions
+- DynamoDB-backed server sessions
 - Secure cookie session handling
 
 ## 19.2 Data Protection
@@ -659,7 +658,7 @@ This SAD adopts the username/password authentication model and supersedes earlie
 - **Unit tests**
   - rules, scoring, TWR, FIFO matching, hash canonicalisation
 - **Integration tests**
-  - API + DB (Prisma + Postgres)
+  - API + DynamoDB (AWS SDK)
   - recommendation orchestration path with mocked OpenAI
   - auth login + session flow
 - **Regression fixtures**
@@ -697,7 +696,7 @@ This SAD implements the following accepted ADRs:
 - **ADR-005** Recommendation orchestration + deduplication
 - **ADR-006** Passwordless email OTP via SES (superseded)
 - **ADR-011** Username/password authentication (superseding ADR-006)
-- **ADR-007** Postgres-backed cookie sessions
+- **ADR-007** DynamoDB-backed cookie sessions
 - **ADR-008** OpenAI-first integration
 - **ADR-009** REST JSON + typed DTOs
 - **ADR-010** Chart.js + CloudWatch logging
