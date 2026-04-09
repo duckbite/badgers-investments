@@ -12,7 +12,7 @@ A single-user investment monitoring and recommendation web app. Track holdings f
 - **Wealth view:** Dashboard with total value, allocation, P/L, and charts (allocation, portfolio value over time).
 - **Performance:** Time-weighted return (TWR, daily method) with selectable ranges.
 - **Recommendations:** Manual run produces BUY/SELL/HOLD (and optional WATCH) with rationale; rules + OpenAI, with deterministic fallback if AI fails.
-- **Auth:** Username + password (stored hashed) and Postgres-backed sessions.
+- **Auth:** Username + password (stored hashed) and DynamoDB-backed sessions.
 
 ---
 
@@ -20,10 +20,11 @@ A single-user investment monitoring and recommendation web app. Track holdings f
 
 - **Frontend:** Svelte SPA
 - **Backend:** Fastify (Node.js/TypeScript) REST API
-- **Database:** PostgreSQL (Prisma ORM, migrations)
-- **Auth:** Username + password (hashed); Postgres-backed cookie sessions
+- **Database:** DynamoDB (single-table) in production
+- **Legacy (in repo today):** PostgreSQL + Prisma artifacts are still present while the persistence layer is migrated
+- **Auth:** Username + password (hashed); DynamoDB-backed cookie sessions
 - **Recommendations:** OpenAI (direct integration); rules engine + deduplication
-- **Deployment:** Local dev; production on AWS (ECS Fargate, RDS Postgres, EventBridge, Secrets Manager, CloudWatch)
+- **Deployment:** Local dev; production on AWS (S3 + CloudFront + API Gateway + Lambda + DynamoDB)
 
 ---
 
@@ -46,7 +47,7 @@ The repo is organised as a monorepo (Turborepo + pnpm):
 ## Prerequisites
 
 - **Node.js** (LTS) and **pnpm**
-- **Docker** (for local PostgreSQL)
+- **Docker** (optional; used by legacy local PostgreSQL setup)
 - **AWS account** (for production, if deploying to AWS)
 
 ---
@@ -63,7 +64,7 @@ pnpm install
 
 ### 2. Environment
 
-Copy the root env template and set required variables (DB credentials/port, API port, database URL, OpenAI API key for recommendations).
+Copy the root env template and set required variables (OpenAI API key for recommendations once enabled; any API ports/config used during local dev).
 
 All env variables live at the repo root (no per-service `.env` files).
 
@@ -79,7 +80,7 @@ Notes:
 
 ### 3. Database
 
-Start Postgres (e.g. via Docker) and run migrations:
+Legacy local database (Postgres + Prisma) while the app is being migrated to DynamoDB:
 
 ```bash
 # Start Postgres
@@ -138,12 +139,11 @@ pnpm test
 
 ## Deployment
 
-Production is designed to run on **AWS**:
+Production is designed to run on **AWS** with an ultra-low-cost **serverless** topology:
 
-- **ECS Fargate** for frontend, backend API, and worker tasks
-- **RDS PostgreSQL** for the database
-- **Secrets Manager + KMS** for secrets
-- **EventBridge** for scheduled jobs (e.g. snapshot rebuilds)
+- **S3 + CloudFront** for the static web frontend (OAC)
+- **API Gateway (HTTP API) + Lambda** for the backend API
+- **DynamoDB** for the application datastore
 - **CloudWatch Logs** for application logs
 
 Infrastructure-as-code lives under `infra/terraform/` (Terraform).
@@ -187,25 +187,22 @@ pnpm prod:up
 `pnpm prod:up` performs:
 
 - Bootstrap Terraform remote state (S3 + DynamoDB lock)
-- `terraform apply` for shared infra
-- Build + push Docker images to ECR (multi-arch; uses an immutable per-run image tag by default)
-- `terraform apply` again to enable ECS services with the new image tags
-- Run Prisma migrations as a one-off ECS task
+- `terraform apply` for production infrastructure (serverless)
+- (Optional) deploy static web build to S3 and invalidate CloudFront: `pnpm deploy:prod`
 - Smoke tests:
-  - `https://api.investments.badgers.nl/health`
+  - `https://api.investments.badgers.nl/`
+  - `https://investments.badgers.nl/`
   - `https://api.investments.badgers.nl/ready`
   - `https://investments.badgers.nl/`
 
 Notes:
 
-- ECR repositories are configured with **immutable tags**, so rerunning `pnpm prod:up` will generate a **new** image tag per run.
-- Override the tag if needed: `PROD_IMAGE_TAG=... pnpm prod:up`
-- Override build platforms if needed: `DOCKER_PLATFORMS=linux/amd64,linux/arm64 pnpm deploy:prod <tag>`
+- The legacy ECS/RDS production stack is preserved under `infra/terraform/envs/prod-legacy` only to support teardown of existing resources.
+- To destroy the legacy stack, run: `CONFIRM_PROD_LEGACY_DESTROY=1 pnpm prod:legacy:down`
 
 ### Manual production commands (optional)
 
 ```bash
-# Build + push images (expects an image tag argument, typically git SHA)
 pnpm deploy:prod
 
 # Smoke test production domains
@@ -217,7 +214,7 @@ pnpm smoke:prod
 This repo uses **GitHub Actions** for CI/CD:
 
 - **Pull requests** run: `pnpm lint`, `pnpm test`, `pnpm build`
-- **Push to `main`** runs a production deploy (build + push images, ECS rolling deploy, migrations, smoke tests)
+- **Push to `main`** runs a production deploy (build web, upload to S3, invalidate CloudFront)
 
 #### Required GitHub configuration
 
@@ -228,19 +225,13 @@ This repo uses **GitHub Actions** for CI/CD:
 **Variables** (GitHub repo settings):
 
 - `AWS_REGION` — AWS region (e.g. `us-east-1`)
-- `ECR_REPO_PREFIX` — ECR repo prefix (defaults to `badgers-investments-prod` in Terraform naming)
-- `ECS_CLUSTER_NAME` — ECS cluster name (Terraform output `ecs_cluster_name`)
-- `ECS_API_SERVICE_NAME` — API ECS service name (Terraform output `ecs_api_service_name`)
-- `ECS_WEB_SERVICE_NAME` — Web ECS service name (Terraform output `ecs_web_service_name`)
-- `ECS_SUBNET_IDS_CSV` — Private subnet IDs (CSV) (Terraform output `private_subnet_ids_csv`)
-- `ECS_SECURITY_GROUP_ID` — ECS security group ID (Terraform output `ecs_security_group_id`)
-- `API_DOMAIN` — API domain (e.g. `api.investments.badgers.nl`)
-- `WEB_DOMAIN` — Web domain (e.g. `investments.badgers.nl`)
+- `WEB_S3_BUCKET` — Web bucket name (Terraform output `web_bucket_name`)
+- `CLOUDFRONT_DISTRIBUTION_ID` — CloudFront distribution ID (Terraform output `cloudfront_distribution_id`)
 - `DOCKER_PLATFORMS` — Optional override (default: `linux/amd64,linux/arm64`)
 
 #### Rollback
 
-Use the **“Deploy production (AWS ECS)”** workflow (`workflow_dispatch`) and pass a previous `image_tag` (for example an older git SHA) to redeploy that version.
+Rollback for the static web is “last upload wins”; redeploy a previous build by re-running the workflow from an older commit (or re-uploading a prior artifact) and invalidating CloudFront.
 
 ---
 

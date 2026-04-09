@@ -13,6 +13,11 @@ output "state_key" {
   value       = local.state_object_key
 }
 
+output "state_key_legacy" {
+  description = "Object key for the ECS/RDS production stack state (teardown only). Must be forked from prod state before migrating envs/prod to serverless."
+  value       = local.state_object_key_legacy
+}
+
 output "aws_region" {
   description = "AWS region used for backend resources."
   value       = var.aws_region

@@ -23,7 +23,7 @@ The MVP prioritises correctness, traceability, and practical usability over broa
 3. Provide portfolio performance insights, including TWR.
 4. Support lot-level drill-down for symbols with multiple transactions.
 5. Generate actionable recommendations (buy/sell/hold) using rules + AI explanation.
-6. Run securely as a single-user app with username + password login (password stored hashed) and Postgres-backed server sessions.
+6. Run securely as a single-user app with username + password login (password stored hashed) and DynamoDB-backed server sessions.
 7. Deploy locally and in the cloud with a simple, cost-effective architecture.
 
 ## Non-Goals (MVP)
@@ -58,7 +58,7 @@ For the MVP, the product supports **stocks and ETFs only**. All other asset clas
 ### 1) Authentication and Access
 - Username + password login
 - Password stored hashed in the database (never plaintext)
-- Session management and logout using Postgres-backed server sessions
+- Session management and logout using DynamoDB-backed server sessions
 
 **Acceptance**
 - Login succeeds only when valid credentials are provided.
@@ -240,7 +240,7 @@ Log:
 ## Technical Requirements
 - **Front-end:** Svelte SPA application
 - **Backend:** Fastify-based Node.js REST API (separate from the frontend)
-- **Database:** PostgreSQL + migrations
+- **Database:** DynamoDB (single-table) with application-owned item schemas
 - **Integrations:** OpenAI API + at least one market data provider
 
 ## Error Handling
@@ -252,7 +252,7 @@ Log:
 - Generic auth failure messages
 
 ## MVP Release Acceptance Criteria
-1. Secure login with username + password (hashed) and Postgres-backed sessions
+1. Secure login with username + password (hashed) and DynamoDB-backed sessions
 2. Asset and transaction management for stocks (and ETFs) only
 3. Ledger-derived holdings and valuations
 4. Dashboard with consolidated wealth/allocation

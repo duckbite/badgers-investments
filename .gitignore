@@ -15,7 +15,9 @@ build/
 **/.terraform/
 .tflint.d/
 infra/terraform/envs/prod/backend.hcl
+infra/terraform/envs/prod-legacy/backend.hcl
 infra/terraform/envs/prod/terraform.tfvars
+infra/terraform/modules/serverless-api/api.zip
 infra/terraform/bootstrap/terraform.tfstate
 infra/terraform/bootstrap/terraform.tfstate.backup
 

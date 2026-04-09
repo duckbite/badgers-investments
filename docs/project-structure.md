@@ -13,20 +13,20 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 | `.env.example` | Root environment template (copy to `.env`). All env variables live at repo root. |
 | `README.md` | How to run, test, and deploy the application. |
 | `.gitignore` | Ignored paths (node_modules, build outputs, env files, etc.). |
-| `.github/` | GitHub Actions workflows (CI/CD). |
+| `.github/` | GitHub Actions workflows (CI/CD). CI runs lint/test/build; production deploy uploads static web to S3 and invalidates CloudFront via OIDC. |
 
 ## Apps
 
 | Path | Description |
 |------|-------------|
-| `apps/web/` | SvelteKit (Svelte 5) frontend. Entry: `src/routes/+page.svelte`. Scripts: `dev`, `build`, `preview`, `check`, `lint`. Build output: `.svelte-kit/` and Vite build artifacts. |
+| `apps/web/` | SvelteKit (Svelte 5) frontend. Entry: `src/routes/+page.svelte`. Scripts: `dev`, `build`, `preview`, `check`, `lint`. Static build output (prod): `apps/web/build/` (adapter-static) plus `.svelte-kit/`. |
 
 ## Services
 
 | Path | Description |
 |------|-------------|
 | `services/api/` | Fastify backend REST API (Node.js/TypeScript). Entry: `src/index.ts`. Scripts: `dev` (tsx watch), `build` (tsc), `start`, `lint`, `clean`. Build output: `dist/`. Modules live under `src/modules/` (health + domain modules per `docs/architecture.md`). |
-| `services/api/prisma/` | Prisma schema and migrations (PostgreSQL). |
+| `services/api/prisma/` | Legacy Prisma/PostgreSQL artifacts from earlier architecture; retained temporarily while the persistence layer is migrated to DynamoDB. |
 
 ## Workers
 
@@ -49,6 +49,13 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 | `tools/` | (Reserved) Scripts, codegen, release tooling. |
 | `.cursor/` | Cursor rules and project config. |
 | `logs/` | Conversation and decision logs (see .cursor rules). |
+
+## Infra
+
+| Path | Description |
+|------|-------------|
+| `infra/terraform/envs/prod/` | **Current** production infrastructure (serverless): S3 + CloudFront (web), API Gateway + Lambda (API), DynamoDB, GitHub Actions OIDC deploy role. `route53.tf` manages the public `badgers.nl` zone (when `route53_zone_id` is unset), migrated apex/MX/mail host A records, and delegates app DNS to the serverless modules. |
+| `infra/terraform/envs/prod-legacy/` | Legacy ECS/RDS production stack preserved only to support teardown of existing resources via Terraform destroy. |
 
 ## Out of workspace
 

@@ -1,222 +1,35 @@
-<mxfile host="app.diagrams.net" modified="2026-02-22T12:00:00.000Z" agent="GPT-5.2 Thinking" version="24.7.17">
-  <diagram id="badgers-investments-erd" name="Badgers Investments ERD (MVP)">
+<mxfile host="app.diagrams.net" modified="2026-03-08T00:00:00.000Z" agent="Cursor" version="24.7.17">
+  <diagram id="badgers-investments-ddb" name="Badgers Investments DynamoDB Model (MVP)">
     <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2200" pageHeight="1400" math="0" shadow="0">
       <root>
         <mxCell id="0"/>
         <mxCell id="1" parent="0"/>
 
-        <!-- USER / AUTH -->
-        <mxCell id="user_account" value="&lt;b&gt;user_account&lt;/b&gt;&lt;br/&gt;PK id (UUID)&lt;br/&gt;email (unique)&lt;br/&gt;is_active&lt;br/&gt;created_at&lt;br/&gt;updated_at&lt;br/&gt;last_login_at" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;container=0;strokeColor=#000000;fillColor=#dae8fc;" vertex="1" parent="1">
-          <mxGeometry x="40" y="40" width="260" height="170" as="geometry"/>
+        <mxCell id="ddb_table" value="&lt;b&gt;DynamoDB table&lt;/b&gt;&lt;br/&gt;PK (S): PK&lt;br/&gt;SK (S): SK&lt;br/&gt;GSI1PK (S), GSI1SK (S)&lt;br/&gt;TTL: ttl (epoch seconds)" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;strokeColor=#000000;fillColor=#dae8fc;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="420" height="140" as="geometry"/>
         </mxCell>
 
-        <mxCell id="auth_otp_challenge" value="&lt;b&gt;auth_otp_challenge&lt;/b&gt;&lt;br/&gt;PK id (UUID)&lt;br/&gt;FK user_id → user_account.id (nullable)&lt;br/&gt;email&lt;br/&gt;otp_code_hash&lt;br/&gt;purpose&lt;br/&gt;expires_at&lt;br/&gt;consumed_at&lt;br/&gt;attempt_count&lt;br/&gt;max_attempts&lt;br/&gt;created_at&lt;br/&gt;sent_via_provider&lt;br/&gt;provider_message_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;strokeColor=#000000;fillColor=#f8cecc;" vertex="1" parent="1">
-          <mxGeometry x="340" y="40" width="330" height="230" as="geometry"/>
+        <mxCell id="user_account" value="&lt;b&gt;Item: USER_ACCOUNT&lt;/b&gt;&lt;br/&gt;PK=USER#&amp;lt;userId&amp;gt;&lt;br/&gt;SK=ACCOUNT&lt;br/&gt;username (unique)&lt;br/&gt;passwordHash&lt;br/&gt;isActive&lt;br/&gt;createdAt, updatedAt" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;strokeColor=#000000;fillColor=#d5e8d4;" vertex="1" parent="1">
+          <mxGeometry x="40" y="220" width="420" height="170" as="geometry"/>
         </mxCell>
 
-        <mxCell id="user_session" value="&lt;b&gt;user_session&lt;/b&gt;&lt;br/&gt;PK id (UUID)&lt;br/&gt;FK user_id → user_account.id&lt;br/&gt;created_at&lt;br/&gt;last_seen_at&lt;br/&gt;expires_at&lt;br/&gt;ip_address&lt;br/&gt;user_agent&lt;br/&gt;is_revoked&lt;br/&gt;revoked_at" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;strokeColor=#000000;fillColor=#f8cecc;" vertex="1" parent="1">
-          <mxGeometry x="710" y="40" width="300" height="210" as="geometry"/>
+        <mxCell id="user_session" value="&lt;b&gt;Item: USER_SESSION&lt;/b&gt;&lt;br/&gt;PK=USER#&amp;lt;userId&amp;gt;&lt;br/&gt;SK=SESSION#&amp;lt;sessionId&amp;gt;&lt;br/&gt;expiresAt, lastSeenAt&lt;br/&gt;isRevoked&lt;br/&gt;ip, userAgent&lt;br/&gt;ttl (optional)" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;strokeColor=#000000;fillColor=#fff2cc;" vertex="1" parent="1">
+          <mxGeometry x="500" y="220" width="420" height="170" as="geometry"/>
         </mxCell>
 
-        <!-- PORTFOLIO / ASSETS -->
-        <mxCell id="portfolio" value="&lt;b&gt;portfolio&lt;/b&gt;&lt;br/&gt;PK id (UUID)&lt;br/&gt;FK user_id → user_account.id&lt;br/&gt;name&lt;br/&gt;base_currency_code&lt;br/&gt;is_active&lt;br/&gt;created_at&lt;br/&gt;updated_at" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;strokeColor=#000000;fillColor=#d5e8d4;" vertex="1" parent="1">
-          <mxGeometry x="40" y="290" width="260" height="170" as="geometry"/>
+        <mxCell id="portfolio_asset_tx" value="&lt;b&gt;Item families (by user partition)&lt;/b&gt;&lt;br/&gt;Portfolio: SK=PORTFOLIO#&amp;lt;id&amp;gt;&lt;br/&gt;Asset: SK=ASSET#&amp;lt;id&amp;gt;&lt;br/&gt;Ledger TX: SK=TX#YYYY-MM-DD#&amp;lt;id&amp;gt;&lt;br/&gt;Snapshots: SK=SNAP#...&lt;br/&gt;Recommendations: SK=RECO#..." style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;strokeColor=#000000;fillColor=#f8cecc;" vertex="1" parent="1">
+          <mxGeometry x="40" y="430" width="880" height="170" as="geometry"/>
         </mxCell>
 
-        <mxCell id="asset" value="&lt;b&gt;asset&lt;/b&gt;&lt;br/&gt;PK id (UUID)&lt;br/&gt;FK portfolio_id → portfolio.id&lt;br/&gt;asset_type&lt;br/&gt;name&lt;br/&gt;symbol&lt;br/&gt;isin&lt;br/&gt;exchange_code&lt;br/&gt;currency_code&lt;br/&gt;country_code&lt;br/&gt;sector&lt;br/&gt;is_listed_market_asset&lt;br/&gt;ownership_pct&lt;br/&gt;is_active&lt;br/&gt;notes&lt;br/&gt;created_at, updated_at, archived_at" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;strokeColor=#000000;fillColor=#fff2cc;" vertex="1" parent="1">
-          <mxGeometry x="340" y="280" width="330" height="320" as="geometry"/>
+        <mxCell id="gsi1" value="&lt;b&gt;GSI1 (optional patterns)&lt;/b&gt;&lt;br/&gt;Session lookup: GSI1PK=SESSION#&amp;lt;sessionId&amp;gt;&lt;br/&gt;Asset TX query: GSI1PK=ASSET#&amp;lt;assetId&amp;gt;, GSI1SK=TX#YYYY-MM-DD#..." style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;strokeColor=#000000;fillColor=#e6e6e6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="640" width="880" height="120" as="geometry"/>
         </mxCell>
 
-        <mxCell id="asset_valuation_manual" value="&lt;b&gt;asset_valuation_manual&lt;/b&gt;&lt;br/&gt;PK id (UUID)&lt;br/&gt;FK asset_id → asset.id&lt;br/&gt;valuation_amount&lt;br/&gt;currency_code&lt;br/&gt;valuation_date&lt;br/&gt;valuation_timestamp&lt;br/&gt;source_type&lt;br/&gt;source_note&lt;br/&gt;FK created_by_user_id → user_account.id&lt;br/&gt;created_at" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;strokeColor=#000000;fillColor=#ffe6cc;" vertex="1" parent="1">
-          <mxGeometry x="710" y="280" width="320" height="230" as="geometry"/>
-        </mxCell>
-
-        <!-- LEDGER / LOTS -->
-        <mxCell id="transaction_ledger" value="&lt;b&gt;transaction_ledger&lt;/b&gt;&lt;br/&gt;PK id (UUID)&lt;br/&gt;FK portfolio_id → portfolio.id&lt;br/&gt;FK asset_id → asset.id&lt;br/&gt;transaction_type&lt;br/&gt;trade_date, trade_timestamp&lt;br/&gt;quantity, unit_price, gross_amount&lt;br/&gt;fee_amount, tax_amount&lt;br/&gt;currency_code&lt;br/&gt;fx_rate_to_portfolio_base&lt;br/&gt;cash_impact_amount, cash_impact_direction&lt;br/&gt;external_reference&lt;br/&gt;source_type&lt;br/&gt;notes&lt;br/&gt;is_deleted, deleted_at&lt;br/&gt;FK deleted_by_user_id → user_account.id&lt;br/&gt;FK created_by_user_id → user_account.id&lt;br/&gt;created_at, updated_at" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;strokeColor=#000000;fillColor=#e1d5e7;" vertex="1" parent="1">
-          <mxGeometry x="340" y="650" width="380" height="390" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="transaction_lot_link" value="&lt;b&gt;transaction_lot_link&lt;/b&gt;&lt;br/&gt;PK id (UUID)&lt;br/&gt;FK sell_transaction_id → transaction_ledger.id&lt;br/&gt;FK buy_transaction_id → transaction_ledger.id&lt;br/&gt;matched_quantity&lt;br/&gt;buy_unit_price&lt;br/&gt;sell_unit_price&lt;br/&gt;realised_pnl_amount&lt;br/&gt;currency_code&lt;br/&gt;created_at" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;strokeColor=#000000;fillColor=#f5f5f5;" vertex="1" parent="1">
-          <mxGeometry x="760" y="650" width="320" height="240" as="geometry"/>
-        </mxCell>
-
-        <!-- MARKET DATA -->
-        <mxCell id="market_data_provider" value="&lt;b&gt;market_data_provider&lt;/b&gt;&lt;br/&gt;PK id (UUID)&lt;br/&gt;provider_key (unique)&lt;br/&gt;provider_type&lt;br/&gt;is_enabled&lt;br/&gt;config_json_encrypted&lt;br/&gt;created_at&lt;br/&gt;updated_at" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;strokeColor=#000000;fillColor=#d5e8d4;" vertex="1" parent="1">
-          <mxGeometry x="1090" y="280" width="290" height="180" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="price_snapshot" value="&lt;b&gt;price_snapshot&lt;/b&gt;&lt;br/&gt;PK id (UUID)&lt;br/&gt;FK asset_id → asset.id&lt;br/&gt;FK provider_id → market_data_provider.id&lt;br/&gt;price&lt;br/&gt;currency_code&lt;br/&gt;price_timestamp&lt;br/&gt;price_date&lt;br/&gt;data_quality&lt;br/&gt;raw_payload_hash&lt;br/&gt;created_at" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;strokeColor=#000000;fillColor=#fff2cc;" vertex="1" parent="1">
-          <mxGeometry x="1090" y="500" width="290" height="230" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="fx_rate_snapshot" value="&lt;b&gt;fx_rate_snapshot&lt;/b&gt;&lt;br/&gt;PK id (UUID)&lt;br/&gt;base_currency_code&lt;br/&gt;quote_currency_code&lt;br/&gt;rate&lt;br/&gt;rate_timestamp&lt;br/&gt;rate_date&lt;br/&gt;FK provider_id → market_data_provider.id&lt;br/&gt;created_at" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;strokeColor=#000000;fillColor=#fff2cc;" vertex="1" parent="1">
-          <mxGeometry x="1090" y="760" width="290" height="210" as="geometry"/>
-        </mxCell>
-
-        <!-- CONFIG / RECOMMENDATIONS -->
-        <mxCell id="portfolio_config_version" value="&lt;b&gt;portfolio_config_version&lt;/b&gt;&lt;br/&gt;PK id (UUID)&lt;br/&gt;FK portfolio_id → portfolio.id&lt;br/&gt;version_number&lt;br/&gt;is_active&lt;br/&gt;risk_profile_type&lt;br/&gt;risk_score&lt;br/&gt;base_currency_code&lt;br/&gt;target_allocations_json&lt;br/&gt;concentration_limits_json&lt;br/&gt;preferences_json&lt;br/&gt;ai_prompt_overrides_json&lt;br/&gt;notes&lt;br/&gt;FK created_by_user_id → user_account.id&lt;br/&gt;created_at" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;strokeColor=#000000;fillColor=#dae8fc;" vertex="1" parent="1">
-          <mxGeometry x="40" y="510" width="260" height="300" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="recommendation_run" value="&lt;b&gt;recommendation_run&lt;/b&gt;&lt;br/&gt;PK id (UUID)&lt;br/&gt;FK portfolio_id → portfolio.id&lt;br/&gt;FK config_version_id → portfolio_config_version.id&lt;br/&gt;run_trigger_type&lt;br/&gt;run_status&lt;br/&gt;started_at, completed_at&lt;br/&gt;portfolio_valuation_timestamp&lt;br/&gt;price_data_freshness_summary (json)&lt;br/&gt;analytics_input_hash&lt;br/&gt;analytics_summary_json&lt;br/&gt;ai_provider_key, ai_model_name, ai_request_id&lt;br/&gt;ai_prompt_version&lt;br/&gt;ai_status, ai_error_message&lt;br/&gt;portfolio_level_summary&lt;br/&gt;FK created_by_user_id → user_account.id&lt;br/&gt;created_at" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;strokeColor=#000000;fillColor=#f8cecc;" vertex="1" parent="1">
-          <mxGeometry x="40" y="850" width="300" height="360" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="recommendation_item" value="&lt;b&gt;recommendation_item&lt;/b&gt;&lt;br/&gt;PK id (UUID)&lt;br/&gt;FK recommendation_run_id → recommendation_run.id&lt;br/&gt;scope_type (PORTFOLIO/ASSET)&lt;br/&gt;FK asset_id → asset.id (nullable)&lt;br/&gt;recommendation_type (BUY/SELL/HOLD/WATCH)&lt;br/&gt;strength_score&lt;br/&gt;confidence_score&lt;br/&gt;priority_rank&lt;br/&gt;headline&lt;br/&gt;rationale&lt;br/&gt;assumptions&lt;br/&gt;suggested_action_json&lt;br/&gt;created_at" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;strokeColor=#000000;fillColor=#f8cecc;" vertex="1" parent="1">
-          <mxGeometry x="380" y="1080" width="320" height="280" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="rule_finding" value="&lt;b&gt;rule_finding&lt;/b&gt;&lt;br/&gt;PK id (UUID)&lt;br/&gt;FK recommendation_run_id → recommendation_run.id&lt;br/&gt;rule_code&lt;br/&gt;severity&lt;br/&gt;scope_type&lt;br/&gt;FK asset_id → asset.id (nullable)&lt;br/&gt;finding_text&lt;br/&gt;metrics_json&lt;br/&gt;triggered&lt;br/&gt;created_at" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;strokeColor=#000000;fillColor=#f8cecc;" vertex="1" parent="1">
-          <mxGeometry x="740" y="1080" width="300" height="230" as="geometry"/>
-        </mxCell>
-
-        <!-- AUDIT / OPS -->
-        <mxCell id="audit_log" value="&lt;b&gt;audit_log&lt;/b&gt;&lt;br/&gt;PK id (UUID)&lt;br/&gt;event_type&lt;br/&gt;entity_type&lt;br/&gt;entity_id&lt;br/&gt;FK actor_user_id → user_account.id&lt;br/&gt;event_timestamp&lt;br/&gt;ip_address&lt;br/&gt;user_agent&lt;br/&gt;metadata_json&lt;br/&gt;before_json&lt;br/&gt;after_json" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;strokeColor=#000000;fillColor=#e6e6e6;" vertex="1" parent="1">
-          <mxGeometry x="1410" y="280" width="280" height="230" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="job_run_log" value="&lt;b&gt;job_run_log&lt;/b&gt;&lt;br/&gt;PK id (UUID)&lt;br/&gt;job_type&lt;br/&gt;trigger_type&lt;br/&gt;status&lt;br/&gt;started_at&lt;br/&gt;completed_at&lt;br/&gt;summary_json&lt;br/&gt;error_message&lt;br/&gt;created_at" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;strokeColor=#000000;fillColor=#e6e6e6;" vertex="1" parent="1">
-          <mxGeometry x="1410" y="540" width="280" height="190" as="geometry"/>
-        </mxCell>
-
-        <!-- OPTIONAL DERIVED SNAPSHOTS -->
-        <mxCell id="position_snapshot" value="&lt;b&gt;position_snapshot&lt;/b&gt; (derived)&lt;br/&gt;PK id (UUID)&lt;br/&gt;FK portfolio_id → portfolio.id&lt;br/&gt;FK asset_id → asset.id&lt;br/&gt;snapshot_timestamp&lt;br/&gt;quantity_held&lt;br/&gt;cost_basis_amount&lt;br/&gt;market_price&lt;br/&gt;market_value_amount&lt;br/&gt;owned_market_value_amount&lt;br/&gt;unrealised_pnl_amount&lt;br/&gt;realised_pnl_cumulative_amount&lt;br/&gt;allocation_pct&lt;br/&gt;data_source_summary_json&lt;br/&gt;created_at" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;strokeColor=#000000;dashed=1;fillColor=#ffffff;" vertex="1" parent="1">
-          <mxGeometry x="1410" y="760" width="320" height="280" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="portfolio_snapshot" value="&lt;b&gt;portfolio_snapshot&lt;/b&gt; (derived)&lt;br/&gt;PK id (UUID)&lt;br/&gt;FK portfolio_id → portfolio.id&lt;br/&gt;snapshot_timestamp&lt;br/&gt;total_market_value_amount&lt;br/&gt;total_owned_market_value_amount&lt;br/&gt;total_unrealised_pnl_amount&lt;br/&gt;total_realised_pnl_amount&lt;br/&gt;cash_value_amount&lt;br/&gt;allocation_by_asset_type_json&lt;br/&gt;allocation_by_asset_json&lt;br/&gt;created_at" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;strokeColor=#000000;dashed=1;fillColor=#ffffff;" vertex="1" parent="1">
-          <mxGeometry x="1410" y="1070" width="320" height="240" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="performance_snapshot" value="&lt;b&gt;performance_snapshot&lt;/b&gt; (derived)&lt;br/&gt;PK id (UUID)&lt;br/&gt;FK portfolio_id → portfolio.id&lt;br/&gt;period_start&lt;br/&gt;period_end&lt;br/&gt;as_of_timestamp&lt;br/&gt;twr_return&lt;br/&gt;valuation_start_amount&lt;br/&gt;valuation_end_amount&lt;br/&gt;external_cash_flows_amount&lt;br/&gt;calculation_method&lt;br/&gt;calculation_version&lt;br/&gt;created_at" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;strokeColor=#000000;dashed=1;fillColor=#ffffff;" vertex="1" parent="1">
-          <mxGeometry x="1090" y="1000" width="290" height="250" as="geometry"/>
-        </mxCell>
-
-        <!-- RELATIONSHIPS -->
-        <!-- user_account relationships -->
-        <mxCell id="e_user_auth_otp" value="1 to many challenges" style="endArrow=block;html=1;rounded=0;strokeWidth=1;" edge="1" parent="1" source="user_account" target="auth_otp_challenge">
+        <mxCell id="e_account_sessions" value="1 to many sessions" style="endArrow=block;html=1;rounded=0;strokeWidth=1;" edge="1" parent="1" source="user_account" target="user_session">
           <mxGeometry relative="1" as="geometry"/>
         </mxCell>
-
-        <mxCell id="e_user_session" value="1 to many sessions" style="endArrow=block;html=1;rounded=0;strokeWidth=1;" edge="1" parent="1" source="user_account" target="user_session">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="e_user_portfolio" value="1 to many (logical MVP: 1 active)" style="endArrow=block;html=1;rounded=0;strokeWidth=1;" edge="1" parent="1" source="user_account" target="portfolio">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="e_user_assetval" value="creates" style="endArrow=block;html=1;rounded=0;strokeWidth=1;dashed=1;" edge="1" parent="1" source="user_account" target="asset_valuation_manual">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="e_user_tx_created" value="created_by" style="endArrow=block;html=1;rounded=0;strokeWidth=1;dashed=1;" edge="1" parent="1" source="user_account" target="transaction_ledger">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="e_user_cfg" value="created_by" style="endArrow=block;html=1;rounded=0;strokeWidth=1;dashed=1;" edge="1" parent="1" source="user_account" target="portfolio_config_version">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="e_user_recrun" value="created_by" style="endArrow=block;html=1;rounded=0;strokeWidth=1;dashed=1;" edge="1" parent="1" source="user_account" target="recommendation_run">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="e_user_audit" value="actor" style="endArrow=block;html=1;rounded=0;strokeWidth=1;" edge="1" parent="1" source="user_account" target="audit_log">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-
-        <!-- portfolio relationships -->
-        <mxCell id="e_portfolio_asset" value="1 to many" style="endArrow=block;html=1;rounded=0;strokeWidth=1;" edge="1" parent="1" source="portfolio" target="asset">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="e_portfolio_tx" value="1 to many" style="endArrow=block;html=1;rounded=0;strokeWidth=1;" edge="1" parent="1" source="portfolio" target="transaction_ledger">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="e_portfolio_cfg" value="1 to many versions" style="endArrow=block;html=1;rounded=0;strokeWidth=1;" edge="1" parent="1" source="portfolio" target="portfolio_config_version">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="e_portfolio_recrun" value="1 to many runs" style="endArrow=block;html=1;rounded=0;strokeWidth=1;" edge="1" parent="1" source="portfolio" target="recommendation_run">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="e_portfolio_possnap" value="1 to many" style="endArrow=block;html=1;rounded=0;strokeWidth=1;dashed=1;" edge="1" parent="1" source="portfolio" target="position_snapshot">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="e_portfolio_portsnap" value="1 to many" style="endArrow=block;html=1;rounded=0;strokeWidth=1;dashed=1;" edge="1" parent="1" source="portfolio" target="portfolio_snapshot">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="e_portfolio_perfsnap" value="1 to many" style="endArrow=block;html=1;rounded=0;strokeWidth=1;dashed=1;" edge="1" parent="1" source="portfolio" target="performance_snapshot">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-
-        <!-- asset relationships -->
-        <mxCell id="e_asset_valmanual" value="1 to many" style="endArrow=block;html=1;rounded=0;strokeWidth=1;" edge="1" parent="1" source="asset" target="asset_valuation_manual">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="e_asset_tx" value="1 to many" style="endArrow=block;html=1;rounded=0;strokeWidth=1;" edge="1" parent="1" source="asset" target="transaction_ledger">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="e_asset_price" value="1 to many" style="endArrow=block;html=1;rounded=0;strokeWidth=1;" edge="1" parent="1" source="asset" target="price_snapshot">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="e_asset_recitem" value="1 to many (optional)" style="endArrow=block;html=1;rounded=0;strokeWidth=1;dashed=1;" edge="1" parent="1" source="asset" target="recommendation_item">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="e_asset_rulefinding" value="1 to many (optional)" style="endArrow=block;html=1;rounded=0;strokeWidth=1;dashed=1;" edge="1" parent="1" source="asset" target="rule_finding">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="e_asset_possnap" value="1 to many" style="endArrow=block;html=1;rounded=0;strokeWidth=1;dashed=1;" edge="1" parent="1" source="asset" target="position_snapshot">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-
-        <!-- transaction / lot links -->
-        <mxCell id="e_tx_lot_sell" value="sell side" style="endArrow=block;html=1;rounded=0;strokeWidth=1;" edge="1" parent="1" source="transaction_ledger" target="transaction_lot_link">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="e_tx_lot_buy" value="buy side" style="endArrow=block;html=1;rounded=0;strokeWidth=1;dashed=1;" edge="1" parent="1" source="transaction_lot_link" target="transaction_ledger">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points">
-              <mxPoint x="990" y="980"/>
-              <mxPoint x="620" y="980"/>
-            </Array>
-          </mxGeometry>
-        </mxCell>
-
-        <!-- market provider relationships -->
-        <mxCell id="e_provider_price" value="1 to many" style="endArrow=block;html=1;rounded=0;strokeWidth=1;" edge="1" parent="1" source="market_data_provider" target="price_snapshot">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="e_provider_fx" value="1 to many" style="endArrow=block;html=1;rounded=0;strokeWidth=1;" edge="1" parent="1" source="market_data_provider" target="fx_rate_snapshot">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-
-        <!-- recommendation relationships -->
-        <mxCell id="e_cfg_recrun" value="1 to many" style="endArrow=block;html=1;rounded=0;strokeWidth=1;" edge="1" parent="1" source="portfolio_config_version" target="recommendation_run">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="e_recrun_items" value="1 to many" style="endArrow=block;html=1;rounded=0;strokeWidth=1;" edge="1" parent="1" source="recommendation_run" target="recommendation_item">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="e_recrun_findings" value="1 to many" style="endArrow=block;html=1;rounded=0;strokeWidth=1;" edge="1" parent="1" source="recommendation_run" target="rule_finding">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-
       </root>
     </mxGraphModel>
   </diagram>
 </mxfile>
+

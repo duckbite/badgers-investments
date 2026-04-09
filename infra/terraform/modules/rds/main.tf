@@ -11,8 +11,8 @@ data "aws_rds_engine_version" "postgres" {
 }
 
 locals {
-  db_name     = "badgers_investments"
-  db_username = "badgers"
+  db_name                 = "badgers_investments"
+  db_username             = "badgers"
   resolved_engine_version = var.engine_version_override == "" ? data.aws_rds_engine_version.postgres.version : var.engine_version_override
 }
 

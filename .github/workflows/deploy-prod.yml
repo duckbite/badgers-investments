@@ -1,52 +1,43 @@
-name: Deploy production (AWS ECS)
+name: Deploy production (AWS serverless)
 
 on:
   push:
     branches:
       - main
   workflow_dispatch:
-    inputs:
-      image_tag:
-        description: "Image tag to deploy (default: current commit SHA)."
-        required: false
-        type: string
 
 concurrency:
   group: prod-deploy
   cancel-in-progress: false
 
 jobs:
-  build_images:
-    name: Build and push images
-    uses: ./.github/workflows/build-images.yml
-    with:
-      image_tag: ${{ inputs.image_tag || github.sha }}
-    secrets:
-      aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
-
   deploy:
-    name: Deploy to ECS + migrate + smoke test
-    needs: [build_images]
+    name: Deploy static web to S3 + invalidate CloudFront
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     permissions:
       contents: read
       id-token: write
     env:
       AWS_REGION: ${{ vars.AWS_REGION }}
-      ECR_REPO_PREFIX: ${{ vars.ECR_REPO_PREFIX }}
-      ECS_CLUSTER_NAME: ${{ vars.ECS_CLUSTER_NAME }}
-      ECS_API_SERVICE_NAME: ${{ vars.ECS_API_SERVICE_NAME }}
-      ECS_WEB_SERVICE_NAME: ${{ vars.ECS_WEB_SERVICE_NAME }}
-      ECS_SUBNET_IDS_CSV: ${{ vars.ECS_SUBNET_IDS_CSV }}
-      ECS_SECURITY_GROUP_ID: ${{ vars.ECS_SECURITY_GROUP_ID }}
-      API_DOMAIN: ${{ vars.API_DOMAIN }}
-      WEB_DOMAIN: ${{ vars.WEB_DOMAIN }}
-      IMAGE_TAG: ${{ inputs.image_tag || github.sha }}
+      WEB_S3_BUCKET: ${{ vars.WEB_S3_BUCKET }}
+      CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}
       TURBO_TELEMETRY_DISABLED: "1"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.14.2
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -54,120 +45,30 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Resolve ECR repositories
-        id: ecr
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build web
+        run: pnpm --filter web build
+
+      - name: Upload web to S3
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -z "${AWS_REGION}" ]]; then
-            echo "Missing vars.AWS_REGION" >&2
+          if [[ -z "${WEB_S3_BUCKET}" ]]; then
+            echo "Missing vars.WEB_S3_BUCKET" >&2
             exit 1
           fi
-          if [[ -z "${ECR_REPO_PREFIX}" ]]; then
-            echo "Missing vars.ECR_REPO_PREFIX (e.g. badgers-investments-prod)" >&2
-            exit 1
-          fi
-          AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
-          echo "api_repo=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_PREFIX}-api" >> "$GITHUB_OUTPUT"
-          echo "web_repo=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_PREFIX}-web" >> "$GITHUB_OUTPUT"
+          aws s3 sync "apps/web/build" "s3://${WEB_S3_BUCKET}" --delete
 
-      - name: Deploy API and web services (rolling)
+      - name: Invalidate CloudFront
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -z "${ECS_CLUSTER_NAME}" ]]; then
-            echo "Missing vars.ECS_CLUSTER_NAME" >&2
+          if [[ -z "${CLOUDFRONT_DISTRIBUTION_ID}" ]]; then
+            echo "Missing vars.CLOUDFRONT_DISTRIBUTION_ID" >&2
             exit 1
           fi
-          if [[ -z "${ECS_API_SERVICE_NAME}" || -z "${ECS_WEB_SERVICE_NAME}" ]]; then
-            echo "Missing vars.ECS_API_SERVICE_NAME or vars.ECS_WEB_SERVICE_NAME" >&2
-            exit 1
-          fi
-
-          API_IMAGE="${{ steps.ecr.outputs.api_repo }}:${IMAGE_TAG}"
-          WEB_IMAGE="${{ steps.ecr.outputs.web_repo }}:${IMAGE_TAG}"
-
-          function register_new_task_definition() {
-            local service_name="$1"
-            local container_name="$2"
-            local new_image="$3"
-
-            CURRENT_TD_ARN="$(aws ecs describe-services --cluster "${ECS_CLUSTER_NAME}" --services "${service_name}" --query 'services[0].taskDefinition' --output text)"
-            CURRENT_TD_JSON="$(aws ecs describe-task-definition --task-definition "${CURRENT_TD_ARN}" --query 'taskDefinition' --output json)"
-
-            NEW_TD_JSON="$(echo "${CURRENT_TD_JSON}" | jq \
-              --arg container_name "${container_name}" \
-              --arg new_image "${new_image}" \
-              'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy) |
-               .containerDefinitions = (.containerDefinitions | map(if .name == $container_name then .image = $new_image else . end))')"
-
-            aws ecs register-task-definition --cli-input-json "${NEW_TD_JSON}" --query 'taskDefinition.taskDefinitionArn' --output text
-          }
-
-          echo "Registering new API task definition."
-          NEW_API_TD_ARN="$(register_new_task_definition "${ECS_API_SERVICE_NAME}" "api" "${API_IMAGE}")"
-          echo "Registering new web task definition."
-          NEW_WEB_TD_ARN="$(register_new_task_definition "${ECS_WEB_SERVICE_NAME}" "web" "${WEB_IMAGE}")"
-
-          echo "Updating ECS services."
-          aws ecs update-service --cluster "${ECS_CLUSTER_NAME}" --service "${ECS_API_SERVICE_NAME}" --task-definition "${NEW_API_TD_ARN}" >/dev/null
-          aws ecs update-service --cluster "${ECS_CLUSTER_NAME}" --service "${ECS_WEB_SERVICE_NAME}" --task-definition "${NEW_WEB_TD_ARN}" >/dev/null
-
-          echo "Waiting for ECS services to stabilize."
-          aws ecs wait services-stable --cluster "${ECS_CLUSTER_NAME}" --services "${ECS_API_SERVICE_NAME}" "${ECS_WEB_SERVICE_NAME}"
-
-      - name: Run Prisma migrations (ECS one-off task)
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ -z "${ECS_SUBNET_IDS_CSV}" || -z "${ECS_SECURITY_GROUP_ID}" ]]; then
-            echo "Missing vars.ECS_SUBNET_IDS_CSV or vars.ECS_SECURITY_GROUP_ID" >&2
-            exit 1
-          fi
-
-          API_TD_ARN="$(aws ecs describe-services --cluster "${ECS_CLUSTER_NAME}" --services "${ECS_API_SERVICE_NAME}" --query 'services[0].taskDefinition' --output text)"
-          SUBNET_IDS_JSON="$(printf '%s' "${ECS_SUBNET_IDS_CSV}" | tr ',' '\n' | jq -R -s -c 'split(\"\\n\") | map(select(length > 0))')"
-          NETWORK_CONFIG="$(jq -n --argjson subnets "${SUBNET_IDS_JSON}" --arg sg "${ECS_SECURITY_GROUP_ID}" '{awsvpcConfiguration:{subnets:$subnets,securityGroups:[$sg],assignPublicIp:\"DISABLED\"}}')"
-
-          aws ecs run-task \
-            --cluster "${ECS_CLUSTER_NAME}" \
-            --launch-type FARGATE \
-            --task-definition "${API_TD_ARN}" \
-            --network-configuration "${NETWORK_CONFIG}" \
-            --overrides '{"containerOverrides":[{"name":"api","command":["./node_modules/.bin/prisma","migrate","deploy"]}]}' \
-            --count 1 >/dev/null
-
-          echo "Migration task started."
-
-      - name: Smoke test
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ -z "${API_DOMAIN}" || -z "${WEB_DOMAIN}" ]]; then
-            echo "Missing vars.API_DOMAIN or vars.WEB_DOMAIN" >&2
-            exit 1
-          fi
-
-          function wait_for_http_200() {
-            local url="$1"
-            local label="$2"
-            local max_attempts="${3:-30}"
-            local sleep_seconds="${4:-5}"
-            local attempt=1
-            while [[ "${attempt}" -le "${max_attempts}" ]]; do
-              if curl -fsSL --max-time 10 "${url}" >/dev/null; then
-                echo "${label} OK: ${url}"
-                return 0
-              fi
-              echo "${label} not ready yet (attempt ${attempt}/${max_attempts}): ${url}"
-              sleep "${sleep_seconds}"
-              attempt=$((attempt + 1))
-            done
-            echo "${label} FAILED after ${max_attempts} attempts: ${url}" >&2
-            return 1
-          }
-
-          wait_for_http_200 "https://${API_DOMAIN}/health" "API health"
-          wait_for_http_200 "https://${API_DOMAIN}/ready" "API readiness"
-          wait_for_http_200 "https://${WEB_DOMAIN}/" "Web root"
+          aws cloudfront create-invalidation --distribution-id "${CLOUDFRONT_DISTRIBUTION_ID}" --paths "/*" >/dev/null
+          echo "Invalidation submitted."
 

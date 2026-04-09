@@ -54,11 +54,9 @@ This SAD implements the architectural decisions captured in the ADR pack.
 
 ## 4.1 In Scope
 - Svelte frontend + Fastify backend API
-- ECS Fargate deployment
-- EventBridge-triggered worker tasks
-- PostgreSQL (RDS in prod)
-- Prisma ORM/migrations
-- Postgres-backed server sessions
+- Serverless production deployment (static web + serverless API)
+- DynamoDB as primary datastore (access-pattern-driven, single-table)
+- Cookie-backed server sessions stored in DynamoDB
 - OpenAI integration (KISS, direct module)
 - REST JSON APIs with typed DTOs
 - Full snapshot layer from day one
@@ -86,17 +84,18 @@ This SAD implements the architectural decisions captured in the ADR pack.
 Badgers Investments consists of:
 - a **Svelte frontend** for user interaction,
 - a **Fastify backend API** for domain logic and persistence,
-- a **worker runtime** for scheduled/heavy jobs,
-- **PostgreSQL** for canonical and derived data,
-- AWS-managed services for secrets, scheduling, and logging,
+- **AWS Lambda** for production API execution,
+- **DynamoDB** for canonical and derived data,
+- AWS-managed services for secrets and logging,
 - **OpenAI** for recommendation synthesis.
 
 ## 5.2 External Dependencies (MVP)
 - **OpenAI API** — recommendation synthesis
-- **AWS EventBridge** — scheduled job triggers
-- **AWS Secrets Manager + KMS** — secret management
+- **Amazon DynamoDB** — application datastore
+- **AWS Lambda** — API compute (serverless)
+- **Amazon API Gateway (HTTP API)** — public API ingress + custom domain
+- **Amazon S3 + CloudFront** — static web hosting
 - **CloudWatch Logs** — application logs
-- **RDS PostgreSQL** — managed relational database
 
 ---
 
@@ -104,17 +103,16 @@ Badgers Investments consists of:
 
 ## 6.1 Overall Style
 - **Distributed system at deployment level**
-  - frontend service
-  - backend API service
-  - worker service/task
+  - static web (S3 + CloudFront)
+  - serverless API (API Gateway + Lambda)
 - **Modular monolith at backend code level**
   - domain modules within one Fastify codebase/runtime boundary (API)
-  - shared domain logic reused by worker
+  - shared domain logic reused by future job Lambdas (when introduced)
 
 ## 6.2 Why This Style
 - Keeps the codebase simple for a single-user MVP
-- Supports separate concerns (interactive API vs scheduled/heavy jobs)
-- Aligns with ECS Fargate deployment and EventBridge scheduling
+- Supports separate concerns (interactive API vs future scheduled/heavy jobs)
+- Aligns with low-cost, near-zero-traffic serverless hosting
 - Preserves future extensibility without premature microservices
 
 ---
@@ -134,21 +132,14 @@ Responsibilities:
 ### Backend API (Fastify)
 Responsibilities:
 - Expose REST JSON endpoints
-- Authenticate requests via Postgres-backed sessions (cookie session ID)
+- Authenticate requests via DynamoDB-backed sessions (cookie session ID)
 - Execute domain logic and validations
 - Persist canonical data and snapshots
 - Orchestrate recommendation runs (interactive path)
 - Trigger/coordinate rebuilds and jobs
 - Integrate with OpenAI
 
-### Worker (Node.js / shared domain code)
-Responsibilities:
-- Execute scheduled and heavy jobs
-- Process snapshot rebuilds/backfills
-- Run price/FX import jobs (future)
-- Reuse same domain services/use cases as API where possible
-
-### PostgreSQL (RDS in prod)
+### DynamoDB (single-table, access-pattern-driven)
 Responsibilities:
 - Store canonical domain data (ledger, assets, valuations, FX, configs)
 - Store authentication challenges/sessions
@@ -157,9 +148,10 @@ Responsibilities:
 - Store lightweight mutation logs
 
 ### AWS Services
-- **EventBridge:** trigger worker jobs on schedule
-- **Secrets Manager + KMS:** secrets and encryption keys
-- **CloudWatch Logs:** centralised logging for API and worker
+- **S3 + CloudFront:** static web hosting
+- **API Gateway (HTTP API):** HTTPS ingress for API + custom domain
+- **Lambda:** serverless compute for API (and future jobs)
+- **CloudWatch Logs:** centralised logging for API
 
 ### OpenAI
 Responsibilities:
@@ -212,7 +204,7 @@ Responsibilities:
 ## 8.2 Layering Rules
 - Route handlers should be thin and call application services/use-cases.
 - Domain calculation logic must not live in frontend or route handlers.
-- Database access should be encapsulated in repositories/services (Prisma-based).
+- Database access should be encapsulated in repositories/services (DynamoDB-based).
 - `rules` and `performance` modules should be deterministic and testable without API/runtime dependencies.
 - Worker and API should call shared use-case services, not duplicate orchestration logic.
 
@@ -243,14 +235,13 @@ Canonical data is authoritative. Derived data can be invalidated and rebuilt.
 ---
 
 ## 9.2 Database Technology
-- **Local development:** Dockerised PostgreSQL
-- **Production:** AWS RDS PostgreSQL (or Postgres-compatible managed DB)
-- **ORM / migrations:** Prisma
+- **Local development:** DynamoDB Local (recommended) or real AWS DynamoDB in a dev account
+- **Production:** AWS DynamoDB (single-table, PAY_PER_REQUEST)
+- **Schema approach:** application-owned item schemas + explicit access-pattern-driven design (no relational migrations)
 
 ## 9.3 Precision and Numeric Handling (Critical)
-- Use Postgres `numeric/decimal` for monetary values, quantities, rates, and returns.
 - Avoid JavaScript floating-point (`number`) for financial calculations.
-- Use Prisma decimal types end-to-end in domain services.
+- Prefer **decimal-as-string** or **scaled integers** for monetary values, quantities, rates, and returns when persisting to DynamoDB.
 - Apply rounding only at display/output boundaries, not during core calculations unless explicitly required.
 
 ---
@@ -259,7 +250,7 @@ Canonical data is authoritative. Derived data can be invalidated and rebuilt.
 
 ## 10.1 Authentication Model
 - **Username + password** for single-user login
-- Password stored as a one-way hash in Postgres (`user_account.password_hash`)
+- Password stored as a one-way hash in DynamoDB (`USER_ACCOUNT` item)
 - Session-based authentication after successful credential verification
 
 ## 10.2 Login Flow (Username/Password)
@@ -272,7 +263,7 @@ Canonical data is authoritative. Derived data can be invalidated and rebuilt.
 
 ## 10.3 Session Model
 - Cookie stores opaque session ID
-- Session record stored in Postgres (`user_session`)
+- Session record stored in DynamoDB (`USER_SESSION` item)
 - Session validation on protected endpoints
 - Logout revokes session server-side
 
@@ -471,41 +462,34 @@ If an equivalent run exists:
 - Future scheduled recommendations (deferred/optional)
 
 ## 16.2 Trigger Sources
-- **EventBridge** (scheduled)
 - **API direct trigger** (manual UI actions)
 - Potential internal domain events (future)
 
 ## 16.3 Worker Design
-- Stateless worker process/task
-- Uses same database and shared domain services as API
-- Logs job start/end/status/failures to CloudWatch and `job_run_log` (if implemented)
+- For MVP, prefer **Lambda-based jobs** when scheduling is introduced (no always-on worker).
+- Uses the same DynamoDB tables and shared domain services as API.
+- Logs job start/end/status/failures to CloudWatch and `job_run_log` (if implemented).
 
 ## 16.4 Hybrid Execution Policy (Accepted)
 - **Recommendation runs:** synchronous via API (interactive)
-- **Heavy rebuilds/backfills:** worker
-- **Scheduled tasks:** EventBridge → worker
+- **Heavy rebuilds/backfills:** Lambda job (manual trigger) when needed
+- **Scheduled tasks:** add scheduling later (EventBridge → Lambda) if/when required
 
 ---
 
 ## 17. Deployment Architecture (AWS)
 
 ## 17.1 Production Deployment Components
-- **Frontend Service (ECS Fargate)**
-  - Serves Svelte app
-- **Backend API Service (ECS Fargate)**
-  - Fastify REST API
-- **Worker Task/Service (ECS Fargate)**
-  - Job execution runtime
-- **RDS PostgreSQL**
-- **EventBridge**
-- **Secrets Manager + KMS**
+- **Static web**: S3 bucket (private) behind CloudFront (OAC) + ACM cert
+- **API**: API Gateway HTTP API → Lambda (Fastify handler)
+- **Database**: DynamoDB (single-table)
+- **Secrets**: SSM Parameter Store / Secrets Manager (as needed)
 - **CloudWatch Logs**
 
 ## 17.2 Networking (Conceptual)
-- Public access terminates at HTTPS load balancer
-- Frontend and backend accessible over HTTPS
-- Backend and worker access RDS in private networking
-- OpenAI called outbound from API/worker tasks
+- Public access terminates at CloudFront (web) and API Gateway (API)
+- No VPC/NAT required for MVP (Lambda runs publicly unless VPC access is added later)
+- OpenAI called outbound from Lambda
 
 ## 17.3 Environment Strategy
 ### MVP Release
@@ -522,8 +506,8 @@ If an equivalent run exists:
 - Do not create per-service `.env` files in subdirectories (all apps/services/workers read env from the root).
 
 ### Production
-- AWS Secrets Manager (encrypted with KMS)
-- Environment variables injected into ECS tasks (secret refs)
+- Prefer SSM Parameter Store (SecureString) for low-cost secret storage
+- Environment variables injected into Lambda
 - No secrets stored in frontend bundle
 - No plaintext secret logging
 
@@ -573,12 +557,12 @@ If an equivalent run exists:
 
 ## 19.1 Identity and Access
 - Username/password login
-- Postgres-backed server sessions
+- DynamoDB-backed server sessions
 - Secure cookie session handling
 
 ## 19.2 Data Protection
-- Secrets in Secrets Manager/KMS (prod)
-- Password hashes stored in DB (never plaintext)
+- Secrets in SSM Parameter Store / Secrets Manager (prod)
+- Password hashes stored in DynamoDB (never plaintext)
 - Session IDs opaque
 - HTTPS in production
 - Sensitive values never logged in plaintext
@@ -659,12 +643,12 @@ This SAD adopts the username/password authentication model and supersedes earlie
 - **Unit tests**
   - rules, scoring, TWR, FIFO matching, hash canonicalisation
 - **Integration tests**
-  - API + DB (Prisma + Postgres)
+  - API + DynamoDB (local or mocked)
   - recommendation orchestration path with mocked OpenAI
   - auth login + session flow
 - **Regression fixtures**
   - known portfolios and expected P/L/TWR outputs
-- **Worker job tests**
+- **Job tests (when scheduled jobs are introduced)**
   - rebuild from `earliest_affected_date`
 
 ---
@@ -691,13 +675,14 @@ This SAD adopts the username/password authentication model and supersedes earlie
 
 This SAD implements the following accepted ADRs:
 - **ADR-001** Frontend/Backend split and module boundaries
-- **ADR-002** ECS Fargate deployment topology
+- **ADR-012** Serverless deployment topology (S3/CloudFront + API Gateway + Lambda)
+- **ADR-013** DynamoDB single-table data model (access-pattern-driven)
 - **ADR-003** Snapshot-first data architecture + invalidation
 - **ADR-004** Multi-currency + daily FX handling for `TWR_DAILY_V1`
 - **ADR-005** Recommendation orchestration + deduplication
 - **ADR-006** Passwordless email OTP via SES (superseded)
 - **ADR-011** Username/password authentication (superseding ADR-006)
-- **ADR-007** Postgres-backed cookie sessions
+- **ADR-014** DynamoDB-backed cookie sessions
 - **ADR-008** OpenAI-first integration
 - **ADR-009** REST JSON + typed DTOs
 - **ADR-010** Chart.js + CloudWatch logging
@@ -710,4 +695,4 @@ This SAD implements the following accepted ADRs:
 2. **Data Model v2 (updated for username/password auth + snapshots)**
 3. **Snapshot Rebuild Algorithm Spec**
 4. **Recommendation Engine Technical Spec (payload schemas + validation)**
-5. **AWS Infrastructure Spec (networking, ECS services, IAM, secrets)**
+5. **AWS Infrastructure Spec (CloudFront/S3, API Gateway/Lambda, DynamoDB, IAM, secrets)**

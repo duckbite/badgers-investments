@@ -1,56 +1,29 @@
-output "alb_dns_name" {
-  description = "DNS name of the production ALB."
-  value       = module.alb.alb_dns_name
+output "route53_zone_id" {
+  description = "Public hosted zone ID for badgers.nl (create or reuse)."
+  value       = local.route53_zone_effective_id
+}
+
+output "route53_delegation_nameservers" {
+  description = "Four nameserver hostnames — set these at your registrar for badgers.nl (delegation uses names, not IP addresses)."
+  value       = var.route53_zone_id != "" ? one(data.aws_route53_zone.existing[*].name_servers) : one(aws_route53_zone.badgers_nl[*].name_servers)
 }
 
 output "web_url" {
   description = "Web URL."
-  value       = "https://${var.web_domain}"
+  value       = module.web.web_url
 }
 
 output "api_url" {
   description = "API URL."
-  value       = "https://${var.api_domain}"
+  value       = module.api.api_url
 }
 
 output "dns_records_to_create" {
   description = "DNS records that must exist for ACM validation / aliasing when Route53 is not managed."
-  value       = module.alb.dns_records_to_create
-}
-
-output "web_ecr_repository_url" {
-  description = "ECR repository URL for web."
-  value       = module.ecr.web_repository_url
-}
-
-output "api_ecr_repository_url" {
-  description = "ECR repository URL for api."
-  value       = module.ecr.api_repository_url
-}
-
-output "worker_ecr_repository_url" {
-  description = "ECR repository URL for worker."
-  value       = module.ecr.worker_repository_url
-}
-
-output "ecs_cluster_arn" {
-  description = "ECS cluster ARN."
-  value       = module.ecs.ecs_cluster_arn
-}
-
-output "private_subnet_ids_csv" {
-  description = "Private subnet IDs as a comma-separated list."
-  value       = join(",", module.network.private_subnet_ids)
-}
-
-output "ecs_security_group_id" {
-  description = "Security group ID for ECS tasks."
-  value       = module.network.ecs_security_group_id
-}
-
-output "api_task_definition_arn" {
-  description = "Task definition ARN for API."
-  value       = module.ecs.api_task_definition_arn
+  value = {
+    web = module.web.dns_records_to_create
+    api = module.api.dns_records_to_create
+  }
 }
 
 output "github_actions_deploy_role_arn" {
@@ -58,18 +31,23 @@ output "github_actions_deploy_role_arn" {
   value       = module.github_actions_oidc.deploy_role_arn
 }
 
-output "ecs_cluster_name" {
-  description = "ECS cluster name."
-  value       = module.ecs.ecs_cluster_name
+output "web_bucket_name" {
+  description = "S3 bucket name containing static web assets."
+  value       = module.web.web_bucket_name
 }
 
-output "ecs_api_service_name" {
-  description = "ECS service name for API."
-  value       = module.ecs.api_service_name
+output "cloudfront_distribution_id" {
+  description = "CloudFront distribution ID for the web frontend."
+  value       = module.web.cloudfront_distribution_id
 }
 
-output "ecs_web_service_name" {
-  description = "ECS service name for web."
-  value       = module.ecs.web_service_name
+output "api_lambda_function_name" {
+  description = "Lambda function name for the API."
+  value       = module.api.lambda_function_name
+}
+
+output "dynamodb_table_name" {
+  description = "DynamoDB table name for application data."
+  value       = module.dynamodb.table_name
 }
 

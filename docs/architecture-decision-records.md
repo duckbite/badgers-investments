@@ -6,13 +6,16 @@ This pack contains the initial Architecture Decision Records (ADRs) for the MVP.
 
 ### Included ADRs
 - ADR-001 — Frontend/Backend Split and Backend Module Boundaries
-- ADR-002 — Deployment Topology on AWS ECS Fargate
+- ADR-002 — Deployment Topology on AWS ECS Fargate (Superseded)
 - ADR-003 — Snapshot-First Data Architecture and Rebuild Invalidation Policy
 - ADR-004 — Multi-Currency and FX Handling for `TWR_DAILY_V1`
 - ADR-005 — Recommendation Orchestration and Deduplication
 - ADR-006 — Passwordless Email OTP Authentication via AWS SES
 - ADR-011 — Username/Password Authentication (Supersedes ADR-006)
-- ADR-007 — Postgres-Backed Cookie Session Strategy
+- ADR-007 — Postgres-Backed Cookie Session Strategy (Superseded)
+- ADR-012 — Serverless Deployment Topology (S3/CloudFront + API Gateway + Lambda)
+- ADR-013 — DynamoDB Single-Table Data Model (Access-Pattern-Driven)
+- ADR-014 — DynamoDB-Backed Cookie Session Strategy
 - ADR-008 — OpenAI-First Recommendation Integration and Validation Pipeline
 - ADR-009 — API Style and Frontend Integration (REST JSON + Typed DTOs)
 - ADR-010 — Charting and Observability Baseline (Chart.js + CloudWatch Logs)
@@ -65,7 +68,7 @@ Backend is a **modular monolith** (single codebase/runtime per service, internal
 ---
 
 ## ADR-002 — Deployment Topology on AWS ECS Fargate
-- **Status:** Accepted
+- **Status:** Superseded (see ADR-012)
 - **Date:** 2026-02-23
 
 ### Context
@@ -270,7 +273,7 @@ Use **passwordless email OTP authentication** delivered via **AWS SES**.
 ---
 
 ## ADR-007 — Postgres-Backed Cookie Session Strategy
-- **Status:** Accepted
+- **Status:** Superseded (see ADR-014)
 - **Date:** 2026-02-23
 
 ### Context
@@ -459,6 +462,90 @@ Recommended fields:
 
 ### Note on logging
 No full audit table is required for MVP by current decision. Keep lightweight mutation/event logs for debugging and operational traceability.
+
+---
+
+## ADR-012 — Serverless Deployment Topology (S3/CloudFront + API Gateway + Lambda)
+- **Status:** Accepted
+- **Date:** 2026-03-08
+
+### Context
+This is a pet project with near-zero traffic. The ECS Fargate + ALB + NAT Gateway + RDS topology introduces a relatively high fixed monthly cost floor.
+
+### Decision
+Use a serverless production topology:
+- **Web**: S3 (private) + CloudFront (OAC) + ACM (TLS)
+- **API**: API Gateway (HTTP API) → Lambda
+- **Data**: DynamoDB
+- **Observability**: CloudWatch Logs
+
+### Rationale
+- Minimizes always-on hourly costs (no NAT/ALB/RDS baseline)
+- Operational simplicity for low traffic
+- Scales automatically if needed later
+
+### Consequences
+**Positive**
+- Very low fixed monthly cost
+- No VPC/NAT management in MVP
+
+**Negative**
+- Requires access-pattern-driven data modeling (see ADR-013)
+- Limits ad-hoc querying compared to a relational database
+
+---
+
+## ADR-013 — DynamoDB Single-Table Data Model (Access-Pattern-Driven)
+- **Status:** Accepted
+- **Date:** 2026-03-08
+
+### Context
+The MVP data model includes ledger-style facts (transactions), time-series snapshots, and recommendation runs. DynamoDB can be cost-effective but requires explicit access-pattern design.
+
+### Decision
+Use a **single DynamoDB table** for the MVP with:
+- Partition key `PK` and sort key `SK`
+- A primary GSI (`GSI1PK`, `GSI1SK`) for secondary access patterns
+- Materialized views for “current state” reads (e.g. holdings, latest snapshots)
+
+### Rationale
+- Keeps infra always-on cost low (serverless)
+- Supports the MVP’s dominant queries (per-user + time range)
+- Simplifies ops compared to running a relational database
+
+### Consequences
+**Positive**
+- Cheap idle cost and easy scaling
+
+**Negative**
+- Query flexibility is reduced; new queries may require new item shapes / indexes
+- Referential integrity is application-enforced (no FK constraints)
+
+---
+
+## ADR-014 — DynamoDB-Backed Cookie Session Strategy
+- **Status:** Accepted
+- **Date:** 2026-03-08
+
+### Context
+The MVP requires server-side revocable sessions with an opaque cookie session ID. Previously, sessions were planned in Postgres (ADR-007), but the production datastore is now DynamoDB.
+
+### Decision
+Store server-side sessions in DynamoDB:
+- Cookie contains an opaque `session_id`
+- Session record is stored as a `USER_SESSION` item keyed by `PK=USER#<userId>` and `SK=SESSION#<sessionId>` (or equivalent)
+- Support server-side revocation and expiry
+
+### Rationale
+- Maintains a simple, revocable session model without introducing Redis
+- Fits serverless hosting and DynamoDB single-table approach
+
+### Consequences
+**Positive**
+- No extra infrastructure required for sessions
+
+**Negative**
+- Requires careful index design if sessions need global lookup by `session_id` (may use a GSI)
 
 ---
 

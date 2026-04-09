@@ -5,12 +5,13 @@ provider "aws" {
 data "aws_caller_identity" "current" {}
 
 locals {
-  account_suffix        = data.aws_caller_identity.current.account_id
-  state_bucket_name     = "${var.project_name}-tfstate-${local.account_suffix}"
-  state_lock_table      = "${var.project_name}-tfstate-lock-${local.account_suffix}"
-  state_object_key      = "${var.project_name}/prod/terraform.tfstate"
-  state_bucket_tags     = { Project = var.project_name, Purpose = "terraform-state" }
-  state_lock_table_tags = { Project = var.project_name, Purpose = "terraform-state-lock" }
+  account_suffix          = data.aws_caller_identity.current.account_id
+  state_bucket_name       = "${var.project_name}-tfstate-${local.account_suffix}"
+  state_lock_table        = "${var.project_name}-tfstate-lock-${local.account_suffix}"
+  state_object_key        = "${var.project_name}/prod/terraform.tfstate"
+  state_object_key_legacy = "${var.project_name}/prod-legacy/terraform.tfstate"
+  state_bucket_tags       = { Project = var.project_name, Purpose = "terraform-state" }
+  state_lock_table_tags   = { Project = var.project_name, Purpose = "terraform-state-lock" }
 }
 
 resource "aws_s3_bucket" "terraform_state" {

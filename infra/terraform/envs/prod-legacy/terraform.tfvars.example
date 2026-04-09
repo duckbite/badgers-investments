@@ -1,0 +1,17 @@
+aws_region      = "eu-west-1"
+route53_zone_id = "Z0123456789ABCDEF"
+
+web_domain = "investments.badgers.nl"
+api_domain = "api.investments.badgers.nl"
+
+# GitHub Actions OIDC (used for CI/CD role trust policy)
+github_org  = "duckbite"
+github_repo = "badgers-investments"
+github_ref  = "refs/heads/main"
+
+# Optional: choose Postgres major version (latest minor will be selected per region).
+db_engine_major_version = "16"
+
+# Optional: pin an exact Postgres version if needed (e.g. "16.13"). Empty means "latest".
+db_engine_version_override = ""
+

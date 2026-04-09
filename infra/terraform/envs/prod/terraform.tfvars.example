@@ -1,5 +1,7 @@
-aws_region      = "eu-west-1"
-route53_zone_id = "Z0123456789ABCDEF"
+aws_region = "eu-west-1"
+
+# Leave empty to create a new Route 53 public zone for badgers.nl in this account; set to an existing zone ID to use a pre-created zone.
+route53_zone_id = ""
 
 web_domain = "investments.badgers.nl"
 api_domain = "api.investments.badgers.nl"
@@ -8,10 +10,4 @@ api_domain = "api.investments.badgers.nl"
 github_org  = "duckbite"
 github_repo = "badgers-investments"
 github_ref  = "refs/heads/main"
-
-# Optional: choose Postgres major version (latest minor will be selected per region).
-db_engine_major_version = "16"
-
-# Optional: pin an exact Postgres version if needed (e.g. "16.13"). Empty means "latest".
-db_engine_version_override = ""
 

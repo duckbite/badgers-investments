@@ -163,7 +163,7 @@ This enables higher-quality implementation of the core portfolio and recommendat
 ## 10. Product Scope by Phase
 
 ## 10.1 MVP (Phase 1)
-- Username + password login (password stored hashed in Postgres) with Postgres-backed sessions
+- Username + password login (password stored hashed) with DynamoDB-backed sessions
 - Asset management
 - Transaction ledger
 - Wealth dashboard
@@ -204,6 +204,8 @@ Although this is a personal product in v1, treat it like an investment-grade int
 - Use free market data providers where viable
 - Pay only where data quality or reliability materially improves outcomes
 - Cloud architecture should be minimal and cost-efficient due to low usage
+- Prefer **ultra-low fixed monthly costs** for production hosting (pet project, near-zero traffic)
+- Prefer **free tier / always-free** services where viable, accepting reduced HA/ops complexity as a trade-off
 
 ---
 
@@ -261,7 +263,7 @@ Keep the system simple and modular:
 
 ## 14.2 Deployment Strategy
 - Development locally
-- Production in cloud (AWS preferred)
+- Production in cloud (AWS preferred), optimized for **ultra-low cost** given near-zero traffic
 - HTTPS only in production
 - environment-based config for secrets and provider settings
 

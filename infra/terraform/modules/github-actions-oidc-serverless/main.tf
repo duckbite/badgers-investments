@@ -1,4 +1,13 @@
-data "aws_caller_identity" "current" {}
+terraform {
+  required_providers {
+    aws = {
+      source = "hashicorp/aws"
+    }
+    tls = {
+      source = "hashicorp/tls"
+    }
+  }
+}
 
 data "tls_certificate" "github_actions" {
   url = "https://token.actions.githubusercontent.com"
@@ -44,60 +53,42 @@ resource "aws_iam_role" "deploy" {
 
 data "aws_iam_policy_document" "deploy" {
   statement {
-    sid       = "EcrAuth"
-    effect    = "Allow"
-    actions   = ["ecr:GetAuthorizationToken"]
-    resources = ["*"]
-  }
-
-  statement {
-    sid    = "EcrPushPull"
-    effect = "Allow"
-    actions = [
-      "ecr:BatchCheckLayerAvailability",
-      "ecr:BatchGetImage",
-      "ecr:CompleteLayerUpload",
-      "ecr:DescribeImages",
-      "ecr:DescribeRepositories",
-      "ecr:GetDownloadUrlForLayer",
-      "ecr:InitiateLayerUpload",
-      "ecr:ListImages",
-      "ecr:PutImage",
-      "ecr:UploadLayerPart"
-    ]
-    resources = var.ecr_repository_arns
-  }
-
-  statement {
-    sid    = "EcsDeploy"
-    effect = "Allow"
-    actions = [
-      "ecs:DescribeClusters",
-      "ecs:DescribeServices",
-      "ecs:DescribeTaskDefinition",
-      "ecs:DescribeTasks",
-      "ecs:ListTasks",
-      "ecs:RegisterTaskDefinition",
-      "ecs:RunTask",
-      "ecs:UpdateService",
-      "ecs:TagResource"
-    ]
-    resources = ["*"]
-  }
-
-  statement {
-    sid     = "IamPassRoleForEcsTasks"
+    sid     = "WebBucketList"
     effect  = "Allow"
-    actions = ["iam:PassRole"]
+    actions = ["s3:ListBucket", "s3:GetBucketLocation"]
     resources = [
-      var.ecs_execution_role_arn,
-      var.ecs_task_role_arn
+      var.web_bucket_arn
     ]
-    condition {
-      test     = "StringEquals"
-      variable = "iam:PassedToService"
-      values   = ["ecs-tasks.amazonaws.com"]
-    }
+  }
+
+  statement {
+    sid     = "WebBucketWrite"
+    effect  = "Allow"
+    actions = ["s3:PutObject", "s3:DeleteObject"]
+    resources = [
+      "${var.web_bucket_arn}/*"
+    ]
+  }
+
+  statement {
+    sid     = "CloudFrontInvalidation"
+    effect  = "Allow"
+    actions = ["cloudfront:CreateInvalidation", "cloudfront:GetDistribution"]
+    resources = [
+      var.cloudfront_distribution_arn
+    ]
+  }
+
+  statement {
+    sid    = "LambdaUpdateCode"
+    effect = "Allow"
+    actions = [
+      "lambda:GetFunction",
+      "lambda:UpdateFunctionCode"
+    ]
+    resources = [
+      var.lambda_function_arn
+    ]
   }
 }
 
