@@ -221,8 +221,8 @@ pnpm smoke:prod
 
 This repo uses **GitHub Actions** for CI/CD:
 
-- **Pull requests** run: `pnpm lint`, `pnpm test`, `pnpm build`
-- **Push to `main`** runs a production deploy (build + push images, ECS rolling deploy, smoke tests)
+- **Pull requests** run the **CI** workflow only: `pnpm lint`, `pnpm test`, `pnpm build` (via reusable `ci-reusable.yml`).
+- **Push to `main`** runs **Deploy production (AWS ECS)**: the same CI must pass first, then production steps run **only** when changes touch infra (`infra/`), backend (`services/`, `workers/`, `shared/` plus root lockfiles/package), frontend (`apps/web/`), or deploy-related workflow files. Order: Terraform validate when infra (or manual deploy) → build/push container images (API → worker → web) → ECS rolling deploy → HTTPS smoke tests.
 
 #### Required GitHub configuration
 

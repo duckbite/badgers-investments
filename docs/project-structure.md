@@ -13,6 +13,10 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 | `README.md` | How to run, test, and deploy the application. |
 | `.gitignore` | Ignored paths (node_modules, build outputs, env files, etc.). |
 | `.github/` | GitHub Actions workflows (CI/CD). |
+| `.github/workflows/ci-reusable.yml` | Reusable workflow: `pnpm lint`, `test`, `build` (Turbo). Called from PR **CI** and from **main** deploy workflow. |
+| `.github/workflows/ci.yml` | Pull-request **CI** only (calls `ci-reusable.yml`). |
+| `.github/workflows/deploy-prod.yml` | **Main** branch CD: CI → path-gated deploy (Terraform validate when relevant → ECR image build/push → ECS + smoke). |
+| `.github/workflows/build-images.yml` | Reusable image build/push (API, worker, web); optional `checkout_ref` for non-default SHAs. |
 
 ## Apps
 
