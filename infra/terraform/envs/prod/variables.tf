@@ -49,78 +49,6 @@ variable "route53_zone_id" {
   }
 }
 
-variable "enable_services" {
-  type        = bool
-  description = "When false, provisions shared infrastructure but does not create ECS services/task definitions that require built images."
-  default     = false
-}
-
-variable "web_image_tag" {
-  type        = string
-  description = "Docker image tag for the web service in ECR."
-  default     = "bootstrap"
-}
-
-variable "api_image_tag" {
-  type        = string
-  description = "Docker image tag for the API service in ECR."
-  default     = "bootstrap"
-}
-
-variable "worker_image_tag" {
-  type        = string
-  description = "Docker image tag for the worker task in ECR."
-  default     = "bootstrap"
-}
-
-variable "vpc_cidr" {
-  type        = string
-  description = "VPC CIDR block."
-  default     = "10.0.0.0/16"
-  validation {
-    condition     = can(cidrnetmask(var.vpc_cidr))
-    error_message = "vpc_cidr must be a valid CIDR block."
-  }
-}
-
-variable "public_subnet_cidrs" {
-  type        = list(string)
-  description = "Public subnet CIDR blocks."
-  default     = ["10.0.0.0/20", "10.0.16.0/20"]
-  validation {
-    condition     = alltrue([for c in var.public_subnet_cidrs : can(cidrnetmask(c))])
-    error_message = "public_subnet_cidrs must contain only valid CIDR blocks."
-  }
-}
-
-variable "private_subnet_cidrs" {
-  type        = list(string)
-  description = "Private subnet CIDR blocks."
-  default     = ["10.0.128.0/20", "10.0.144.0/20"]
-  validation {
-    condition     = alltrue([for c in var.private_subnet_cidrs : can(cidrnetmask(c))])
-    error_message = "private_subnet_cidrs must contain only valid CIDR blocks."
-  }
-}
-
-variable "availability_zone_count" {
-  type        = number
-  description = "Number of availability zones to use (must match subnet CIDR list sizes)."
-  default     = 2
-  validation {
-    condition     = var.availability_zone_count >= 2 && var.availability_zone_count <= 3
-    error_message = "availability_zone_count must be between 2 and 3."
-  }
-  validation {
-    condition     = length(var.public_subnet_cidrs) == var.availability_zone_count
-    error_message = "public_subnet_cidrs length must equal availability_zone_count."
-  }
-  validation {
-    condition     = length(var.private_subnet_cidrs) == var.availability_zone_count
-    error_message = "private_subnet_cidrs length must equal availability_zone_count."
-  }
-}
-
 variable "dynamodb_table_name" {
   type        = string
   description = "DynamoDB table name for application data (must exist; Terraform does not create it here)."
@@ -147,4 +75,3 @@ variable "github_ref" {
   description = "Git ref for production deploys (used in OIDC subject claim)."
   default     = "refs/heads/main"
 }
-

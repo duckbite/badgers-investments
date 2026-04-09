@@ -23,7 +23,7 @@ A single-user investment monitoring and recommendation web app. Track holdings f
 - **Database:** Amazon DynamoDB (AWS SDK v3)
 - **Auth:** Username + password (hashed); DynamoDB-backed cookie sessions
 - **Recommendations:** OpenAI (direct integration); rules engine + deduplication
-- **Deployment:** Local dev against cloud DynamoDB; production on AWS (ECS Fargate, Secrets Manager, CloudWatch; EventBridge for workers where used)
+- **Deployment:** Local dev against cloud DynamoDB; production on AWS (S3 + CloudFront for static web, API Gateway HTTP API + Lambda for API, scheduled Lambda worker, DynamoDB, Secrets Manager, CloudWatch)
 
 ---
 
@@ -144,15 +144,15 @@ pnpm test
 
 ## Deployment
 
-Production is designed to run on **AWS**:
+Production runs on **AWS** (serverless-oriented):
 
-- **ECS Fargate** for frontend, backend API, and worker tasks
-- **Amazon DynamoDB** for application data (table supplied via Terraform variable `dynamodb_table_name`)
-- **Secrets Manager + KMS** for secrets (e.g. cookie signing)
-- **EventBridge** for scheduled jobs (e.g. snapshot rebuilds), where enabled
-- **CloudWatch Logs** for application logs
+- **S3 + CloudFront** for the static SPA (`adapter-static`)
+- **API Gateway (HTTP API) + AWS Lambda (Node.js 20)** for the Fastify API (`@fastify/aws-lambda`)
+- **EventBridge + Lambda** for scheduled worker jobs
+- **Amazon DynamoDB** for application data (`dynamodb_table_name` in Terraform; table must already exist)
+- **Secrets Manager** for app secrets (e.g. cookie signing); **CloudWatch Logs** for Lambdas
 
-Infrastructure-as-code lives under `infra/terraform/` (Terraform).
+Infrastructure-as-code: `infra/terraform/`.
 
 ### Prerequisites (production)
 
@@ -176,7 +176,7 @@ pnpm infra:validate
 pnpm infra:tflint
 ```
 
-### One-command production bring-up
+### One-command production Terraform apply
 
 1) Create your production variables file:
 
@@ -184,66 +184,57 @@ pnpm infra:tflint
 cp infra/terraform/envs/prod/terraform.tfvars.example infra/terraform/envs/prod/terraform.tfvars
 ```
 
-2) Fill in at least `aws_region`, `dynamodb_table_name` (existing table), and (if using Route53-managed DNS) `route53_zone_id`, then run:
+2) Fill in at least `aws_region`, `dynamodb_table_name`, `web_domain`, `api_domain`, and (recommended) `route53_zone_id`, plus create `infra/terraform/envs/prod/backend.hcl` for remote state.
+
+3) Run:
 
 ```bash
 pnpm prod:up
 ```
 
-`pnpm prod:up` performs:
+This runs **`terraform apply`** for the serverless prod stack (static site, API Lambda + HTTP API + custom domain, worker Lambda + schedule, Secrets Manager, GitHub OIDC deploy role). It does **not** deploy application code; use GitHub Actions or `tools/prod/deploy-prod.sh` after Terraform outputs exist.
 
-- Bootstrap Terraform remote state (S3 + DynamoDB lock)
-- `terraform apply` for shared infra
-- Build + push Docker images to ECR (multi-arch; uses an immutable per-run image tag by default)
-- `terraform apply` again to enable ECS services with the new image tags
-- Smoke tests:
-  - `https://api.investments.badgers.nl/health`
-  - `https://api.investments.badgers.nl/ready`
-  - `https://investments.badgers.nl/`
+### Manual application deploy (optional)
 
-Notes:
-
-- ECR repositories are configured with **immutable tags**, so rerunning `pnpm prod:up` will generate a **new** image tag per run.
-- Override the tag if needed: `PROD_IMAGE_TAG=... pnpm prod:up`
-- Override build platforms if needed: `DOCKER_PLATFORMS=linux/amd64,linux/arm64 pnpm deploy:prod <tag>`
-
-### Manual production commands (optional)
+After Terraform has run at least once:
 
 ```bash
-# Build + push images (expects an image tag argument, typically git SHA)
+export AWS_REGION=...   # same region as prod stack
+export PUBLIC_API_BASE_URL=https://<api-domain>
 pnpm deploy:prod
+```
 
-# Smoke test production domains
+`pnpm deploy:prod` builds the static web app and Lambda bundles, uploads to S3 and Lambda, and invalidates CloudFront.
+
+```bash
+# Smoke test (reads domains from prod terraform.tfvars)
 pnpm smoke:prod
 ```
 
 ### CI/CD (GitHub Actions)
 
-This repo uses **GitHub Actions** for CI/CD:
+- **Pull requests:** **CI** only — `pnpm lint`, `pnpm test`, `pnpm build` (`ci-reusable.yml`).
+- **Push to `main`:** **Deploy production (serverless)** — CI must pass; deploy runs only when paths touch `infra/`, backend, frontend, or workflow files. Steps: optional Terraform validate → build static web (with `PUBLIC_API_BASE_URL=https://$API_DOMAIN`) → bundle API + worker Lambdas → `aws lambda update-function-code` → `aws s3 sync` → CloudFront invalidation → HTTPS smoke tests.
 
-- **Pull requests** run the **CI** workflow only: `pnpm lint`, `pnpm test`, `pnpm build` (via reusable `ci-reusable.yml`).
-- **Push to `main`** runs **Deploy production (AWS ECS)**: the same CI must pass first, then production steps run **only** when changes touch infra (`infra/`), backend (`services/`, `workers/`, `shared/` plus root lockfiles/package), frontend (`apps/web/`), or deploy-related workflow files. Order: Terraform validate when infra (or manual deploy) → build/push container images (API → worker → web) → ECS rolling deploy → HTTPS smoke tests.
+#### GitHub configuration
 
-#### Required GitHub configuration
+**Secret**
 
-**Secrets** (GitHub repo settings):
+- `AWS_ROLE_ARN` — assume via OIDC (Terraform output `github_actions_deploy_role_arn`).
 
-- `AWS_ROLE_ARN` — IAM role to assume via OIDC (see Terraform output `github_actions_deploy_role_arn`).
+**Variables** (copy from `terraform output` after apply)
 
-**Variables** (GitHub repo settings):
-
-- `AWS_REGION` — AWS region (e.g. `us-east-1`)
-- `ECR_REPO_PREFIX` — ECR repo prefix (defaults to `badgers-investments-prod` in Terraform naming)
-- `ECS_CLUSTER_NAME` — ECS cluster name (Terraform output `ecs_cluster_name`)
-- `ECS_API_SERVICE_NAME` — API ECS service name (Terraform output `ecs_api_service_name`)
-- `ECS_WEB_SERVICE_NAME` — Web ECS service name (Terraform output `ecs_web_service_name`)
-- `API_DOMAIN` — API domain (e.g. `api.investments.badgers.nl`)
-- `WEB_DOMAIN` — Web domain (e.g. `investments.badgers.nl`)
-- `DOCKER_PLATFORMS` — Optional override (default: `linux/amd64,linux/arm64`)
+- `AWS_REGION`
+- `API_DOMAIN` — hostname only (e.g. `api.investments.badgers.nl`)
+- `WEB_DOMAIN` — hostname only (e.g. `investments.badgers.nl`)
+- `S3_WEB_BUCKET` — output `web_s3_bucket_id`
+- `CLOUDFRONT_DISTRIBUTION_ID` — output `cloudfront_distribution_id`
+- `LAMBDA_API_FUNCTION_NAME` — output `lambda_api_function_name`
+- `LAMBDA_WORKER_FUNCTION_NAME` — output `lambda_worker_function_name`
 
 #### Rollback
 
-Use the **“Deploy production (AWS ECS)”** workflow (`workflow_dispatch`) and pass a previous `image_tag` (for example an older git SHA) to redeploy that version.
+Re-run **Deploy production (serverless)** on a previous commit (or upload an older Lambda zip / S3 snapshot manually).
 
 ---
 

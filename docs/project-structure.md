@@ -15,8 +15,7 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 | `.github/` | GitHub Actions workflows (CI/CD). |
 | `.github/workflows/ci-reusable.yml` | Reusable workflow: `pnpm lint`, `test`, `build` (Turbo). Called from PR **CI** and from **main** deploy workflow. |
 | `.github/workflows/ci.yml` | Pull-request **CI** only (calls `ci-reusable.yml`). |
-| `.github/workflows/deploy-prod.yml` | **Main** branch CD: CI → path-gated deploy (Terraform validate when relevant → ECR image build/push → ECS + smoke). |
-| `.github/workflows/build-images.yml` | Reusable image build/push (API, worker, web); optional `checkout_ref` for non-default SHAs. |
+| `.github/workflows/deploy-prod.yml` | **Main** branch CD: CI → path-gated serverless deploy (Terraform validate when relevant → Lambda bundles + static web → S3/CloudFront + smoke). |
 
 ## Apps
 
@@ -40,6 +39,8 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 |------|-------------|
 | `workers/worker/` | Worker runtime for scheduled/heavy jobs (e.g. snapshot rebuilds). Entry: `src/index.ts`. Scripts: `dev`, `build`, `start`, `lint`, `clean`. Build output: `dist/`. |
 
+**Production:** Web, API, and worker are **not** built as container images in-repo (no `Dockerfile`s under those paths). CI/CD publishes static assets and Lambda bundles; see ADR-012 in `docs/architecture-decision-records.md` and `.github/workflows/deploy-prod.yml`.
+
 ## Shared
 
 | Path | Description |
@@ -52,7 +53,10 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 |------|-------------|
 | `infra/terraform/bootstrap/` | Remote state bucket + state-lock DynamoDB table. |
 | `infra/terraform/envs/dev/` | Terraform workspace for **dev** application DynamoDB (`badgers-investments-dev-ddb` by default). |
-| `infra/terraform/envs/prod/` | Production stack (VPC, ECS, ALB, etc.). |
+| `infra/terraform/envs/prod/` | Production stack: S3 + CloudFront, API Gateway + Lambda, worker Lambda, Secrets Manager, OIDC role. |
+| `infra/terraform/modules/static_site/` | S3 static bucket + CloudFront + ACM (us-east-1) for `web_domain`. |
+| `infra/terraform/modules/api_lambda/` | API Lambda, HTTP API, regional ACM + custom domain for `api_domain`. |
+| `infra/terraform/modules/worker_lambda/` | Worker Lambda + EventBridge schedule. |
 | `infra/terraform/modules/app-dynamodb-table/` | Reusable on-demand DynamoDB table (`PK` / `SK`, optional **`GSI1`** mirroring prod). |
 
 ## Docs and tooling

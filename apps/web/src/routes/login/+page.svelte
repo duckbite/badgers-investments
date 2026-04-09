@@ -1,5 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { env } from '$env/dynamic/public';
   import { onMount } from 'svelte';
 
   type CheckStatus = 'checking' | 'up' | 'down';
@@ -9,14 +10,21 @@
   let email: string = '';
   let isSubmitting: boolean = false;
 
-  async function loadChecks(): Promise<void> {
-    backendStatus = await fetchStatus('/api/health');
-    databaseStatus = await fetchStatus('/api/ready');
+  function getApiOrigin(): string {
+    const raw: string | undefined = env.PUBLIC_API_BASE_URL;
+    const base: string = raw !== undefined && raw.length > 0 ? raw : 'http://localhost:3000';
+    return base.replace(/\/+$/, '');
   }
 
-  async function fetchStatus(path: string): Promise<CheckStatus> {
+  async function loadChecks(): Promise<void> {
+    const base: string = getApiOrigin();
+    backendStatus = await fetchStatus(`${base}/health`);
+    databaseStatus = await fetchStatus(`${base}/ready`);
+  }
+
+  async function fetchStatus(url: string): Promise<CheckStatus> {
     try {
-      const response: Response = await fetch(path, { method: 'GET', headers: { accept: 'application/json' } });
+      const response: Response = await fetch(url, { method: 'GET', headers: { accept: 'application/json' } });
       return response.ok ? 'up' : 'down';
     } catch {
       return 'down';

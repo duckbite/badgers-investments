@@ -3,6 +3,7 @@ node_modules/
 
 # Build and cache
 dist/
+dist-lambda/
 build/
 .turbo/
 .vite/

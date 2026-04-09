@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import cors from '@fastify/cors';
 import { authRoutes } from '../modules/auth/auth-routes.js';
 import { assetsRoutes } from '../modules/assets/assets-routes.js';
 import { aiRoutes } from '../modules/ai/ai-routes.js';
@@ -15,6 +16,10 @@ import { snapshotsRoutes } from '../modules/snapshots/snapshots-routes.js';
 import { valuationsRoutes } from '../modules/valuations/valuations-routes.js';
 
 export async function registerModules(input: { readonly app: FastifyInstance }): Promise<void> {
+  const corsOrigin: string | undefined = process.env.CORS_ORIGIN;
+  if (corsOrigin !== undefined && corsOrigin.length > 0) {
+    await input.app.register(cors, { origin: corsOrigin, credentials: true });
+  }
   await input.app.register(loggingModule);
   await input.app.register(healthRoutes);
   await input.app.register(authRoutes);

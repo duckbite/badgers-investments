@@ -6,7 +6,8 @@ This pack contains the initial Architecture Decision Records (ADRs) for the MVP.
 
 ### Included ADRs
 - ADR-001 — Frontend/Backend Split and Backend Module Boundaries
-- ADR-002 — Deployment Topology on AWS ECS Fargate
+- ADR-002 — Deployment Topology on AWS ECS Fargate (**superseded** by ADR-012)
+- ADR-012 — Serverless Production on AWS (S3/CloudFront + API Gateway + Lambda)
 - ADR-003 — Snapshot-First Data Architecture and Rebuild Invalidation Policy
 - ADR-004 — Multi-Currency and FX Handling for `TWR_DAILY_V1`
 - ADR-005 — Recommendation Orchestration and Deduplication
@@ -50,7 +51,7 @@ Backend is a **modular monolith** (single codebase/runtime per service, internal
 
 ### Rationale
 - Clear API boundary
-- Better fit for separate worker and ECS deployment
+- Better fit for separate web static hosting, API, and worker runtimes
 - Stronger separation of UI and financial logic
 
 ### Consequences
@@ -65,13 +66,13 @@ Backend is a **modular monolith** (single codebase/runtime per service, internal
 ---
 
 ## ADR-002 — Deployment Topology on AWS ECS Fargate
-- **Status:** Accepted
+- **Status:** Superseded (see **ADR-012**)
 - **Date:** 2026-02-23
 
 ### Context
 Production must be AWS-hosted, HTTPS-enabled, and simple to operate.
 
-### Decision
+### Decision (historical)
 Use **AWS ECS Fargate** for production compute.
 
 ### MVP Topology
@@ -93,6 +94,30 @@ Use **AWS ECS Fargate** for production compute.
 ### Rationale
 - Managed container runtime without VM ops
 - Clean support for API + worker split
+
+---
+
+## ADR-012 — Serverless Production on AWS (S3/CloudFront + API Gateway + Lambda)
+- **Status:** Accepted
+- **Date:** 2026-04-09
+
+### Context
+Production should minimize fixed cost and operational surface area. Container registries and long-lived ECS services are no longer the target topology.
+
+### Decision
+Use a **serverless-oriented** production stack on AWS:
+
+- **Static SPA:** S3 origin + CloudFront + ACM (us-east-1) for `web_domain`.
+- **API:** **Amazon API Gateway HTTP API** (v2) with **AWS Lambda** (Node.js 20) running Fastify via **`@fastify/aws-lambda`**; regional ACM + custom domain for `api_domain` where DNS is managed.
+- **Worker:** **EventBridge** schedule invoking a **Lambda** function (batch/snapshot jobs).
+- **Data / ops:** **DynamoDB** (existing table name wired in Terraform), **Secrets Manager** for app secrets (e.g. cookie signing), **CloudWatch Logs** for Lambdas.
+
+CI/CD (GitHub Actions OIDC) publishes **Lambda zip** artifacts and **`aws s3 sync`** for static files, then **CloudFront invalidation**.
+
+### Consequences
+- **Positive:** No ECR/ECS to operate; scale-to-zero friendly pricing for low traffic.
+- **Positive:** Aligns with DynamoDB + session cookie API already in use.
+- **Tradeoff:** Cold starts and API Gateway/Lambda limits vs containers; CORS explicit for browser (`CORS_ORIGIN` / `@fastify/cors`).
 
 ---
 
@@ -298,7 +323,7 @@ Use **server-side sessions stored in Amazon DynamoDB**, with an opaque session I
 
 ### Rationale
 - Avoids adding Redis in MVP
-- Works reliably in Fargate across tasks/restarts
+- Works reliably with stateless API compute (e.g. Lambda): sessions live in DynamoDB, not process memory
 - Enables server-side revocation/logout
 
 ---
@@ -426,7 +451,7 @@ Use **username + password** authentication for the single user.
 ### Rationale
 - Removes external dependency on email delivery for basic access.
 - Matches the updated MVP requirement for deterministic local/dev access.
-- Keeps the session strategy unchanged and compatible with ECS deployments.
+- Keeps the session strategy unchanged and compatible with the production API on Lambda (ADR-007, ADR-012).
 
 ### Consequences
 **Positive**

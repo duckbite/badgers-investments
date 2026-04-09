@@ -19,19 +19,24 @@ variable "github_ref" {
   default     = "refs/heads/main"
 }
 
-variable "ecr_repository_arns" {
-  type        = list(string)
-  description = "ECR repository ARNs that CI is allowed to push/pull."
+variable "web_s3_bucket_arn" {
+  type        = string
+  description = "ARN of the static web S3 bucket (object sync + list)."
 }
 
-variable "ecs_execution_role_arn" {
+variable "cloudfront_distribution_arn" {
   type        = string
-  description = "ECS task execution role ARN (for iam:PassRole)."
+  description = "CloudFront distribution ARN for cache invalidation."
 }
 
-variable "ecs_task_role_arn" {
+variable "lambda_api_function_arn" {
   type        = string
-  description = "ECS task role ARN (for iam:PassRole)."
+  description = "API Lambda function ARN (UpdateFunctionCode)."
+}
+
+variable "lambda_worker_function_arn" {
+  type        = string
+  description = "Worker Lambda function ARN (UpdateFunctionCode)."
 }
 
 variable "tags" {
@@ -39,4 +44,3 @@ variable "tags" {
   description = "Tags to apply to IAM resources."
   default     = {}
 }
-
