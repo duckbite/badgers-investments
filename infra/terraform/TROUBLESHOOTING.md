@@ -14,6 +14,16 @@ aws s3 rm "s3://BUCKET_NAME" --recursive
 
 **Legacy `module.web` bucket** (random suffix, e.g. `badgers-investments-prod-web-dadfa5b4`): that resource often had **`force_destroy = false`**. Terraform cannot delete it until it is empty. Run **`aws s3 rm s3://badgers-investments-prod-web-dadfa5b4 --recursive`** (adjust name from `terraform state list` if different), then **`terraform apply`** again.
 
+## GitHub Actions Terraform: `S3 HeadObject` / `403 Forbidden` on state object
+
+The OIDC deploy role must be allowed to read and write the **bootstrap remote state bucket** (and the **state lock DynamoDB table** if `backend.hcl` sets `dynamodb_table`). The inline deploy policy only covered the **web** bucket until explicit state ARNs were added to **`github-actions-oidc`**.
+
+After upgrading that module, run **`terraform apply`** for prod locally so IAM updates, then re-run the workflow.
+
+If **`terraform apply`** in CI still fails on other APIs, set **`github_actions_grant_terraform_apply = true`** in **`terraform.tfvars`**, apply once (AdministratorAccess on the same role), and sync **`PROD_TFVARS`**.
+
+Also confirm **`AWS_ROLE_ARN`** in GitHub matches **`terraform output github_actions_deploy_role_arn`**.
+
 ## CloudFront: `InvalidArgument: The parameter ForwardedValues is required`
 
 `aws_cloudfront_distribution` cache behaviors must use either a **`forwarded_values`** block (legacy) or **`cache_policy_id`** (and usually **`origin_request_policy_id`** for S3 + OPTIONS). If neither is set, AWS returns this error. The **`static_site`** module uses **Managed-CachingOptimized** + **Managed-CORS-S3Origin** on default and `/_app/immutable/*` behaviors (`Managed-CachingImmutable` is not available in every account’s managed policy list).
