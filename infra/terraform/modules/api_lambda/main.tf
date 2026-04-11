@@ -9,13 +9,13 @@ data "archive_file" "bootstrap" {
   type = "zip"
   source {
     content  = <<-EOT
-      export const handler = async () => ({
+      exports.handler = async () => ({
         statusCode: 503,
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ message: "Placeholder — deploy Lambda code via CI (pnpm build:lambda / update-function-code)." }),
       });
     EOT
-    filename = "index.mjs"
+    filename = "index.cjs"
   }
   output_path = "${path.module}/.terraform-bootstrap-api.zip"
 }
