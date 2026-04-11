@@ -84,6 +84,6 @@ variable "github_ref" {
 
 variable "github_actions_grant_terraform_apply" {
   type        = bool
-  description = "Attach AdministratorAccess to the GitHub OIDC deploy role so CI can terraform apply. Apply once with elevated credentials, then enable; see README."
+  description = "Attach AdministratorAccess to the GitHub OIDC deploy role. Required for CI terraform plan/apply (plan refreshes all resources). App-only CI deploy works with the narrow inline policy when this is false."
   default     = false
 }

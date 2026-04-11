@@ -15,5 +15,6 @@ github_org  = "duckbite"
 github_repo = "badgers-investments"
 github_ref  = "refs/heads/main"
 
-# After OIDC role exists, set true and re-apply (locally or CI) so GitHub Actions can terraform apply.
-github_actions_grant_terraform_apply = false
+# Required for GitHub Actions Terraform plan/apply: plan refreshes every resource (IAM, Logs, ACM, …).
+# Set false only if you never run Terraform from CI (app deploy via OIDC still uses the narrow inline policy).
+github_actions_grant_terraform_apply = true

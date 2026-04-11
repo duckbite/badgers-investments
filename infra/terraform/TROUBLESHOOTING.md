@@ -24,6 +24,21 @@ If **`terraform apply`** in CI still fails on other APIs, set **`github_actions_
 
 Also confirm **`AWS_ROLE_ARN`** in GitHub matches **`terraform output github_actions_deploy_role_arn`**.
 
+## GitHub Actions Terraform: many `AccessDenied` / `not authorized` during **plan** (logs, IAM, ACM, API Gateway, …)
+
+**Symptom:** `terraform plan` or `apply` in CI fails on **`logs:DescribeLogGroups`**, **`iam:GetRole`**, **`apigateway:GET`**, **`acm:DescribeCertificate`**, **`cloudfront:ListCachePolicies`**, **`route53:GetHostedZone`**, etc., all as **`badgers-investments-prod-github-actions-deploy`**.
+
+**Cause:** The deploy role’s **inline** policy only allows app deploy (web S3, one distribution, Lambda code updates) plus **remote state** S3/DynamoDB. **`terraform plan` refreshes every resource** in state, which requires read APIs across the whole stack. **`terraform apply`** needs writes as well. That scope is not covered by the narrow policy.
+
+**Fix:**
+
+1. In **`infra/terraform/envs/prod/terraform.tfvars`**, set **`github_actions_grant_terraform_apply = true`**.
+2. Run **`terraform apply`** **locally** with an admin-capable principal so Terraform attaches **`AdministratorAccess`** to the OIDC deploy role (`aws_iam_role_policy_attachment.terraform_apply_admin`).
+3. Copy the updated **`terraform.tfvars`** into GitHub secret **`PROD_TFVARS`**.
+4. Re-run the workflow.
+
+There is no supported “minimal read-only plan” policy in this repo; narrowing beyond AdministratorAccess means maintaining a large custom IAM policy by hand.
+
 ## CloudFront: `InvalidArgument: The parameter ForwardedValues is required`
 
 `aws_cloudfront_distribution` cache behaviors must use either a **`forwarded_values`** block (legacy) or **`cache_policy_id`** (and usually **`origin_request_policy_id`** for S3 + OPTIONS). If neither is set, AWS returns this error. The **`static_site`** module uses **Managed-CachingOptimized** + **Managed-CORS-S3Origin** on default and `/_app/immutable/*` behaviors (`Managed-CachingImmutable` is not available in every account’s managed policy list).
