@@ -1,10 +1,22 @@
 locals {
-  manage_route53 = length(trimspace(var.route53_zone_id)) > 0
+  manage_route53       = var.manage_dns_records
+  use_imported_web_tls = !var.manage_dns_records && length(trimspace(var.web_tls_certificate_arn)) > 0
+}
+
+# CloudFront requires either forwarded_values (legacy) or cache_policy_id on each behavior.
+# `Managed-CachingImmutable` is not present in all accounts' managed policy lists; use CachingOptimized for both paths.
+data "aws_cloudfront_cache_policy" "caching_optimized" {
+  name = "Managed-CachingOptimized"
+}
+
+data "aws_cloudfront_origin_request_policy" "cors_s3_origin" {
+  name = "Managed-CORS-S3Origin"
 }
 
 resource "aws_s3_bucket" "web" {
-  bucket = "${var.name_prefix}-web-static"
-  tags   = merge(var.tags, { Name = "${var.name_prefix}-web-static" })
+  bucket        = "${var.name_prefix}-web-static"
+  force_destroy = var.web_bucket_force_destroy
+  tags          = merge(var.tags, { Name = "${var.name_prefix}-web-static" })
 }
 
 resource "aws_s3_bucket_public_access_block" "web" {
@@ -32,6 +44,7 @@ resource "aws_cloudfront_origin_access_control" "web" {
 }
 
 resource "aws_acm_certificate" "web" {
+  count             = local.use_imported_web_tls ? 0 : 1
   provider          = aws.us_east_1
   domain_name       = var.web_domain
   validation_method = "DNS"
@@ -41,33 +54,23 @@ resource "aws_acm_certificate" "web" {
   }
 }
 
-locals {
-  web_cert_validation = {
-    for dvo in aws_acm_certificate.web.domain_validation_options : dvo.domain_name => {
-      name   = dvo.resource_record_name
-      record = dvo.resource_record_value
-      type   = dvo.resource_record_type
-    }
-  }
-}
-
 resource "aws_route53_record" "web_cert_validation" {
-  for_each = local.manage_route53 ? local.web_cert_validation : {}
+  for_each = local.manage_route53 && !local.use_imported_web_tls ? { acm = true } : {}
 
   allow_overwrite = true
   zone_id         = var.route53_zone_id
-  name            = each.value.name
-  type            = each.value.type
+  name            = one([for dvo in aws_acm_certificate.web[0].domain_validation_options : dvo.resource_record_name])
+  type            = one([for dvo in aws_acm_certificate.web[0].domain_validation_options : dvo.resource_record_type])
   ttl             = 60
-  records         = [each.value.record]
+  records         = [one([for dvo in aws_acm_certificate.web[0].domain_validation_options : dvo.resource_record_value])]
 }
 
 resource "aws_acm_certificate_validation" "web" {
   provider        = aws.us_east_1
-  count           = local.manage_route53 ? 1 : 0
-  certificate_arn = aws_acm_certificate.web.arn
+  count           = local.manage_route53 && !local.use_imported_web_tls ? 1 : 0
+  certificate_arn = one(aws_acm_certificate.web[*].arn)
   validation_record_fqdns = [
-    for record in aws_route53_record.web_cert_validation : record.fqdn
+    aws_route53_record.web_cert_validation["acm"].fqdn,
   ]
 }
 
@@ -87,14 +90,13 @@ resource "aws_cloudfront_distribution" "web" {
   }
 
   default_cache_behavior {
-    allowed_methods        = ["GET", "HEAD", "OPTIONS"]
-    cached_methods         = ["GET", "HEAD"]
-    target_origin_id       = "s3-web"
-    viewer_protocol_policy = "redirect-to-https"
-    compress               = true
-    min_ttl                = 0
-    default_ttl            = 3600
-    max_ttl                = 86400
+    allowed_methods          = ["GET", "HEAD", "OPTIONS"]
+    cached_methods           = ["GET", "HEAD"]
+    target_origin_id         = "s3-web"
+    viewer_protocol_policy   = "redirect-to-https"
+    compress                 = true
+    cache_policy_id          = data.aws_cloudfront_cache_policy.caching_optimized.id
+    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.cors_s3_origin.id
   }
 
   ordered_cache_behavior {
@@ -104,9 +106,8 @@ resource "aws_cloudfront_distribution" "web" {
     target_origin_id         = "s3-web"
     viewer_protocol_policy   = "redirect-to-https"
     compress                 = true
-    min_ttl                  = 0
-    default_ttl              = 31536000
-    max_ttl                  = 31536000
+    cache_policy_id          = data.aws_cloudfront_cache_policy.caching_optimized.id
+    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.cors_s3_origin.id
   }
 
   custom_error_response {
@@ -128,8 +129,9 @@ resource "aws_cloudfront_distribution" "web" {
   }
 
   viewer_certificate {
-    acm_certificate_arn = local.manage_route53 ? aws_acm_certificate_validation.web[0].certificate_arn : aws_acm_certificate.web.arn
-    # When manage_route53 is false, validate the ACM cert externally before first successful HTTPS fetch.
+    acm_certificate_arn = local.use_imported_web_tls ? var.web_tls_certificate_arn : (
+      local.manage_route53 ? aws_acm_certificate_validation.web[0].certificate_arn : one(aws_acm_certificate.web[*].arn)
+    )
     ssl_support_method       = "sni-only"
     minimum_protocol_version = "TLSv1.2_2021"
   }

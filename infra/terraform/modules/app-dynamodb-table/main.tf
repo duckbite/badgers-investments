@@ -44,5 +44,7 @@ resource "aws_dynamodb_table" "app" {
     enabled = var.point_in_time_recovery_enabled
   }
 
+  deletion_protection_enabled = var.deletion_protection_enabled
+
   tags = var.tags
 }

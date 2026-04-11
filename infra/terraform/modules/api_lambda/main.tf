@@ -1,11 +1,14 @@
 locals {
-  manage_route53 = length(trimspace(var.route53_zone_id)) > 0
+  # Use var.manage_dns_records (not "zone_id non-empty") so plan works when zone_id is unknown (new zone).
+  manage_route53      = var.manage_dns_records
+  use_imported_tls    = !var.manage_dns_records && length(trimspace(var.api_tls_certificate_arn)) > 0
+  use_api_custom_host = var.manage_dns_records || local.use_imported_tls
 }
 
 data "archive_file" "bootstrap" {
   type = "zip"
   source {
-    content = <<-EOT
+    content  = <<-EOT
       export const handler = async () => ({
         statusCode: 503,
         headers: { "content-type": "application/json" },
@@ -90,11 +93,11 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
-      API_DYNAMODB_TABLE_NAME = var.dynamodb_table_name
-      API_DYNAMODB_REGION     = var.aws_region
+      API_DYNAMODB_TABLE_NAME   = var.dynamodb_table_name
+      API_DYNAMODB_REGION       = var.aws_region
       AWS_NODEJS_DISABLE_COLORS = "1"
-      COOKIE_SECRET            = local.app_secrets["COOKIE_SECRET"]
-      CORS_ORIGIN              = var.cors_allow_origin
+      COOKIE_SECRET             = local.app_secrets["COOKIE_SECRET"]
+      CORS_ORIGIN               = var.cors_allow_origin
     }
   }
 
@@ -143,6 +146,7 @@ resource "aws_lambda_permission" "api_gateway" {
 }
 
 resource "aws_acm_certificate" "api" {
+  count             = local.use_imported_tls ? 0 : 1
   domain_name       = var.api_domain
   validation_method = "DNS"
   tags              = merge(var.tags, { Name = "${var.name_prefix}-api-cert" })
@@ -151,39 +155,31 @@ resource "aws_acm_certificate" "api" {
   }
 }
 
-locals {
-  api_cert_validation = {
-    for dvo in aws_acm_certificate.api.domain_validation_options : dvo.domain_name => {
-      name   = dvo.resource_record_name
-      record = dvo.resource_record_value
-      type   = dvo.resource_record_type
-    }
-  }
-}
-
+# Static for_each key: ACM validation option values are unknown at plan time; keys must be static.
 resource "aws_route53_record" "api_cert_validation" {
-  for_each = local.manage_route53 ? local.api_cert_validation : {}
+  for_each = local.manage_route53 && !local.use_imported_tls ? { acm = true } : {}
 
   allow_overwrite = true
   zone_id         = var.route53_zone_id
-  name            = each.value.name
-  type            = each.value.type
+  name            = one([for dvo in aws_acm_certificate.api[0].domain_validation_options : dvo.resource_record_name])
+  type            = one([for dvo in aws_acm_certificate.api[0].domain_validation_options : dvo.resource_record_type])
   ttl             = 60
-  records         = [each.value.record]
+  records         = [one([for dvo in aws_acm_certificate.api[0].domain_validation_options : dvo.resource_record_value])]
 }
 
 resource "aws_acm_certificate_validation" "api" {
-  count           = local.manage_route53 ? 1 : 0
-  certificate_arn = aws_acm_certificate.api.arn
+  count           = local.manage_route53 && !local.use_imported_tls ? 1 : 0
+  certificate_arn = one(aws_acm_certificate.api[*].arn)
   validation_record_fqdns = [
-    for record in aws_route53_record.api_cert_validation : record.fqdn
+    aws_route53_record.api_cert_validation["acm"].fqdn,
   ]
 }
 
 resource "aws_apigatewayv2_domain_name" "api" {
+  count       = local.use_api_custom_host ? 1 : 0
   domain_name = var.api_domain
   domain_name_configuration {
-    certificate_arn = local.manage_route53 ? aws_acm_certificate_validation.api[0].certificate_arn : aws_acm_certificate.api.arn
+    certificate_arn = local.use_imported_tls ? var.api_tls_certificate_arn : aws_acm_certificate_validation.api[0].certificate_arn
     endpoint_type   = "REGIONAL"
     security_policy = "TLS_1_2"
   }
@@ -191,31 +187,32 @@ resource "aws_apigatewayv2_domain_name" "api" {
 }
 
 resource "aws_apigatewayv2_api_mapping" "api" {
+  count       = local.use_api_custom_host ? 1 : 0
   api_id      = aws_apigatewayv2_api.api.id
-  domain_name = aws_apigatewayv2_domain_name.api.id
+  domain_name = aws_apigatewayv2_domain_name.api[0].id
   stage       = aws_apigatewayv2_stage.prod.id
 }
 
 resource "aws_route53_record" "api_alias_a" {
-  count   = local.manage_route53 ? 1 : 0
+  count   = local.manage_route53 && local.use_api_custom_host ? 1 : 0
   zone_id = var.route53_zone_id
   name    = var.api_domain
   type    = "A"
   alias {
-    name                   = aws_apigatewayv2_domain_name.api.domain_name_configuration[0].target_domain_name
-    zone_id                = aws_apigatewayv2_domain_name.api.domain_name_configuration[0].hosted_zone_id
+    name                   = aws_apigatewayv2_domain_name.api[0].domain_name_configuration[0].target_domain_name
+    zone_id                = aws_apigatewayv2_domain_name.api[0].domain_name_configuration[0].hosted_zone_id
     evaluate_target_health = false
   }
 }
 
 resource "aws_route53_record" "api_alias_aaaa" {
-  count   = local.manage_route53 ? 1 : 0
+  count   = local.manage_route53 && local.use_api_custom_host ? 1 : 0
   zone_id = var.route53_zone_id
   name    = var.api_domain
   type    = "AAAA"
   alias {
-    name                   = aws_apigatewayv2_domain_name.api.domain_name_configuration[0].target_domain_name
-    zone_id                = aws_apigatewayv2_domain_name.api.domain_name_configuration[0].hosted_zone_id
+    name                   = aws_apigatewayv2_domain_name.api[0].domain_name_configuration[0].target_domain_name
+    zone_id                = aws_apigatewayv2_domain_name.api[0].domain_name_configuration[0].hosted_zone_id
     evaluate_target_health = false
   }
 }

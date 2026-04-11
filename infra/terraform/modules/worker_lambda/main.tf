@@ -1,7 +1,7 @@
 data "archive_file" "bootstrap" {
   type = "zip"
   source {
-    content = <<-EOT
+    content  = <<-EOT
       export const handler = async () => {
         console.log("Worker placeholder — deploy bundle via CI.");
         return { ok: true };

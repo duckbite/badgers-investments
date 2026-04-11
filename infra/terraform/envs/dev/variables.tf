@@ -22,7 +22,7 @@ variable "environment" {
 variable "app_dynamodb_table_name" {
   type        = string
   description = "Name of the dev application DynamoDB table."
-  default     = "badgers-investments-dev-ddb"
+  default     = "badgers-investments-dev"
 }
 
 variable "app_dynamodb_pitr_enabled" {

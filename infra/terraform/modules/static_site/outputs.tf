@@ -24,9 +24,9 @@ output "cloudfront_domain_name" {
 }
 
 output "acm_validation_records" {
-  description = "DNS records for ACM certificate (us-east-1) when not using managed Route53 validation."
-  value = [
-    for dvo in aws_acm_certificate.web.domain_validation_options : {
+  description = "DNS records for ACM certificate (us-east-1) when Terraform creates the web cert (not imported ARNs)."
+  value = local.use_imported_web_tls ? [] : [
+    for dvo in flatten(aws_acm_certificate.web[*].domain_validation_options) : {
       name  = dvo.resource_record_name
       type  = dvo.resource_record_type
       value = dvo.resource_record_value

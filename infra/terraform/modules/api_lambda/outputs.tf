@@ -22,3 +22,8 @@ output "api_mutation_deploy_hint" {
   description = "GitHub Actions should call aws lambda update-function-code for this function name after CI builds the bundle."
   value       = aws_lambda_function.api.function_name
 }
+
+output "public_api_url" {
+  description = "HTTPS URL for the API (custom domain when enabled, otherwise default execute-api URL)."
+  value       = local.use_api_custom_host ? "https://${var.api_domain}" : aws_apigatewayv2_stage.prod.invoke_url
+}

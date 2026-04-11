@@ -1,11 +1,19 @@
-data "aws_caller_identity" "current" {}
-
 locals {
   tags = {
     Project     = var.project_name
     Environment = var.environment
   }
-  dynamodb_table_arn = "arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${var.dynamodb_table_name}"
+  dns_zone_name_trimmed = trimspace(var.dns_zone_name)
+  hostnames_under_zone = (
+    (var.web_domain == local.dns_zone_name_trimmed || endswith(var.web_domain, ".${local.dns_zone_name_trimmed}")) &&
+    (var.api_domain == local.dns_zone_name_trimmed || endswith(var.api_domain, ".${local.dns_zone_name_trimmed}"))
+  )
+}
+
+module "public_dns_zone" {
+  source    = "../../modules/public_dns_zone"
+  zone_name = local.dns_zone_name_trimmed
+  tags      = merge(local.tags, { Name = "${var.project_name}-${var.environment}-dns" })
 }
 
 module "secrets" {
@@ -14,16 +22,26 @@ module "secrets" {
   tags        = local.tags
 }
 
+module "app_dynamodb" {
+  source                         = "../../modules/app-dynamodb-table"
+  table_name                     = var.dynamodb_table_name
+  tags                           = merge(local.tags, { Name = "${var.project_name}-${var.environment}-ddb" })
+  point_in_time_recovery_enabled = true
+  deletion_protection_enabled    = var.app_dynamodb_deletion_protection
+}
+
 module "static_site" {
   source = "../../modules/static_site"
   providers = {
     aws           = aws
     aws.us_east_1 = aws.us_east_1
   }
-  name_prefix     = "${var.project_name}-${var.environment}"
-  tags            = local.tags
-  web_domain      = var.web_domain
-  route53_zone_id = var.route53_zone_id
+  name_prefix              = "${var.project_name}-${var.environment}"
+  tags                     = local.tags
+  web_domain               = var.web_domain
+  route53_zone_id          = module.public_dns_zone.zone_id
+  manage_dns_records       = true
+  web_bucket_force_destroy = true
 }
 
 module "api_lambda" {
@@ -33,9 +51,10 @@ module "api_lambda" {
   aws_region          = var.aws_region
   api_domain          = var.api_domain
   cors_allow_origin   = "https://${var.web_domain}"
-  route53_zone_id     = var.route53_zone_id
-  dynamodb_table_name = var.dynamodb_table_name
-  dynamodb_table_arn  = local.dynamodb_table_arn
+  route53_zone_id     = module.public_dns_zone.zone_id
+  manage_dns_records  = true
+  dynamodb_table_name = module.app_dynamodb.table_name
+  dynamodb_table_arn  = module.app_dynamodb.table_arn
   secrets_arn         = module.secrets.app_secret_arn
 }
 
