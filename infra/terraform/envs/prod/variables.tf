@@ -39,23 +39,29 @@ variable "api_domain" {
   }
 }
 
-variable "route53_zone_id" {
+variable "dns_zone_name" {
   type        = string
-  description = "Route53 Hosted Zone ID for badgers.nl. If empty, DNS records are not managed and outputs must be applied manually."
-  default     = ""
+  description = "Route53 public hosted zone apex Terraform creates (e.g. badgers.nl). Delegate this zone at your registrar using output route53_name_servers."
+  default     = "badgers.nl"
   validation {
-    condition     = var.route53_zone_id == "" || can(regex("^Z[A-Z0-9]+$", var.route53_zone_id))
-    error_message = "route53_zone_id must be empty or look like a Route53 Hosted Zone ID (e.g. Z123...)."
+    condition     = can(regex("^[a-z0-9][a-z0-9.-]+\\.[a-z]{2,}$", var.dns_zone_name))
+    error_message = "dns_zone_name must be a valid DNS apex (e.g. badgers.nl)."
   }
 }
 
 variable "dynamodb_table_name" {
   type        = string
-  description = "DynamoDB table name for application data (must exist; Terraform does not create it here)."
+  description = "DynamoDB application table name. Prod Terraform creates this table (PK/SK + GSI1) with PITR and deletion protection."
   validation {
     condition     = length(trimspace(var.dynamodb_table_name)) > 0
     error_message = "dynamodb_table_name must be non-empty."
   }
+}
+
+variable "app_dynamodb_deletion_protection" {
+  type        = bool
+  description = "When true (default), the application DynamoDB table cannot be deleted until this is set false and applied."
+  default     = true
 }
 
 variable "github_org" {

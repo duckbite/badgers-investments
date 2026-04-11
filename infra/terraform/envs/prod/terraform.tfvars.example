@@ -1,11 +1,14 @@
-aws_region      = "eu-west-1"
-route53_zone_id = "Z0123456789ABCDEF"
+aws_region = "eu-west-1"
+
+# Terraform creates this public hosted zone and all records for web_domain / api_domain under it.
+dns_zone_name = "badgers.nl"
 
 web_domain = "investments.badgers.nl"
 api_domain = "api.investments.badgers.nl"
 
-# Application DynamoDB table (create separately; must exist before deploy).
+# Application DynamoDB table (Terraform creates PK/SK + GSI1; PITR + deletion protection on by default).
 dynamodb_table_name = "badgers-investments-prod"
+# app_dynamodb_deletion_protection = false  # only when intentionally tearing down the table
 
 # GitHub Actions OIDC (used for CI/CD role trust policy)
 github_org  = "duckbite"
@@ -13,6 +16,4 @@ github_repo = "badgers-investments"
 github_ref  = "refs/heads/main"
 
 # After OIDC role exists, set true and re-apply (locally or CI) so GitHub Actions can terraform apply.
-# Broadens the deploy role with AdministratorAccess; see README.
 github_actions_grant_terraform_apply = false
-

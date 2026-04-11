@@ -1,11 +1,21 @@
+output "app_dynamodb_table_name" {
+  description = "Application DynamoDB table (Terraform-managed; deletion protected in prod)."
+  value       = module.app_dynamodb.table_name
+}
+
+output "app_dynamodb_table_arn" {
+  description = "Application DynamoDB table ARN."
+  value       = module.app_dynamodb.table_arn
+}
+
 output "web_url" {
   description = "Web URL."
   value       = "https://${var.web_domain}"
 }
 
 output "api_url" {
-  description = "API URL."
-  value       = "https://${var.api_domain}"
+  description = "API URL (custom domain or default execute-api URL)."
+  value       = module.api_lambda.public_api_url
 }
 
 output "web_s3_bucket_id" {
@@ -33,8 +43,18 @@ output "github_actions_deploy_role_arn" {
   value       = module.github_actions_oidc.deploy_role_arn
 }
 
+output "route53_zone_id" {
+  description = "Route53 hosted zone ID (Terraform-managed apex)."
+  value       = module.public_dns_zone.zone_id
+}
+
+output "route53_name_servers" {
+  description = "NS records for dns_zone_name — configure at your registrar to delegate DNS to Route53."
+  value       = module.public_dns_zone.name_servers
+}
+
 output "static_site_acm_validation_records" {
-  description = "ACM DNS validation for CloudFront cert (us-east-1) when Route53 is not managed in Terraform."
+  description = "ACM DNS validation records for CloudFront (us-east-1); empty when Route53 manages validation (normal prod)."
   value       = module.static_site.acm_validation_records
 }
 

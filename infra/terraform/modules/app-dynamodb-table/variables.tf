@@ -55,6 +55,12 @@ variable "point_in_time_recovery_enabled" {
   default     = false
 }
 
+variable "deletion_protection_enabled" {
+  type        = bool
+  description = "When true, the table cannot be deleted without first disabling this flag (recommended for production)."
+  default     = false
+}
+
 variable "tags" {
   type        = map(string)
   description = "Tags applied to the table."

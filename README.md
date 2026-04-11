@@ -84,7 +84,7 @@ Optional:
 
 ### 3. DynamoDB (dev table)
 
-Default dev table name is **`badgers-investments-dev-ddb`** (composite keys **`PK` / `SK`**, GSI **`GSI1`** on **`GSI1PK` / `GSI1SK`**, on-demand billing), matching prod and provisioned with Terraform under `infra/terraform/envs/dev`.
+Default dev table name is **`badgers-investments-dev`** (same `-dev` / `-prod` pattern as production; composite keys **`PK` / `SK`**, GSI **`GSI1`** on **`GSI1PK` / `GSI1SK`**, on-demand billing), provisioned with Terraform under `infra/terraform/envs/dev`.
 
 1. **Credentials:** e.g. `aws sso login` or `export AWS_PROFILE=...`.
 2. **Bootstrap** (once per account): if you have not already, run `pnpm infra:bootstrap` and note the S3 state bucket name.
@@ -99,7 +99,7 @@ pnpm infra:dev:init
 pnpm infra:dev:apply
 ```
 
-Outputs include `app_dynamodb_table_name` / `app_dynamodb_table_arn`. Set `API_DYNAMODB_TABLE_NAME=badgers-investments-dev-ddb` in `.env` (already the default in `.env.example`).
+Outputs include `app_dynamodb_table_name` / `app_dynamodb_table_arn`. Set `API_DYNAMODB_TABLE_NAME=badgers-investments-dev` in `.env` (already the default in `.env.example`).
 
 4. **Readiness:** `GET /ready` calls `DescribeTable` on `API_DYNAMODB_TABLE_NAME`.
 
@@ -184,7 +184,7 @@ pnpm infra:tflint
 cp infra/terraform/envs/prod/terraform.tfvars.example infra/terraform/envs/prod/terraform.tfvars
 ```
 
-2) Fill in at least `aws_region`, `dynamodb_table_name`, `web_domain`, `api_domain`, and (recommended) `route53_zone_id`, plus create `infra/terraform/envs/prod/backend.hcl` for remote state.
+2) Fill in at least `aws_region`, `dynamodb_table_name`, `web_domain`, `api_domain`, and **`dns_zone_name`** (default `badgers.nl`), plus create `infra/terraform/envs/prod/backend.hcl` for remote state.
 
 3) Run:
 
@@ -192,7 +192,9 @@ cp infra/terraform/envs/prod/terraform.tfvars.example infra/terraform/envs/prod/
 pnpm prod:up
 ```
 
-This runs **`terraform apply`** for the serverless prod stack (static site, API Lambda + HTTP API + custom domain, worker Lambda + schedule, Secrets Manager, GitHub OIDC deploy role). It does **not** deploy application code; use GitHub Actions or `tools/prod/deploy-prod.sh` after Terraform outputs exist.
+This runs **`terraform apply`** for the serverless prod stack: **Route53 hosted zone** for `dns_zone_name`, ACM validation + **A/AAAA alias records** for `web_domain` and `api_domain`, static site, API Lambda + HTTP API + custom domain, worker Lambda + schedule, Secrets Manager, GitHub OIDC deploy role. It does **not** deploy application code; use GitHub Actions or `tools/prod/deploy-prod.sh` after Terraform outputs exist.
+
+4) **DNS delegation:** after the first successful apply, run `terraform output route53_name_servers` (from `infra/terraform/envs/prod`) and set those **NS records** at your domain registrar for the apex (`dns_zone_name`). Until delegation matches Route53, public DNS for `web_domain` / `api_domain` may not resolve.
 
 ### Manual application deploy (optional)
 
