@@ -50,3 +50,15 @@ variable "grant_terraform_apply_permissions" {
   description = "When true, attach AdministratorAccess so this role can run terraform apply in GitHub Actions (state + full stack). Prefer a dedicated ops account; narrow policies are possible but high-maintenance."
   default     = false
 }
+
+variable "terraform_remote_state_s3_bucket_arn" {
+  type        = string
+  description = "Bootstrap S3 bucket ARN for Terraform remote state (e.g. arn:aws:s3:::project-tfstate-ACCOUNT). Required for terraform init in CI without relying on AdministratorAccess alone."
+  default     = ""
+}
+
+variable "terraform_remote_state_lock_dynamodb_table_arn" {
+  type        = string
+  description = "Bootstrap DynamoDB table ARN for state locking, if backend uses dynamodb_table. Leave empty if the backend uses S3-native locking only."
+  default     = ""
+}

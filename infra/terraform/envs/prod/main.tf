@@ -1,8 +1,15 @@
+data "aws_caller_identity" "current" {}
+
 locals {
   tags = {
     Project     = var.project_name
     Environment = var.environment
   }
+  # Same naming as infra/terraform/bootstrap (remote state + lock).
+  terraform_remote_state_s3_bucket_arn = "arn:aws:s3:::${var.project_name}-tfstate-${data.aws_caller_identity.current.account_id}"
+  terraform_remote_state_lock_dynamodb_table_arn = (
+    "arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${var.project_name}-tfstate-lock-${data.aws_caller_identity.current.account_id}"
+  )
   dns_zone_name_trimmed = trimspace(var.dns_zone_name)
   hostnames_under_zone = (
     (var.web_domain == local.dns_zone_name_trimmed || endswith(var.web_domain, ".${local.dns_zone_name_trimmed}")) &&
@@ -76,5 +83,7 @@ module "github_actions_oidc" {
   lambda_api_function_arn           = module.api_lambda.function_arn
   lambda_worker_function_arn        = module.worker_lambda.function_arn
   grant_terraform_apply_permissions = var.github_actions_grant_terraform_apply
+  terraform_remote_state_s3_bucket_arn            = local.terraform_remote_state_s3_bucket_arn
+  terraform_remote_state_lock_dynamodb_table_arn = local.terraform_remote_state_lock_dynamodb_table_arn
   tags                              = local.tags
 }

@@ -40,7 +40,7 @@ resource "aws_iam_role" "deploy" {
   tags               = var.tags
 }
 
-data "aws_iam_policy_document" "deploy" {
+data "aws_iam_policy_document" "deploy_core" {
   statement {
     sid    = "S3WebSync"
     effect = "Allow"
@@ -72,6 +72,49 @@ data "aws_iam_policy_document" "deploy" {
       var.lambda_worker_function_arn,
     ]
   }
+}
+
+data "aws_iam_policy_document" "deploy_remote_state_s3" {
+  count = trimspace(var.terraform_remote_state_s3_bucket_arn) != "" ? 1 : 0
+
+  statement {
+    sid = "TerraformRemoteStateS3"
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject",
+      "s3:DeleteObject",
+      "s3:ListBucket",
+    ]
+    resources = [
+      var.terraform_remote_state_s3_bucket_arn,
+      "${var.terraform_remote_state_s3_bucket_arn}/*",
+    ]
+  }
+}
+
+data "aws_iam_policy_document" "deploy_remote_state_lock" {
+  count = trimspace(var.terraform_remote_state_lock_dynamodb_table_arn) != "" ? 1 : 0
+
+  statement {
+    sid    = "TerraformRemoteStateLock"
+    effect = "Allow"
+    actions = [
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+      "dynamodb:DeleteItem",
+      "dynamodb:DescribeTable",
+    ]
+    resources = [var.terraform_remote_state_lock_dynamodb_table_arn]
+  }
+}
+
+data "aws_iam_policy_document" "deploy" {
+  source_policy_documents = concat(
+    [data.aws_iam_policy_document.deploy_core.json],
+    data.aws_iam_policy_document.deploy_remote_state_s3[*].json,
+    data.aws_iam_policy_document.deploy_remote_state_lock[*].json,
+  )
 }
 
 resource "aws_iam_role_policy" "deploy" {
