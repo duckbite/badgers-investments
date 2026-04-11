@@ -9,8 +9,9 @@ let proxy: LambdaProxy | undefined;
 async function getProxy(): Promise<LambdaProxy> {
   if (proxy === undefined) {
     const app = await createServer();
-    await app.ready();
+    // @fastify/aws-lambda must run before app.ready() (decorators cannot be added after start).
     proxy = awsLambdaFastify(app) as LambdaProxy;
+    await app.ready();
   }
   return proxy;
 }

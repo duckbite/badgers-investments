@@ -13,7 +13,7 @@
     "test:coverage": "vitest run --coverage",
     "test:integration": "vitest run -c vitest.integration.config.ts",
     "lint": "eslint src",
-    "build:lambda": "esbuild src/lambda-handler.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist-lambda/index.mjs",
+    "build:lambda": "esbuild src/lambda-handler.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist-lambda/index.cjs",
     "clean": "rm -rf dist dist-lambda"
   },
   "dependencies": {
