@@ -1,3 +1,5 @@
+import { DescribeTableCommand, DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { mockClient } from 'aws-sdk-client-mock';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createServer } from '../../server/create-server.js';
 
@@ -5,17 +7,23 @@ const hoisted = vi.hoisted(() => ({
   createDynamoDbClientMock: vi.fn(),
 }));
 
+const dynamoDbSdkMock = mockClient(DynamoDBClient);
+
 vi.mock('../../db/create-dynamo-db-client.js', () => ({
   createDynamoDbClient: hoisted.createDynamoDbClientMock,
 }));
 
 describe('healthRoutes', () => {
   beforeEach(() => {
+    dynamoDbSdkMock.reset();
     vi.stubEnv('API_DYNAMODB_TABLE_NAME', 'badgers-test');
     vi.stubEnv('API_DYNAMODB_REGION', 'eu-west-1');
     hoisted.createDynamoDbClientMock.mockReset();
-    hoisted.createDynamoDbClientMock.mockReturnValue({
-      send: vi.fn().mockResolvedValue({ Table: { TableName: 'badgers-test' } }),
+    hoisted.createDynamoDbClientMock.mockImplementation(
+      () => new DynamoDBClient({ region: 'eu-west-1' }),
+    );
+    dynamoDbSdkMock.on(DescribeTableCommand).resolves({
+      Table: { TableName: 'badgers-test', TableStatus: 'ACTIVE' },
     });
   });
 
@@ -39,7 +47,7 @@ describe('healthRoutes', () => {
     const response = await app.inject({ method: 'GET', url: '/ready' });
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ status: 'ok' });
-    expect(hoisted.createDynamoDbClientMock).toHaveBeenCalledTimes(1);
+    expect(hoisted.createDynamoDbClientMock.mock.calls.length).toBeGreaterThanOrEqual(1);
     await app.close();
   });
 });

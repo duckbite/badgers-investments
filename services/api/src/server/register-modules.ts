@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
-import { authRoutes } from '../modules/auth/auth-routes.js';
+import { authDomainPlugin } from '../modules/auth/auth-plugin.js';
 import { assetsRoutes } from '../modules/assets/assets-routes.js';
 import { aiRoutes } from '../modules/ai/ai-routes.js';
 import { healthRoutes } from '../modules/health/health-routes.js';
@@ -22,7 +22,7 @@ export async function registerModules(input: { readonly app: FastifyInstance }):
   }
   await input.app.register(loggingModule);
   await input.app.register(healthRoutes);
-  await input.app.register(authRoutes);
+  await input.app.register(authDomainPlugin);
   await input.app.register(sessionsRoutes);
   await input.app.register(portfolioRoutes);
   await input.app.register(assetsRoutes);

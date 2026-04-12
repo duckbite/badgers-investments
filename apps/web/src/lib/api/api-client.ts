@@ -77,10 +77,19 @@ export class ApiClient {
   }
 
   private resolveErrorMessage(options: Readonly<{ readonly response: Response; readonly errorPayload: unknown }>): string {
-    if (typeof options.errorPayload === 'object' && options.errorPayload !== null && 'message' in options.errorPayload) {
-      const maybeMessage: unknown = (options.errorPayload as Record<string, unknown>).message;
-      if (typeof maybeMessage === 'string' && maybeMessage.length > 0) {
-        return maybeMessage;
+    const payload: unknown = options.errorPayload;
+    if (typeof payload === 'object' && payload !== null) {
+      const record: Record<string, unknown> = payload as Record<string, unknown>;
+      const nestedError: unknown = record['error'];
+      if (typeof nestedError === 'object' && nestedError !== null) {
+        const nestedMessage: unknown = (nestedError as Record<string, unknown>)['message'];
+        if (typeof nestedMessage === 'string' && nestedMessage.length > 0) {
+          return nestedMessage;
+        }
+      }
+      const topMessage: unknown = record['message'];
+      if (typeof topMessage === 'string' && topMessage.length > 0) {
+        return topMessage;
       }
     }
     return `Request failed (${options.response.status} ${options.response.statusText})`;

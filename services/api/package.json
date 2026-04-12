@@ -8,6 +8,7 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "dotenv -e ../../.env -- node dist/index.js",
     "dynamodb:smoke-write": "dotenv -e ../../.env -- tsx src/scripts/dynamodb-smoke-write.ts",
+    "bootstrap:user": "dotenv -e ../../.env -- tsx src/scripts/put-dev-user.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -20,14 +21,18 @@
     "@aws-sdk/client-dynamodb": "^3.1027.0",
     "@aws-sdk/lib-dynamodb": "^3.1027.0",
     "@fastify/aws-lambda": "^6.4.0",
+    "@fastify/cookie": "^11.0.2",
     "@fastify/cors": "^11.2.0",
-    "fastify": "^5.0.0"
+    "@fastify/rate-limit": "^10.3.0",
+    "fastify": "^5.0.0",
+    "fastify-plugin": "^5.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.3",
     "@types/aws-lambda": "^8.10.161",
     "@types/node": "^22.0.0",
     "@vitest/coverage-v8": "^3.2.4",
+    "aws-sdk-client-mock": "^4.1.0",
     "dotenv-cli": "^7.4.4",
     "esbuild": "^0.28.0",
     "eslint": "^9.0.0",

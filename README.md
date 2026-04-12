@@ -80,6 +80,7 @@ Required for the API:
 Optional:
 
 - `API_DYNAMODB_ENDPOINT` — custom endpoint only (e.g. LocalStack). Omit for real DynamoDB.
+- `CORS_ORIGIN` — browser origin for the web app (e.g. `http://localhost:5173`). Set this when the UI and API run on different origins so `fetch` with cookies (`credentials: 'include'`) and `Set-Cookie` work for login.
 - `OPENAI_KEY` — when the recommendations module is enabled.
 
 ### 3. DynamoDB (dev table)
@@ -109,6 +110,32 @@ Outputs include `app_dynamodb_table_name` / `app_dynamodb_table_arn`. Set `API_D
 pnpm dynamodb:smoke-write
 ```
 
+6. **Auth (first user):** the API expects a `user_account` item in the same DynamoDB table (`PK` = `USER_ACCOUNT#<lowercase username>`, `SK` = `META`). Use the same bootstrap command for **dev** and **prod**; only the **table name** and **AWS credentials** change.
+
+**Dev** (table from Terraform `envs/dev`, e.g. `badgers-investments-dev`):
+
+```bash
+# Use the same API_DYNAMODB_* settings as local dev (often via root `.env` loaded by dotenv-cli).
+export BOOTSTRAP_USERNAME='your-username'
+export BOOTSTRAP_PASSWORD='your-dev-password'
+pnpm bootstrap:user
+```
+
+**Prod** (e.g. `badgers-investments-prod`): use an IAM principal that may **`dynamodb:PutItem` / `GetItem`** on the **prod** table, and point the script at that table **without** storing prod secrets in your long-lived `.env` file:
+
+```bash
+export AWS_PROFILE=your-prod-profile   # or rely on env/instance role
+export API_DYNAMODB_TABLE_NAME='badgers-investments-prod'
+export API_DYNAMODB_REGION='us-east-1'   # match prod
+export BOOTSTRAP_USERNAME='your-username'
+export BOOTSTRAP_PASSWORD='your-strong-prod-password'
+pnpm bootstrap:user
+```
+
+Re-running the script **updates the password hash** and keeps the same **`userId`** / **`createdAt`** if the account row already exists.
+
+Then `POST /auth/login` with that username and password returns a session cookie (`badgers_session` by default). See `.env.example` for optional `API_SESSION_*` and rate-limit variables.
+
 **IAM:** Scope your user/role to the dev table ARN (and index ARNs when you add GSIs).
 
 **Alternative:** create the same key schema manually with `aws dynamodb create-table` if you prefer not to use the `envs/dev` stack.
@@ -130,7 +157,7 @@ Ensure AWS credentials allow `dynamodb:DescribeTable` (and other actions your ro
 ## Testing
 
 - **Unit tests:** Financial logic (FIFO, TWR, rules, scoring) and domain services.
-- **Integration tests:** API paths, auth flow (mocked SES), recommendation run (mocked OpenAI), where implemented.
+- **Integration tests:** API paths, auth (DynamoDB mocked in-process), recommendation run (mocked OpenAI), where implemented.
 
 From the repo root:
 

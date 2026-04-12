@@ -29,9 +29,12 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 |------|-------------|
 | `services/api/` | Fastify backend REST API (Node.js/TypeScript). Entry: `src/index.ts`. Scripts: `dev` (tsx watch), `build` (tsc), `start`, `lint`, `clean`. Build output: `dist/`. Modules live under `src/modules/` (health + domain modules per `docs/architecture.md`). |
 | `services/api/src/config/get-dynamo-db-config.ts` | DynamoDB settings from env (`API_DYNAMODB_*`, region fallbacks); required for the API. |
+| `services/api/src/config/get-auth-config.ts` | Session cookie name/TTL, login rate limits, cookie `Secure` flag (`API_NODE_ENV` / `NODE_ENV`). |
 | `services/api/src/db/create-dynamo-db-client.ts` | Factory for `DynamoDBClient` (optional custom endpoint for tools like LocalStack). |
+| `services/api/src/modules/auth/` | Username/password auth: `auth-plugin.ts` (Fastify plugin), DynamoDB `USER_ACCOUNT` / `USER_SESSION` items, `POST /auth/login`, `POST /auth/logout`, `GET /auth/session`, `requireSession` pre-handler. |
 | `services/api/src/modules/health/dynamo-db-health-service.ts` | Readiness: `DescribeTable` on the configured table. |
 | `services/api/src/scripts/dynamodb-smoke-write.ts` | Dev CLI: put+delete smoke item; run via `pnpm dynamodb:smoke-write` from repo root. |
+| `services/api/src/scripts/put-dev-user.ts` | CLI: upsert `user_account` in the table from `API_DYNAMODB_TABLE_NAME` using `BOOTSTRAP_USERNAME` / `BOOTSTRAP_PASSWORD`; preserves `userId` when updating; run via `pnpm bootstrap:user`. |
 
 ## Workers
 
@@ -83,4 +86,5 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 - `pnpm --filter api dev` — Run API dev server only.
 - `pnpm --filter worker dev` — Run worker in watch mode only.
 - `pnpm dynamodb:smoke-write` — Verify DynamoDB put/delete using root `.env` (requires `API_DYNAMODB_TABLE_NAME` and region env).
+- `pnpm bootstrap:user` — Upsert a dev `user_account` row (requires `BOOTSTRAP_USERNAME`, `BOOTSTRAP_PASSWORD`, and DynamoDB env vars).
 - `pnpm infra:dev:init` / `pnpm infra:dev:apply` — Create **dev** app DynamoDB table via Terraform (requires `infra/terraform/envs/dev/backend.hcl`; see `backend.hcl.example`).
