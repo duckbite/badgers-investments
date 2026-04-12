@@ -2,13 +2,16 @@
   import { goto } from '$app/navigation';
   import { env } from '$env/dynamic/public';
   import { onMount } from 'svelte';
+  import { apiClient } from '$lib/api/api-client-instance';
 
   type CheckStatus = 'checking' | 'up' | 'down';
 
   let backendStatus: CheckStatus = 'checking';
   let databaseStatus: CheckStatus = 'checking';
-  let email: string = '';
+  let username: string = '';
+  let password: string = '';
   let isSubmitting: boolean = false;
+  let formError: string = '';
 
   function getApiOrigin(): string {
     const raw: string | undefined = env.PUBLIC_API_BASE_URL;
@@ -35,9 +38,21 @@
     if (isSubmitting) {
       return;
     }
+    formError = '';
     isSubmitting = true;
     try {
+      await apiClient.executeJson<
+        { readonly user: { readonly userId: string; readonly username: string } },
+        { readonly username: string; readonly password: string }
+      >({
+        method: 'POST',
+        path: '/auth/login',
+        body: { username: username.trim(), password },
+      });
       await goto('/dashboard');
+    } catch (err: unknown) {
+      const message: string = err instanceof Error ? err.message : 'Sign-in failed.';
+      formError = message;
     } finally {
       isSubmitting = false;
     }
@@ -56,7 +71,7 @@
   <section class="card">
     <header class="header">
       <h1>Badgers Investments</h1>
-      <p class="muted">Sign in (placeholder) to access your dashboard.</p>
+      <p class="muted">Sign in with your username and password.</p>
     </header>
 
     <div class="checks">
@@ -73,15 +88,28 @@
     </div>
 
     <form class="form" on:submit|preventDefault={executeLogin}>
+      {#if formError.length > 0}
+        <p class="error" role="alert">{formError}</p>
+      {/if}
       <label class="field">
-        <span class="fieldLabel">Email</span>
+        <span class="fieldLabel">Username</span>
         <input
           class="input"
-          type="email"
-          inputmode="email"
-          autocomplete="email"
-          placeholder="you@example.com"
-          bind:value={email}
+          type="text"
+          autocomplete="username"
+          placeholder="Your username"
+          bind:value={username}
+          required
+        />
+      </label>
+      <label class="field">
+        <span class="fieldLabel">Password</span>
+        <input
+          class="input"
+          type="password"
+          autocomplete="current-password"
+          placeholder="Password"
+          bind:value={password}
           required
         />
       </label>
@@ -91,7 +119,9 @@
     </form>
 
     <p class="hint">
-      This is a fake login for now. The button just navigates to the dashboard.
+      For local dev with the web app on a different port than the API, set <code>CORS_ORIGIN</code> in the API
+      <code>.env</code> to your web origin (e.g. <code>http://localhost:5173</code>) so the session cookie is
+      accepted.
     </p>
   </section>
 </div>
@@ -170,6 +200,14 @@
     display: grid;
     gap: 0.75rem;
   }
+  .error {
+    margin: 0;
+    padding: 0.5rem 0.65rem;
+    border-radius: 0.5rem;
+    background: rgba(239, 68, 68, 0.1);
+    color: #b91c1c;
+    font-size: 0.95rem;
+  }
   .field {
     display: grid;
     gap: 0.35rem;
@@ -208,5 +246,7 @@
     font-size: 0.9rem;
     line-height: 1.35;
   }
+  .hint code {
+    font-size: 0.85em;
+  }
 </style>
-

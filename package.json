@@ -8,6 +8,7 @@
     "dev:api": "pnpm --filter api dev",
     "dev:web": "pnpm --filter web dev",
     "dynamodb:smoke-write": "pnpm --filter api dynamodb:smoke-write",
+    "bootstrap:user": "pnpm --filter api bootstrap:user",
     "lint": "turbo run lint",
     "test": "turbo run test",
     "clean": "turbo run clean --force && rm -rf node_modules",
