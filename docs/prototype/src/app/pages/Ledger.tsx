@@ -7,8 +7,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { ArrowUpRight, ArrowDownLeft, DollarSign, TrendingUp, Plus, Pencil, Trash2, Filter } from "lucide-react";
 import { TransactionDialog } from "../components/TransactionDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
+import { useAnonymize } from "../contexts/AnonymizeContext";
 
 export default function Ledger() {
+  const { formatAmount } = useAnonymize();
   const [transactions, setTransactions] = useState<Transaction[]>(mockTransactions);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | undefined>(undefined);
@@ -135,7 +137,7 @@ export default function Ledger() {
                 <ArrowUpRight className="w-5 h-5 text-green-600" />
               </div>
               <span className="text-2xl font-bold text-gray-900">
-                ${totalDeposits.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                ${formatAmount(totalDeposits)}
               </span>
             </div>
           </CardContent>
@@ -151,7 +153,7 @@ export default function Ledger() {
                 <ArrowDownLeft className="w-5 h-5 text-red-600" />
               </div>
               <span className="text-2xl font-bold text-gray-900">
-                ${totalWithdrawals.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                ${formatAmount(totalWithdrawals)}
               </span>
             </div>
           </CardContent>
@@ -167,7 +169,7 @@ export default function Ledger() {
                 <DollarSign className="w-5 h-5 text-blue-600" />
               </div>
               <span className="text-2xl font-bold text-gray-900">
-                ${totalDividends.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                ${formatAmount(totalDividends)}
               </span>
             </div>
           </CardContent>
@@ -294,19 +296,19 @@ export default function Ledger() {
                     </TableCell>
                     <TableCell className="text-right">
                       {transaction.price ? (
-                        <span>${transaction.price.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                        <span>${formatAmount(transaction.price)}</span>
                       ) : (
                         <span className="text-gray-500">—</span>
                       )}
                     </TableCell>
                     <TableCell className="text-right">
                       <span className={`font-medium ${
-                        transaction.type === 'buy' || transaction.type === 'withdrawal' 
-                          ? 'text-red-600' 
+                        transaction.type === 'buy' || transaction.type === 'withdrawal'
+                          ? 'text-red-600'
                           : 'text-green-600'
                       }`}>
                         {transaction.type === 'buy' || transaction.type === 'withdrawal' ? '-' : '+'}
-                        ${transaction.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        ${formatAmount(transaction.amount)}
                       </span>
                     </TableCell>
                     <TableCell>
