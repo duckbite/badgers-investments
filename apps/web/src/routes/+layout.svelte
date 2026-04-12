@@ -30,6 +30,7 @@
     try {
       await apiClient.executeJson<void>({ method: 'POST', path: '/auth/logout' });
     } catch {
+      void 0;
     } finally {
       isLoggingOut = false;
       await goto('/login');
