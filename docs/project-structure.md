@@ -11,6 +11,7 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 | `turbo.json` | Turborepo pipeline: `build` (with ^build), `dev` (persistent), `lint`, `test`, `clean`. |
 | `.env.example` | Root environment template (copy to `.env`). DynamoDB and API settings; all env variables live at repo root. |
 | `README.md` | How to run, test, and deploy the application. |
+| `insomnia/` | Insomnia REST client assets: `collections/` (e.g. `badgers-api.insomnia.json`), `environments/` (example env), `README.md` — manual API testing; not part of the pnpm workspace. |
 | `.gitignore` | Ignored paths (node_modules, build outputs, env files, etc.). |
 | `.github/` | GitHub Actions workflows (CI/CD). |
 | `.github/workflows/ci-reusable.yml` | Reusable workflow: `pnpm lint`, `test`, `build` (Turbo). Called from PR **CI** and from **main** deploy workflow. |
@@ -42,6 +43,10 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 | `services/api/src/config/get-auth-config.ts` | Session cookie name/TTL, login rate limits, cookie `Secure` flag (`API_NODE_ENV` / `NODE_ENV`). |
 | `services/api/src/db/create-dynamo-db-client.ts` | Factory for `DynamoDBClient` (optional custom endpoint for tools like LocalStack). |
 | `services/api/src/modules/auth/` | Username/password auth: `auth-plugin.ts` (Fastify plugin), DynamoDB `USER_ACCOUNT` / `USER_SESSION` items, `POST /auth/login`, `POST /auth/logout`, `GET /auth/session`, `requireSession` pre-handler. |
+| `services/api/src/modules/domain/` | Shared domain helpers: DynamoDB key builders (`domain-keys.ts`), API error bodies, allowed currency codes; `domain-data-plugin.ts` registers portfolio + assets + ledger routes (depends on `auth-domain`). |
+| `services/api/src/modules/portfolio/` | Portfolio: `portfolio-repository.ts`, `portfolio-service.ts`, `register-portfolio-domain-routes.ts` — `GET/PATCH /portfolio` (single portfolio per user, base currency). |
+| `services/api/src/modules/assets/` | Assets (STOCK/ETF): `asset-repository.ts`, `asset-service.ts`, `register-assets-routes.ts` — `GET/POST /assets`, `PATCH /assets/:assetId`. |
+| `services/api/src/modules/ledger/` | Ledger + FIFO: `transaction-repository.ts`, `ledger-service.ts`, `fifo-holdings-service.ts`, `lot-link-repository.ts`, `register-ledger-routes.ts` — `GET/POST/PATCH/DELETE /transactions`, `GET /holdings`. |
 | `services/api/src/modules/health/dynamo-db-health-service.ts` | Readiness: `DescribeTable` on the configured table. |
 | `services/api/src/scripts/dynamodb-smoke-write.ts` | Dev CLI: put+delete smoke item; run via `pnpm dynamodb:smoke-write` from repo root. |
 | `services/api/src/scripts/put-dev-user.ts` | CLI: upsert `user_account` in the table from `API_DYNAMODB_TABLE_NAME` using `BOOTSTRAP_USERNAME` / `BOOTSTRAP_PASSWORD`; preserves `userId` when updating; run via `pnpm bootstrap:user`. |

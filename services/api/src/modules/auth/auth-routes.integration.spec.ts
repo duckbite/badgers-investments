@@ -3,6 +3,7 @@ import {
   DynamoDBDocumentClient,
   GetCommand,
   PutCommand,
+  QueryCommand,
   UpdateCommand,
   type GetCommandInput,
   type PutCommandInput,
@@ -125,9 +126,12 @@ describe('auth routes (integration)', () => {
   it('allows GET /portfolio when session cookie is valid', async () => {
     const passwordHash: string = hashPassword('secret');
     let sessionItem: Record<string, unknown> | undefined;
+    let portfolioItem: Record<string, unknown> | undefined;
+    ddbMock.on(QueryCommand).resolves({ Items: [], Count: 0 });
     ddbMock.on(GetCommand).callsFake((input: GetCommandInput) => {
       const key: Record<string, unknown> | undefined = input.Key as Record<string, unknown> | undefined;
       const pk: unknown = key?.['PK'];
+      const sk: unknown = key?.['SK'];
       if (pk === 'USER_ACCOUNT#admin') {
         return Promise.resolve({
           Item: {
@@ -146,12 +150,23 @@ describe('auth routes (integration)', () => {
       ) {
         return Promise.resolve({ Item: sessionItem });
       }
+      if (
+        portfolioItem !== undefined &&
+        pk === portfolioItem['PK'] &&
+        sk === portfolioItem['SK']
+      ) {
+        return Promise.resolve({ Item: portfolioItem });
+      }
       return Promise.resolve({});
     });
     ddbMock.on(PutCommand).callsFake((input: PutCommandInput) => {
       const item: Record<string, unknown> | undefined = input.Item as Record<string, unknown> | undefined;
       if (item !== undefined) {
-        sessionItem = item;
+        if (item['entityType'] === 'PORTFOLIO') {
+          portfolioItem = item;
+        } else {
+          sessionItem = item;
+        }
       }
       return Promise.resolve({});
     });
@@ -171,7 +186,16 @@ describe('auth routes (integration)', () => {
       headers: { cookie: String(setCookieRaw) },
     });
     expect(portfolioResponse.statusCode).toBe(200);
-    expect(portfolioResponse.json()).toEqual({ status: 'ok' });
+    const portfolioBody: {
+      readonly portfolioId: string;
+      readonly name: string;
+      readonly baseCurrencyCode: string;
+      readonly createdAt: string;
+      readonly updatedAt: string;
+    } = portfolioResponse.json();
+    expect(portfolioBody.name).toBe('Portfolio');
+    expect(portfolioBody.baseCurrencyCode).toBe('USD');
+    expect(portfolioBody.portfolioId.length).toBeGreaterThan(0);
     await app.close();
   });
 
