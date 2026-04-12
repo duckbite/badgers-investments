@@ -1,18 +1,18 @@
 <svelte:head>
-  <title>Assets · Badgers Investments</title>
+  <title>Library · Badgers Investments</title>
 </svelte:head>
 
 <section class="space-y-3">
   <header class="space-y-1">
-    <h1 class="text-2xl font-semibold text-gray-900 dark:text-foreground">Assets</h1>
-    <p class="text-sm text-gray-600 dark:text-muted-foreground">Stocks and ETFs only for the MVP.</p>
+    <h1 class="text-2xl font-semibold text-gray-900 dark:text-foreground">Library</h1>
+    <p class="text-sm text-gray-600 dark:text-muted-foreground">Saved analysis reports.</p>
   </header>
   <div
     class="rounded-xl border border-dashed border-gray-300 bg-gray-50/50 p-4 dark:border-border dark:bg-muted/30"
   >
     <div class="font-semibold text-gray-900 dark:text-foreground">Coming soon</div>
     <p class="mt-1 text-sm text-gray-600 dark:text-muted-foreground">
-      This page will list holdings and allow creating/editing/archiving assets.
+      Saved reports and artifacts will appear here (see DB-145).
     </p>
   </div>
 </section>
