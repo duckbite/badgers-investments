@@ -23,6 +23,13 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 |------|-------------|
 | `apps/web/` | SvelteKit (Svelte 5) frontend. Entry: `src/routes/+page.svelte`. Scripts: `dev`, `build`, `preview`, `check`, `lint`. Build output: `.svelte-kit/` and Vite build artifacts. |
 | `apps/web/static/badgers-logo.png` | Login branding asset (same artwork as `docs/prototype` Figma export); served at `/badgers-logo.png`. |
+| `apps/web/vite.config.ts` | Vite + **`@tailwindcss/vite`** (Tailwind v4, aligned with `docs/prototype`). |
+| `apps/web/src/styles/index.css` | Entry: imports Tailwind + **`theme.css`** (shadcn-style tokens copied from `docs/prototype/src/styles/theme.css`). |
+| `apps/web/src/styles/tailwind.css` | `@tailwindcss` + `@source` for `**/*.{js,ts,svelte}` + `tw-animate-css`. |
+| `apps/web/package.json` | **`lucide-svelte`** icons (parity with prototype `lucide-react`). |
+| `apps/web/src/lib/theme/theme.ts` | Theme: `document.documentElement.classList.toggle('dark', …)` + `localStorage` `badgers-theme` (inline script in `app.html` sets initial class). |
+| `apps/web/src/routes/explore/+page.svelte` | Explore hub placeholder (full content in DB-144). |
+| `apps/web/src/routes/library/+page.svelte` | Library placeholder for saved reports (full content in DB-145). |
 | `apps/web/src/lib/toast/toast.ts` | Lightweight toast queue (`toast.error` / `toast.success`) for Sonner-like UX (top-right); used on login and available app-wide. |
 | `apps/web/src/lib/toast/ToastHost.svelte` | Fixed top-right viewport; mounted from `src/routes/+layout.svelte`. |
 

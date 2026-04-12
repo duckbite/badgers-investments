@@ -2,39 +2,17 @@
   <title>Performance · Badgers Investments</title>
 </svelte:head>
 
-<section class="stack">
-  <header class="stack">
-    <h1>Performance</h1>
-    <p class="muted">TWR (daily) and portfolio value trends.</p>
+<section class="space-y-3">
+  <header class="space-y-1">
+    <h1 class="text-2xl font-semibold text-gray-900 dark:text-foreground">Performance</h1>
+    <p class="text-sm text-gray-600 dark:text-muted-foreground">TWR (daily) and portfolio value trends.</p>
   </header>
-  <div class="placeholder">
-    <div class="placeholderTitle">Coming soon</div>
-    <div class="placeholderBody">This page will render charts and selectable ranges (1M, 3M, YTD, 1Y, All).</div>
+  <div
+    class="rounded-xl border border-dashed border-gray-300 bg-gray-50/50 p-4 dark:border-border dark:bg-muted/30"
+  >
+    <div class="font-semibold text-gray-900 dark:text-foreground">Coming soon</div>
+    <p class="mt-1 text-sm text-gray-600 dark:text-muted-foreground">
+      This page will render charts and selectable ranges (1M, 3M, YTD, 1Y, All).
+    </p>
   </div>
 </section>
-
-<style>
-  .stack {
-    display: grid;
-    gap: 0.75rem;
-  }
-  .muted {
-    color: rgba(0, 0, 0, 0.62);
-    margin: 0;
-  }
-  .placeholder {
-    border: 1px dashed rgba(0, 0, 0, 0.18);
-    border-radius: 0.75rem;
-    padding: 1rem;
-    background: rgba(0, 0, 0, 0.02);
-    display: grid;
-    gap: 0.25rem;
-  }
-  .placeholderTitle {
-    font-weight: 650;
-  }
-  .placeholderBody {
-    color: rgba(0, 0, 0, 0.66);
-  }
-</style>
-

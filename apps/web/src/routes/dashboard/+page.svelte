@@ -2,66 +2,63 @@
   <title>Dashboard · Badgers Investments</title>
 </svelte:head>
 
-<section class="stack">
-  <header class="stack">
-    <h1>Dashboard</h1>
-    <p class="muted">Wealth overview, allocations, P/L, freshness, and quick actions.</p>
+<section class="space-y-3">
+  <header class="space-y-1">
+    <h1 class="text-2xl font-semibold text-gray-900 dark:text-foreground">Dashboard</h1>
+    <p class="text-sm text-gray-600 dark:text-muted-foreground">
+      Wealth overview, allocations, P/L, freshness, and quick actions.
+    </p>
   </header>
-  <div class="grid">
-    <a class="card" href="/assets">
-      <div class="cardTitle">Assets</div>
-      <div class="cardBody">View holdings and manage stock/ETF assets.</div>
+  <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <a
+      class="rounded-xl border border-gray-200 bg-white p-4 text-inherit shadow-sm transition hover:border-gray-300 hover:shadow dark:border-border dark:bg-card dark:hover:border-border"
+      href="/assets"
+    >
+      <div class="font-semibold text-gray-900 dark:text-foreground">Assets</div>
+      <p class="mt-1 text-sm text-gray-600 dark:text-muted-foreground">
+        View holdings and manage stock/ETF assets.
+      </p>
     </a>
-    <a class="card" href="/ledger">
-      <div class="cardTitle">Ledger</div>
-      <div class="cardBody">Add and filter transactions that drive holdings.</div>
+    <a
+      class="rounded-xl border border-gray-200 bg-white p-4 text-inherit shadow-sm transition hover:border-gray-300 hover:shadow dark:border-border dark:bg-card dark:hover:border-border"
+      href="/ledger"
+    >
+      <div class="font-semibold text-gray-900 dark:text-foreground">Ledger</div>
+      <p class="mt-1 text-sm text-gray-600 dark:text-muted-foreground">
+        Add and filter transactions that drive holdings.
+      </p>
     </a>
-    <a class="card" href="/performance">
-      <div class="cardTitle">Performance</div>
-      <div class="cardBody">Time-weighted returns (TWR) and portfolio value trends.</div>
+    <a
+      class="rounded-xl border border-gray-200 bg-white p-4 text-inherit shadow-sm transition hover:border-gray-300 hover:shadow dark:border-border dark:bg-card dark:hover:border-border"
+      href="/performance"
+    >
+      <div class="font-semibold text-gray-900 dark:text-foreground">Performance</div>
+      <p class="mt-1 text-sm text-gray-600 dark:text-muted-foreground">
+        Time-weighted returns (TWR) and portfolio value trends.
+      </p>
     </a>
-    <a class="card" href="/recommendations">
-      <div class="cardTitle">Recommendations</div>
-      <div class="cardBody">Run rules + AI recommendations and review history.</div>
+    <a
+      class="rounded-xl border border-gray-200 bg-white p-4 text-inherit shadow-sm transition hover:border-gray-300 hover:shadow dark:border-border dark:bg-card dark:hover:border-border"
+      href="/recommendations"
+    >
+      <div class="font-semibold text-gray-900 dark:text-foreground">Recommendations</div>
+      <p class="mt-1 text-sm text-gray-600 dark:text-muted-foreground">
+        Run rules + AI recommendations and review history.
+      </p>
+    </a>
+    <a
+      class="rounded-xl border border-gray-200 bg-white p-4 text-inherit shadow-sm transition hover:border-gray-300 hover:shadow dark:border-border dark:bg-card dark:hover:border-border"
+      href="/explore"
+    >
+      <div class="font-semibold text-gray-900 dark:text-foreground">Explore</div>
+      <p class="mt-1 text-sm text-gray-600 dark:text-muted-foreground">Analysis tools and workflows.</p>
+    </a>
+    <a
+      class="rounded-xl border border-gray-200 bg-white p-4 text-inherit shadow-sm transition hover:border-gray-300 hover:shadow dark:border-border dark:bg-card dark:hover:border-border"
+      href="/library"
+    >
+      <div class="font-semibold text-gray-900 dark:text-foreground">Library</div>
+      <p class="mt-1 text-sm text-gray-600 dark:text-muted-foreground">Saved analysis reports.</p>
     </a>
   </div>
 </section>
-
-<style>
-  .stack {
-    display: grid;
-    gap: 0.75rem;
-  }
-  .muted {
-    color: rgba(0, 0, 0, 0.62);
-    margin: 0;
-  }
-  .grid {
-    display: grid;
-    gap: 0.75rem;
-    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-  }
-  .card {
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    border-radius: 0.75rem;
-    padding: 0.9rem;
-    text-decoration: none;
-    color: inherit;
-    background: white;
-    display: grid;
-    gap: 0.35rem;
-  }
-  .card:hover {
-    border-color: rgba(0, 0, 0, 0.16);
-    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06);
-  }
-  .cardTitle {
-    font-weight: 650;
-  }
-  .cardBody {
-    color: rgba(0, 0, 0, 0.66);
-    font-size: 0.95rem;
-    line-height: 1.35;
-  }
-</style>
-
