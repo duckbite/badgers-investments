@@ -1,6 +1,9 @@
 <script lang="ts">
   import '../app.css';
+  import { goto } from '$app/navigation';
   import { page } from '$app/stores';
+  import { apiClient } from '$lib/api/api-client-instance';
+  import ToastHost from '$lib/toast/ToastHost.svelte';
 
   const navigationItems: ReadonlyArray<{ readonly href: string; readonly label: string }> = [
     { href: '/dashboard', label: 'Dashboard' },
@@ -16,12 +19,35 @@
     }
     return href !== '/' && pathname.startsWith(`${href}/`);
   }
+
+  let isLoggingOut: boolean = false;
+
+  async function executeLogout(): Promise<void> {
+    if (isLoggingOut) {
+      return;
+    }
+    isLoggingOut = true;
+    try {
+      await apiClient.executeJson<void>({ method: 'POST', path: '/auth/logout' });
+    } catch {
+      void 0;
+    } finally {
+      isLoggingOut = false;
+      await goto('/login');
+    }
+  }
 </script>
 
-<div class="app">
-  <header class="header">
-    <a class="brand" href="/dashboard">Badgers Investments</a>
-    {#if $page.url.pathname !== '/login'}
+<ToastHost />
+
+{#if $page.url.pathname === '/login'}
+  <div class="loginShell">
+    <slot />
+  </div>
+{:else}
+  <div class="app">
+    <header class="header">
+      <a class="brand" href="/dashboard">Badgers Investments</a>
       <nav class="nav" aria-label="Primary">
         {#each navigationItems as navigationItem (navigationItem.href)}
           <a
@@ -32,14 +58,27 @@
           </a>
         {/each}
       </nav>
-    {/if}
-  </header>
-  <main class="main">
-    <slot />
-  </main>
-</div>
+      <div class="headerActions">
+        <button
+          class="logoutButton"
+          type="button"
+          disabled={isLoggingOut}
+          on:click={executeLogout}
+        >
+          {isLoggingOut ? 'Signing out…' : 'Sign out'}
+        </button>
+      </div>
+    </header>
+    <main class="main">
+      <slot />
+    </main>
+  </div>
+{/if}
 
 <style>
+  .loginShell {
+    min-height: 100vh;
+  }
   .app {
     min-height: 100vh;
     display: flex;
@@ -52,6 +91,28 @@
     padding: 0.75rem 1rem;
     border-bottom: 1px solid rgba(0, 0, 0, 0.08);
     background: white;
+  }
+  .headerActions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .logoutButton {
+    border: 1px solid rgba(0, 0, 0, 0.14);
+    background: white;
+    color: rgba(0, 0, 0, 0.78);
+    padding: 0.4rem 0.65rem;
+    border-radius: 0.375rem;
+    font: inherit;
+    cursor: pointer;
+  }
+  .logoutButton:hover:not(:disabled) {
+    background: rgba(0, 0, 0, 0.04);
+  }
+  .logoutButton:disabled {
+    opacity: 0.65;
+    cursor: default;
   }
   .brand {
     font-weight: 700;

@@ -1,44 +1,16 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { env } from '$env/dynamic/public';
-  import { onMount } from 'svelte';
   import { apiClient } from '$lib/api/api-client-instance';
+  import { toast } from '$lib/toast/toast';
 
-  type CheckStatus = 'checking' | 'up' | 'down';
-
-  let backendStatus: CheckStatus = 'checking';
-  let databaseStatus: CheckStatus = 'checking';
   let username: string = '';
   let password: string = '';
   let isSubmitting: boolean = false;
-  let formError: string = '';
-
-  function getApiOrigin(): string {
-    const raw: string | undefined = env.PUBLIC_API_BASE_URL;
-    const base: string = raw !== undefined && raw.length > 0 ? raw : 'http://localhost:3000';
-    return base.replace(/\/+$/, '');
-  }
-
-  async function loadChecks(): Promise<void> {
-    const base: string = getApiOrigin();
-    backendStatus = await fetchStatus(`${base}/health`);
-    databaseStatus = await fetchStatus(`${base}/ready`);
-  }
-
-  async function fetchStatus(url: string): Promise<CheckStatus> {
-    try {
-      const response: Response = await fetch(url, { method: 'GET', headers: { accept: 'application/json' } });
-      return response.ok ? 'up' : 'down';
-    } catch {
-      return 'down';
-    }
-  }
 
   async function executeLogin(): Promise<void> {
     if (isSubmitting) {
       return;
     }
-    formError = '';
     isSubmitting = true;
     try {
       await apiClient.executeJson<
@@ -49,204 +21,329 @@
         path: '/auth/login',
         body: { username: username.trim(), password },
       });
+      toast.success('Welcome back!', {
+        description: 'Successfully logged in to Badgers Finance',
+      });
       await goto('/dashboard');
-    } catch (err: unknown) {
-      const message: string = err instanceof Error ? err.message : 'Sign-in failed.';
-      formError = message;
+    } catch {
+      toast.error('Login failed', {
+        description: 'Unable to sign in. Check your credentials and try again.',
+      });
     } finally {
       isSubmitting = false;
     }
   }
-
-  onMount((): void => {
-    void loadChecks();
-  });
 </script>
 
 <svelte:head>
-  <title>Login · Badgers Investments</title>
+  <title>Login · Badgers Finance</title>
 </svelte:head>
 
-<div class="container">
-  <section class="card">
-    <header class="header">
-      <h1>Badgers Investments</h1>
-      <p class="muted">Sign in with your username and password.</p>
-    </header>
+<div class="page">
+  <div class="inner">
+    <div class="brandBlock">
+      <img src="/badgers-logo.png" alt="Badgers Finance" class="logo" />
+      <h1 class="brandTitle">Badgers Finance</h1>
+      <p class="brandSubtitle">Investment Monitoring &amp; Recommendations</p>
+    </div>
 
-    <div class="checks">
-      <div class="checkRow">
-        <span class="dot" data-status={backendStatus} aria-hidden="true"></span>
-        <span class="checkLabel">Backend</span>
-        <span class="checkMeta">GET /health</span>
+    <div class="card">
+      <div class="cardHeader">
+        <h2 class="cardTitle">Sign in to your account</h2>
+        <p class="cardDescription">Enter your credentials to access your portfolio</p>
       </div>
-      <div class="checkRow">
-        <span class="dot" data-status={databaseStatus} aria-hidden="true"></span>
-        <span class="checkLabel">Database</span>
-        <span class="checkMeta">GET /ready</span>
+      <div class="cardContent">
+        <form class="form" on:submit|preventDefault={executeLogin}>
+          <div class="fieldGroup">
+            <label class="label" for="login-username">Username</label>
+            <div class="inputWrap">
+              <span class="inputIcon" aria-hidden="true">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+              </span>
+              <input
+                id="login-username"
+                class="input"
+                type="text"
+                autocomplete="username"
+                placeholder="your-username"
+                bind:value={username}
+                required
+              />
+            </div>
+          </div>
+
+          <div class="fieldGroup">
+            <label class="label" for="login-password">Password</label>
+            <div class="inputWrap">
+              <span class="inputIcon" aria-hidden="true">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+              </span>
+              <input
+                id="login-password"
+                class="input"
+                type="password"
+                autocomplete="current-password"
+                placeholder="Enter your password"
+                bind:value={password}
+                required
+              />
+            </div>
+          </div>
+
+          <button class="submit" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Signing in...' : 'Sign in'}
+          </button>
+        </form>
+
+        <div class="demoCallout">
+          <p class="demoTitle">Local credentials</p>
+          <div class="demoLines">
+            <p>
+              <span class="demoKey">Username:</span>
+              <span class="demoVal">your <code>BOOTSTRAP_USERNAME</code></span>
+            </p>
+            <p>
+              <span class="demoKey">Password:</span>
+              <span class="demoVal">your <code>BOOTSTRAP_PASSWORD</code></span>
+            </p>
+            <p class="demoHint">Run <code>pnpm bootstrap:user</code> from the repo root (see README).</p>
+          </div>
+        </div>
       </div>
     </div>
 
-    <form class="form" on:submit|preventDefault={executeLogin}>
-      {#if formError.length > 0}
-        <p class="error" role="alert">{formError}</p>
-      {/if}
-      <label class="field">
-        <span class="fieldLabel">Username</span>
-        <input
-          class="input"
-          type="text"
-          autocomplete="username"
-          placeholder="Your username"
-          bind:value={username}
-          required
-        />
-      </label>
-      <label class="field">
-        <span class="fieldLabel">Password</span>
-        <input
-          class="input"
-          type="password"
-          autocomplete="current-password"
-          placeholder="Password"
-          bind:value={password}
-          required
-        />
-      </label>
-      <button class="button" type="submit" disabled={isSubmitting}>
-        {isSubmitting ? 'Signing in…' : 'Sign in'}
-      </button>
-    </form>
-
-    <p class="hint">
-      For local dev with the web app on a different port than the API, set <code>CORS_ORIGIN</code> in the API
-      <code>.env</code> to your web origin (e.g. <code>http://localhost:5173</code>) so the session cookie is
-      accepted.
-    </p>
-  </section>
+    <p class="footerNote">&copy; 2026 Badgers Finance. All rights reserved.</p>
+  </div>
 </div>
 
 <style>
-  .container {
-    min-height: calc(100vh - 4rem);
-    display: grid;
-    place-items: center;
-    padding: 2rem 1rem;
+  .page {
+    min-height: 100vh;
+    box-sizing: border-box;
+    font-family:
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      Roboto,
+      'Helvetica Neue',
+      Arial,
+      sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    background: linear-gradient(135deg, #ecfdf5 0%, #ffffff 45%, #ffffff 55%, #ecfdf5 100%);
+  }
+  .inner {
+    width: 100%;
+    max-width: 28rem;
+  }
+  .brandBlock {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+  .logo {
+    display: block;
+    height: 5rem;
+    width: auto;
+    margin: 0 auto 1rem;
+    object-fit: contain;
+  }
+  .brandTitle {
+    margin: 0 0 0.5rem;
+    font-size: 1.875rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #111827;
+    letter-spacing: -0.02em;
+  }
+  .brandSubtitle {
+    margin: 0;
+    font-size: 1rem;
+    color: #4b5563;
   }
   .card {
-    width: 100%;
-    max-width: 26rem;
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    border-radius: 1rem;
-    background: white;
-    padding: 1.25rem;
-    display: grid;
-    gap: 1rem;
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
-  }
-  .header {
-    display: grid;
-    gap: 0.35rem;
-  }
-  .muted {
-    color: rgba(0, 0, 0, 0.62);
-    margin: 0;
-  }
-  h1 {
-    margin: 0;
-    font-size: 1.35rem;
-    letter-spacing: 0.2px;
-  }
-  .checks {
-    border: 1px solid rgba(0, 0, 0, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    background: #ffffff;
+    color: #111827;
     border-radius: 0.75rem;
-    padding: 0.75rem;
+    border: 2px solid #d1fae5;
+    box-shadow:
+      0 20px 25px -5px rgb(0 0 0 / 0.08),
+      0 8px 10px -6px rgb(0 0 0 / 0.08);
+  }
+  .cardHeader {
+    padding: 1.5rem 1.5rem 1.25rem;
     display: grid;
-    gap: 0.5rem;
-    background: rgba(0, 0, 0, 0.02);
+    gap: 0.375rem;
   }
-  .checkRow {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    align-items: center;
-    gap: 0.5rem;
+  .cardTitle {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+    line-height: 1.2;
+    text-align: center;
+    color: #111827;
   }
-  .checkLabel {
-    font-weight: 650;
+  .cardDescription {
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    text-align: center;
+    color: #717182;
   }
-  .checkMeta {
-    color: rgba(0, 0, 0, 0.55);
-    font-size: 0.9rem;
-  }
-  .dot {
-    width: 0.75rem;
-    height: 0.75rem;
-    border-radius: 999px;
-    border: 1px solid rgba(0, 0, 0, 0.18);
-    background: rgba(0, 0, 0, 0.12);
-  }
-  .dot[data-status='checking'] {
-    background: rgba(0, 0, 0, 0.18);
-  }
-  .dot[data-status='up'] {
-    background: #23c55e;
-    border-color: rgba(0, 0, 0, 0.12);
-  }
-  .dot[data-status='down'] {
-    background: #ef4444;
-    border-color: rgba(0, 0, 0, 0.12);
+  .cardContent {
+    padding: 0 1.5rem 1.5rem;
   }
   .form {
-    display: grid;
-    gap: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
   }
-  .error {
-    margin: 0;
-    padding: 0.5rem 0.65rem;
-    border-radius: 0.5rem;
-    background: rgba(239, 68, 68, 0.1);
-    color: #b91c1c;
-    font-size: 0.95rem;
+  .fieldGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
   }
-  .field {
-    display: grid;
-    gap: 0.35rem;
+  .label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1;
+    color: #111827;
   }
-  .fieldLabel {
-    font-weight: 650;
-    font-size: 0.95rem;
+  .inputWrap {
+    position: relative;
+  }
+  .inputIcon {
+    position: absolute;
+    left: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    color: #9ca3af;
+    pointer-events: none;
   }
   .input {
-    border: 1px solid rgba(0, 0, 0, 0.14);
-    border-radius: 0.6rem;
-    padding: 0.65rem 0.75rem;
-    font-size: 1rem;
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 2.25rem;
+    padding: 0.25rem 0.75rem 0.25rem 2.5rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 0.375rem;
+    background: #f3f3f5;
+    color: #111827;
+    outline: none;
+    transition:
+      border-color 0.15s ease,
+      box-shadow 0.15s ease;
+  }
+  .input::placeholder {
+    color: #9ca3af;
   }
   .input:focus {
-    outline: none;
-    border-color: rgba(0, 0, 0, 0.32);
-    box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.06);
+    border-color: #059669;
+    box-shadow: 0 0 0 3px rgb(5 150 105 / 0.2);
   }
-  .button {
+  .submit {
+    width: 100%;
+    margin-top: 0.125rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.25rem;
     border: none;
-    border-radius: 0.65rem;
-    padding: 0.7rem 0.85rem;
-    font-weight: 700;
-    background: rgba(0, 0, 0, 0.9);
-    color: white;
+    border-radius: 0.375rem;
     cursor: pointer;
+    background: #059669;
+    color: #ffffff;
+    transition: background 0.15s ease;
   }
-  .button:disabled {
-    cursor: default;
-    opacity: 0.6;
+  .submit:hover:not(:disabled) {
+    background: #047857;
   }
-  .hint {
-    margin: 0;
-    color: rgba(0, 0, 0, 0.55);
-    font-size: 0.9rem;
-    line-height: 1.35;
+  .submit:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
   }
-  .hint code {
-    font-size: 0.85em;
+  .demoCallout {
+    margin-top: 1.5rem;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+  }
+  .demoTitle {
+    margin: 0 0 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #064e3b;
+  }
+  .demoLines {
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: #065f46;
+  }
+  .demoLines p {
+    margin: 0 0 0.25rem;
+  }
+  .demoLines p:last-child {
+    margin-bottom: 0;
+  }
+  .demoKey {
+    font-weight: 600;
+  }
+  .demoVal {
+    font-weight: 400;
+  }
+  .demoHint {
+    margin-top: 0.5rem !important;
+    padding-top: 0.5rem;
+    border-top: 1px solid #a7f3d0;
+    font-size: 0.8125rem;
+    color: #047857;
+  }
+  .demoLines code {
+    font-size: 0.8125rem;
+    padding: 0.1em 0.35em;
+    border-radius: 0.25rem;
+    background: rgb(255 255 255 / 0.7);
+  }
+  .footerNote {
+    margin: 1.5rem 0 0;
+    text-align: center;
+    font-size: 0.875rem;
+    color: #4b5563;
   }
 </style>

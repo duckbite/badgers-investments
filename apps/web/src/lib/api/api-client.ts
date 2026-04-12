@@ -33,7 +33,14 @@ export class ApiClient {
       credentials: 'include',
     });
     if (response.ok) {
-      return (await response.json()) as TResponse;
+      if (response.status === 204) {
+        return undefined as TResponse;
+      }
+      const text: string = await response.text();
+      if (text.length === 0) {
+        return undefined as TResponse;
+      }
+      return JSON.parse(text) as TResponse;
     }
     const errorPayload: unknown = await this.tryParseJson(response);
     const message: string = this.resolveErrorMessage({ response, errorPayload });
