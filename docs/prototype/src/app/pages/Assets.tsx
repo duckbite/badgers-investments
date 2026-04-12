@@ -3,8 +3,10 @@ import { mockAssets, type Asset } from "../data/mockData";
 import { Badge } from "../components/ui/badge";
 import { TrendingUp, TrendingDown } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
+import { useAnonymize } from "../contexts/AnonymizeContext";
 
 export default function Assets() {
+  const { formatAmount } = useAnonymize();
   // Group assets by class
   const assetsByClass = mockAssets.reduce((acc, asset) => {
     if (!acc[asset.assetClass]) {
@@ -62,7 +64,7 @@ export default function Assets() {
                 </div>
                 <div className="text-right">
                   <p className="text-2xl font-bold text-gray-900">
-                    ${classTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    ${formatAmount(classTotal)}
                   </p>
                   <div className="flex items-center justify-end gap-1 mt-1">
                     {classGainLoss >= 0 ? (
@@ -71,7 +73,7 @@ export default function Assets() {
                       <TrendingDown className="w-4 h-4 text-red-600" />
                     )}
                     <span className={`text-sm font-medium ${classGainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      ${Math.abs(classGainLoss).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      ${formatAmount(Math.abs(classGainLoss))}
                     </span>
                   </div>
                 </div>
@@ -107,18 +109,18 @@ export default function Assets() {
                           })}
                         </TableCell>
                         <TableCell className="text-right">
-                          ${asset.currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          ${formatAmount(asset.currentPrice)}
                         </TableCell>
                         <TableCell className="text-right">
-                          ${metrics.costBasisTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          ${formatAmount(metrics.costBasisTotal)}
                         </TableCell>
                         <TableCell className="text-right font-medium">
-                          ${metrics.currentValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          ${formatAmount(metrics.currentValue)}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
                             <span className={`font-medium ${metrics.gainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                              {metrics.gainLoss >= 0 ? '+' : ''}${metrics.gainLoss.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                              {metrics.gainLoss >= 0 ? '+' : ''}${formatAmount(metrics.gainLoss)}
                             </span>
                             <Badge variant={metrics.gainLoss >= 0 ? 'default' : 'secondary'} className="ml-2">
                               {metrics.gainLossPercent >= 0 ? '+' : ''}{metrics.gainLossPercent.toFixed(2)}%

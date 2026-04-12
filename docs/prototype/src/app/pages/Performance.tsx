@@ -2,8 +2,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../co
 import { mockPerformanceData } from "../data/mockData";
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { TrendingUp, Calendar, Percent, DollarSign } from "lucide-react";
+import { useAnonymize } from "../contexts/AnonymizeContext";
 
 export default function Performance() {
+  const { formatAmount } = useAnonymize();
   // Calculate key metrics
   const latestData = mockPerformanceData[mockPerformanceData.length - 1];
   const earliestData = mockPerformanceData[0];
@@ -83,7 +85,7 @@ export default function Performance() {
           <CardContent>
             <div className="flex items-baseline gap-2">
               <span className="text-3xl font-bold text-green-600">
-                ${totalReturn.toLocaleString('en-US', { minimumFractionDigits: 0 })}
+                ${formatAmount(totalReturn, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
               </span>
             </div>
             <p className="text-sm text-gray-600 mt-2">Portfolio growth</p>
@@ -100,7 +102,7 @@ export default function Performance() {
           <CardContent>
             <div className="flex items-baseline gap-2">
               <span className="text-3xl font-bold text-gray-900">
-                ${(totalDeposits - totalWithdrawals).toLocaleString('en-US', { minimumFractionDigits: 0 })}
+                ${formatAmount(totalDeposits - totalWithdrawals, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
               </span>
             </div>
             <p className="text-sm text-gray-600 mt-2">Total deposits minus withdrawals</p>
@@ -126,9 +128,9 @@ export default function Performance() {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
               <YAxis />
-              <Tooltip 
+              <Tooltip
                 formatter={(value: number, name: string) => [
-                  `$${value.toLocaleString('en-US')}`,
+                  `$${formatAmount(value, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`,
                   name === 'value' ? 'Portfolio Value' : 'Deposits'
                 ]}
               />
@@ -183,8 +185,8 @@ export default function Performance() {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
               <YAxis />
-              <Tooltip 
-                formatter={(value: number) => [`$${value.toLocaleString('en-US')}`, '']}
+              <Tooltip
+                formatter={(value: number) => [`$${formatAmount(value, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, '']}
               />
               <Legend />
               <Bar dataKey="deposits" fill="#10b981" name="Deposits" />
@@ -221,19 +223,19 @@ export default function Performance() {
                     <div className="text-right">
                       <p className="text-sm text-gray-600">Value</p>
                       <p className="font-medium text-gray-900">
-                        ${period.portfolioValue.toLocaleString('en-US')}
+                        ${formatAmount(period.portfolioValue, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                       </p>
                     </div>
                     <div className="text-right">
                       <p className="text-sm text-gray-600">Change</p>
                       <p className={`font-medium ${valueChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {valueChange >= 0 ? '+' : ''}${valueChange.toLocaleString('en-US')}
+                        {valueChange >= 0 ? '+' : ''}${formatAmount(valueChange, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                       </p>
                     </div>
                     <div className="text-right">
                       <p className="text-sm text-gray-600">Deposits</p>
                       <p className="font-medium text-gray-900">
-                        ${period.deposits.toLocaleString('en-US')}
+                        ${formatAmount(period.deposits, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                       </p>
                     </div>
                   </div>

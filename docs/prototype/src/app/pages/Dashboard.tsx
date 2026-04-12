@@ -3,8 +3,10 @@ import { mockAssets, mockTransactions, mockRecommendations, type Asset } from ".
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts";
 import { TrendingUp, TrendingDown, DollarSign, AlertCircle } from "lucide-react";
 import { Badge } from "../components/ui/badge";
+import { useAnonymize } from "../contexts/AnonymizeContext";
 
 export default function Dashboard() {
+  const { formatAmount } = useAnonymize();
   // Calculate portfolio metrics
   const totalValue = mockAssets.reduce((sum, asset) => sum + (asset.quantity * asset.currentPrice), 0);
   const totalCost = mockAssets.reduce((sum, asset) => sum + (asset.quantity * asset.costBasis), 0);
@@ -80,7 +82,7 @@ export default function Dashboard() {
           <CardContent>
             <div className="flex items-baseline gap-2">
               <span className="text-3xl font-bold text-gray-900">
-                ${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                ${formatAmount(totalValue)}
               </span>
             </div>
             <div className="flex items-center gap-2 mt-2">
@@ -90,7 +92,7 @@ export default function Dashboard() {
                 <TrendingDown className="w-4 h-4 text-red-600" />
               )}
               <span className={`text-sm font-medium ${totalGainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                ${Math.abs(totalGainLoss).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({totalGainLossPercent.toFixed(2)}%)
+                ${formatAmount(Math.abs(totalGainLoss))} ({totalGainLossPercent.toFixed(2)}%)
               </span>
             </div>
           </CardContent>
@@ -103,7 +105,7 @@ export default function Dashboard() {
           <CardContent>
             <div className="flex items-baseline gap-2">
               <span className="text-3xl font-bold text-gray-900">
-                ${totalCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                ${formatAmount(totalCost)}
               </span>
             </div>
             <div className="flex items-center gap-2 mt-2">
@@ -158,7 +160,7 @@ export default function Dashboard() {
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value: number) => `$${value.toLocaleString('en-US', { minimumFractionDigits: 2 })}`} />
+                <Tooltip formatter={(value: number) => `$${formatAmount(value)}`} />
               </PieChart>
             </ResponsiveContainer>
           </CardContent>
@@ -187,7 +189,7 @@ export default function Dashboard() {
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value: number) => `$${value.toLocaleString('en-US', { minimumFractionDigits: 2 })}`} />
+                <Tooltip formatter={(value: number) => `$${formatAmount(value)}`} />
               </PieChart>
             </ResponsiveContainer>
           </CardContent>
@@ -208,7 +210,7 @@ export default function Dashboard() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
-                <Tooltip formatter={(value: number) => `$${value.toLocaleString('en-US')}`} />
+                <Tooltip formatter={(value: number) => `$${formatAmount(value)}`} />
                 <Line type="monotone" dataKey="value" stroke="#059669" strokeWidth={2} />
               </LineChart>
             </ResponsiveContainer>
@@ -247,10 +249,10 @@ export default function Dashboard() {
                       transaction.type === 'buy' || transaction.type === 'withdrawal' ? 'text-red-600' : 'text-green-600'
                     }`}>
                       {transaction.type === 'buy' || transaction.type === 'withdrawal' ? '-' : '+'}
-                      ${transaction.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      ${formatAmount(transaction.amount)}
                     </p>
                     {transaction.quantity && (
-                      <p className="text-sm text-gray-500">{transaction.quantity} @ ${transaction.price?.toFixed(2)}</p>
+                      <p className="text-sm text-gray-500">{transaction.quantity} @ ${formatAmount(transaction.price || 0)}</p>
                     )}
                   </div>
                 </div>
