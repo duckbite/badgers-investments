@@ -22,6 +22,9 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 | Path | Description |
 |------|-------------|
 | `apps/web/` | SvelteKit (Svelte 5) frontend. Entry: `src/routes/+page.svelte`. Scripts: `dev`, `build`, `preview`, `check`, `lint`. Build output: `.svelte-kit/` and Vite build artifacts. |
+| `apps/web/static/badgers-logo.png` | Login branding asset (same artwork as `docs/prototype` Figma export); served at `/badgers-logo.png`. |
+| `apps/web/src/lib/toast/toast.ts` | Lightweight toast queue (`toast.error` / `toast.success`) for Sonner-like UX (top-right); used on login and available app-wide. |
+| `apps/web/src/lib/toast/ToastHost.svelte` | Fixed top-right viewport; mounted from `src/routes/+layout.svelte`. |
 
 ## Services
 
