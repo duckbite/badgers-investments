@@ -136,6 +136,8 @@ Re-running the script **updates the password hash** and keeps the same **`userId
 
 Then `POST /auth/login` with that username and password returns a session cookie (`badgers_session` by default). See `.env.example` for optional `API_SESSION_*` and rate-limit variables.
 
+**Insomnia:** An importable collection (portfolio, assets, transactions, holdings) and a **fake-credential** example environment live under [`insomnia/`](insomnia/). Align `username` / `password` in the Insomnia environment with your bootstrapped user before sending requests.
+
 **IAM:** Scope your user/role to the dev table ARN (and index ARNs when you add GSIs).
 
 **Alternative:** create the same key schema manually with `aws dynamodb create-table` if you prefer not to use the `envs/dev` stack.
@@ -158,6 +160,7 @@ Ensure AWS credentials allow `dynamodb:DescribeTable` (and other actions your ro
 
 - **Unit tests:** Financial logic (FIFO, TWR, rules, scoring) and domain services.
 - **Integration tests:** API paths, auth (DynamoDB mocked in-process), recommendation run (mocked OpenAI), where implemented.
+- **Insomnia:** After-response tests and cookie session flow — import **`insomnia/collections/badgers-api.insomnia.json`** (see **`insomnia/README.md`**).
 
 From the repo root:
 

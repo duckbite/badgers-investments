@@ -1,14 +1,12 @@
 import type { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import { authDomainPlugin } from '../modules/auth/auth-plugin.js';
-import { assetsRoutes } from '../modules/assets/assets-routes.js';
 import { aiRoutes } from '../modules/ai/ai-routes.js';
+import { domainDataPlugin } from '../modules/domain/domain-data-plugin.js';
 import { healthRoutes } from '../modules/health/health-routes.js';
 import { jobsRoutes } from '../modules/jobs/jobs-routes.js';
-import { ledgerRoutes } from '../modules/ledger/ledger-routes.js';
 import { loggingModule } from '../modules/logging/logging-module.js';
 import { performanceRoutes } from '../modules/performance/performance-routes.js';
-import { portfolioRoutes } from '../modules/portfolio/portfolio-routes.js';
 import { recommendationsRoutes } from '../modules/recommendations/recommendations-routes.js';
 import { rulesRoutes } from '../modules/rules/rules-routes.js';
 import { sessionsRoutes } from '../modules/sessions/sessions-routes.js';
@@ -24,9 +22,7 @@ export async function registerModules(input: { readonly app: FastifyInstance }):
   await input.app.register(healthRoutes);
   await input.app.register(authDomainPlugin);
   await input.app.register(sessionsRoutes);
-  await input.app.register(portfolioRoutes);
-  await input.app.register(assetsRoutes);
-  await input.app.register(ledgerRoutes);
+  await input.app.register(domainDataPlugin);
   await input.app.register(valuationsRoutes);
   await input.app.register(snapshotsRoutes);
   await input.app.register(performanceRoutes);
