@@ -2,13 +2,16 @@
 
 API collections and environments live here, colocated with the repo (Insomnia **v5.1** YAML).
 
+- **`collections/`** — request collections (import these for the API suite).
+- **`environments/`** — optional standalone environment exports.
+
 Import into [Insomnia](https://insomnia.rest/) to exercise authenticated portfolio, assets, ledger, and holdings endpoints.
 
 ## Import
 
 1. **Application → Preferences → Data → Import data** (or **Create → Import from File**).
-2. Import **`badgers-api.yaml`** (collection + requests + embedded **Local (Badgers API)** environment).
-3. Optionally import **`local-dev.yaml`** as a separate global environment file if you keep environments outside the collection (same variable keys as below).
+2. Import **`collections/badgers-api.yaml`** (collection + requests + embedded **Local (Badgers API)** environment).
+3. Optionally import **`environments/local-dev.yaml`** as a separate global environment file if you keep environments outside the collection (same variable keys as below).
 
 ## Before you send requests
 
