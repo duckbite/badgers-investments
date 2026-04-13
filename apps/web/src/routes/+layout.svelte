@@ -2,8 +2,12 @@
   import '../styles/index.css';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
+  import { onMount } from 'svelte';
+  import { get } from 'svelte/store';
   import { apiClient } from '$lib/api/api-client-instance';
+  import PinRevealDialog from '$lib/components/PinRevealDialog.svelte';
   import ToastHost from '$lib/toast/ToastHost.svelte';
+  import { amountPrivacy } from '$lib/privacy/amount-privacy-store';
   import { readResolvedThemeFromDocument, toggleTheme, type Theme } from '$lib/theme/theme';
   import {
     BookMarked,
@@ -12,6 +16,7 @@
     Compass,
     DollarSign,
     Eye,
+    EyeOff,
     LayoutDashboard,
     Lightbulb,
     Moon,
@@ -40,6 +45,37 @@
   }
 
   let isLoggingOut: boolean = false;
+  let portfolioBaseCurrency: string = 'USD';
+  let isPinDialogOpen: boolean = false;
+
+  onMount(() => {
+    amountPrivacy.hydrateFromSession();
+    void (async () => {
+      try {
+        const pf = await apiClient.executeJson<{ readonly baseCurrencyCode: string }>({ method: 'GET', path: '/portfolio' });
+        portfolioBaseCurrency = pf.baseCurrencyCode;
+      } catch {
+        portfolioBaseCurrency = 'USD';
+      }
+    })();
+  });
+
+  function handleAmountPrivacyToggle(): void {
+    if (!get(amountPrivacy)) {
+      amountPrivacy.mask();
+      return;
+    }
+    isPinDialogOpen = true;
+  }
+
+  function handlePinSuccess(): void {
+    amountPrivacy.revealAfterPin();
+    isPinDialogOpen = false;
+  }
+
+  function handlePinCancel(): void {
+    isPinDialogOpen = false;
+  }
 
   function getInitialTheme(): Theme {
     if (typeof document === 'undefined') {
@@ -73,6 +109,13 @@
 
 <ToastHost />
 
+<PinRevealDialog
+  open={isPinDialogOpen}
+  expectedPin={amountPrivacy.getExpectedPin()}
+  on:success={handlePinSuccess}
+  on:cancel={handlePinCancel}
+/>
+
 {#if $page.url.pathname === '/login'}
   <slot />
 {:else}
@@ -86,22 +129,25 @@
 
           <div class="flex flex-wrap items-center gap-3">
             <div
-              class="flex h-9 w-32 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 opacity-90 dark:border-border dark:bg-card dark:text-foreground"
-              title="Base currency (DB-113)"
-              aria-disabled="true"
+              class="flex h-9 w-32 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 dark:border-border dark:bg-card dark:text-foreground"
+              title="Portfolio base currency"
             >
               <DollarSign class="h-4 w-4 shrink-0 text-gray-500 dark:text-muted-foreground" />
-              <span>USD</span>
+              <span>{portfolioBaseCurrency}</span>
             </div>
 
             <button
               type="button"
-              disabled
-              class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white opacity-80 dark:border-border dark:bg-card"
-              title="Hide amounts (DB-146)"
-              aria-label="Amount privacy (coming soon)"
+              class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white hover:bg-gray-50 dark:border-border dark:bg-card dark:hover:bg-accent"
+              title={$amountPrivacy ? 'Show amounts (requires PIN)' : 'Hide amounts'}
+              aria-label={$amountPrivacy ? 'Show amounts' : 'Hide amounts'}
+              on:click={handleAmountPrivacyToggle}
             >
-              <Eye class="h-4 w-4 text-gray-600 dark:text-muted-foreground" />
+              {#if $amountPrivacy}
+                <EyeOff class="h-4 w-4 text-gray-600 dark:text-muted-foreground" />
+              {:else}
+                <Eye class="h-4 w-4 text-gray-600 dark:text-muted-foreground" />
+              {/if}
             </button>
 
             <button

@@ -80,7 +80,8 @@ Required for the API:
 Optional:
 
 - `API_DYNAMODB_ENDPOINT` — custom endpoint only (e.g. LocalStack). Omit for real DynamoDB.
-- `CORS_ORIGIN` — browser origin for the web app (e.g. `http://localhost:5173`). Set this when the UI and API run on different origins so `fetch` with cookies (`credentials: 'include'`) and `Set-Cookie` work for login.
+- `WEB_PORT` — Vite dev server port (default `5173` if unset). Set `CORS_ORIGIN` to `http://localhost:<WEB_PORT>` when you use an explicit CORS allowlist and change the port.
+- `CORS_ORIGIN` — browser origin for the web app (e.g. `http://localhost:5173`, matching `WEB_PORT`). Set this when the UI and API run on different origins so `fetch` with cookies (`credentials: 'include'`) and `Set-Cookie` work for login.
 - `OPENAI_KEY` — when the recommendations module is enabled.
 
 ### 3. DynamoDB (dev table)
@@ -134,6 +135,14 @@ pnpm bootstrap:user
 
 Re-running the script **updates the password hash** and keeps the same **`userId`** / **`createdAt`** if the account row already exists.
 
+**Optional — demo wealth seed (dev only):** to populate the **bootstrap user’s** portfolio with ~2 years of synthetic trades (multi-sector US stocks/ETFs), weekly prices, FIFO links, and a full snapshot rebuild, set `BOOTSTRAP_USERNAME` in root `.env` (same value as above) and run:
+
+```bash
+pnpm seed:dev-wealth
+```
+
+This **deletes** existing portfolio-scoped data for that user (assets, transactions, prices, snapshots, lot links) but **keeps** `PORTFOLIO_CFG*` rows. Never run against production.
+
 Then `POST /auth/login` with that username and password returns a session cookie (`badgers_session` by default). See `.env.example` for optional `API_SESSION_*` and rate-limit variables.
 
 **Insomnia:** An importable collection (portfolio, assets, transactions, holdings) and a **fake-credential** example environment live under [`insomnia/`](insomnia/). Align `username` / `password` in the Insomnia environment with your bootstrapped user before sending requests.
@@ -150,7 +159,7 @@ From the repo root:
 pnpm dev
 ```
 
-Then open the frontend URL (default `http://localhost:5173`). The API listens on `http://localhost:3000` by default.
+Then open the frontend URL (`http://localhost:<WEB_PORT>` from `.env`, default port `5173`). The API listens on `http://localhost:<API_PORT>` (default `3000`). The web app calls `PUBLIC_API_BASE_URL`; if you omit it, the Vite build sets it to `http://localhost:<API_PORT>` so the UI tracks the API port.
 
 Ensure AWS credentials allow `dynamodb:DescribeTable` (and other actions your routes need) before expecting `GET /ready` to succeed.
 

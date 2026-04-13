@@ -6,6 +6,8 @@
   import { onMount } from 'svelte';
   import { apiClient } from '$lib/api/api-client-instance';
   import { toast } from '$lib/toast/toast';
+  import { amountPrivacy } from '$lib/privacy/amount-privacy-store';
+  import { formatMaskedMoney } from '$lib/privacy/format-amount';
 
   type AssetDto = {
     readonly assetId: string;
@@ -32,6 +34,8 @@
   let isLoading: boolean = true;
   let isSaving: boolean = false;
   let isRebuilding: boolean = false;
+
+  $: masked = $amountPrivacy;
 
   async function loadAssets(): Promise<void> {
     const response = await apiClient.executeJson<{ readonly items: readonly AssetDto[] }>({
@@ -213,8 +217,7 @@
                 <span class="text-gray-500 dark:text-muted-foreground">No snapshot</span>
               {:else}
                 <span class="text-gray-800 dark:text-foreground">
-                  {latest.price}
-                  {latest.currencyCode}
+                  {formatMaskedMoney({ masked, decimalString: latest.price, currencyCode: latest.currencyCode })}
                   <span class="text-gray-500 dark:text-muted-foreground">({latest.priceDate})</span>
                 </span>
               {/if}

@@ -41,6 +41,7 @@ Scripts use `insomnia.test` / `insomnia.expect` (Chai-style). They are stored un
 | Variable | Purpose |
 |----------|---------|
 | `base_url` | API origin (no trailing slash), e.g. `http://localhost:3000` |
+| `web_origin` | Svelte dev app origin (no trailing slash), e.g. `http://localhost:10606` — align with root `.env` `WEB_PORT` and API `CORS_ORIGIN` when testing from a browser |
 | `username` | Must match bootstrapped user (example file uses fake values) |
 | `password` | Fake example only — align with your local `.env` |
 | `asset_id` | Filled by **Assets / Create** script or manually |
@@ -48,4 +49,4 @@ Scripts use `insomnia.test` / `insomnia.expect` (Chai-style). They are stored un
 
 ## CORS
 
-Insomnia desktop sends requests like a non-browser client; CORS does not apply. If you ever proxy through a browser extension, set `CORS_ORIGIN` on the API to match.
+Insomnia desktop sends requests like a non-browser client; CORS does not apply. If you ever proxy through a browser extension, set `CORS_ORIGIN` on the API to match `web_origin` (same scheme/host/port as the SPA).
