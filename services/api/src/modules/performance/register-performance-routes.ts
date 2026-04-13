@@ -1,6 +1,8 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { PortfolioService } from '../portfolio/portfolio-service.js';
 import type { PerformanceSnapshotRepository } from '../snapshots/performance-snapshot-repository.js';
+import { utcCalendarDateYmd } from '../snapshots/snapshot-date-utils.js';
+import { resolveTwrQueryBounds } from './resolve-twr-query-bounds.js';
 
 export function registerPerformanceRoutes(input: {
   readonly app: FastifyInstance;
@@ -16,6 +18,7 @@ export function registerPerformanceRoutes(input: {
           type: 'object',
           additionalProperties: false,
           properties: {
+            range: { type: 'string', enum: ['ALL', '1M', '3M', 'YTD', '1Y', 'all', '1m', '3m', 'ytd', '1y'] },
             from: { type: 'string', minLength: 10, maxLength: 10 },
             to: { type: 'string', minLength: 10, maxLength: 10 },
           },
@@ -65,16 +68,26 @@ export function registerPerformanceRoutes(input: {
     async (request: FastifyRequest, reply: FastifyReply) => {
       const userId: string = request.authUser?.userId ?? '';
       const portfolioId: string = await input.portfolioService.requirePortfolioIdForUser({ userId, now: new Date() });
-      const query = request.query as { readonly from?: string; readonly to?: string };
+      const query = request.query as { readonly range?: string; readonly from?: string; readonly to?: string };
+      const todayYmd: string = utcCalendarDateYmd({ instant: new Date() });
+      const bounds = resolveTwrQueryBounds({
+        range: query.range,
+        from: query.from,
+        to: query.to,
+        todayYmd,
+      });
+      if (!bounds.ok) {
+        return reply.code(400).send({ error: bounds.message });
+      }
       const all = await input.performanceSnapshotRepository.listAllAscending({ userId, portfolioId });
       const filtered =
-        query.from === undefined && query.to === undefined
+        bounds.fromInclusive === undefined && bounds.toInclusive === undefined
           ? all
           : all.filter((row) => {
-              if (query.from !== undefined && row.periodDate < query.from) {
+              if (bounds.fromInclusive !== undefined && row.periodDate < bounds.fromInclusive) {
                 return false;
               }
-              if (query.to !== undefined && row.periodDate > query.to) {
+              if (bounds.toInclusive !== undefined && row.periodDate > bounds.toInclusive) {
                 return false;
               }
               return true;

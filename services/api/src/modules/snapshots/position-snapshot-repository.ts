@@ -1,5 +1,5 @@
 import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
-import { PutCommand } from '@aws-sdk/lib-dynamodb';
+import { PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { buildPortfolioScopedPartitionKey, buildPositionSnapshotSortKey } from '../domain/domain-keys.js';
 
 const PARTITION_KEY: string = 'PK';
@@ -69,4 +69,93 @@ export class PositionSnapshotRepository {
       }),
     );
   }
+
+  public async listForSnapshotDate(input: {
+    readonly userId: string;
+    readonly portfolioId: string;
+    readonly snapshotDate: string;
+  }): Promise<readonly PositionSnapshotRecord[]> {
+    const pk: string = buildPortfolioScopedPartitionKey({ userId: input.userId, portfolioId: input.portfolioId });
+    const skPrefix: string = `POS_SNAP#${input.snapshotDate}#`;
+    const collected: PositionSnapshotRecord[] = [];
+    let startKey: Record<string, unknown> | undefined;
+    do {
+      const response = await this.documentClient.send(
+        new QueryCommand({
+          TableName: this.tableName,
+          KeyConditionExpression: 'PK = :pk AND begins_with(SK, :skPrefix)',
+          ExpressionAttributeValues: {
+            ':pk': pk,
+            ':skPrefix': skPrefix,
+          },
+          ConsistentRead: true,
+          ExclusiveStartKey: startKey,
+        }),
+      );
+      const items: readonly Record<string, unknown>[] = response.Items ?? [];
+      for (const item of items) {
+        const row: PositionSnapshotRecord | undefined = parsePositionSnapshotRecord({ item });
+        if (row !== undefined) {
+          collected.push(row);
+        }
+      }
+      startKey = response.LastEvaluatedKey;
+    } while (startKey !== undefined);
+    return collected.sort((left, right) => left.assetId.localeCompare(right.assetId));
+  }
+}
+
+function parsePositionSnapshotRecord(input: { readonly item: Record<string, unknown> }): PositionSnapshotRecord | undefined {
+  const snapshotDate: unknown = input.item['snapshotDate'];
+  const assetId: unknown = input.item['assetId'];
+  const quantityHeld: unknown = input.item['quantityHeld'];
+  const costBasisAmount: unknown = input.item['costBasisAmount'];
+  const marketPrice: unknown = input.item['marketPrice'];
+  const marketPriceCurrencyCode: unknown = input.item['marketPriceCurrencyCode'];
+  const marketValueAmount: unknown = input.item['marketValueAmount'];
+  const unrealisedPnlAmount: unknown = input.item['unrealisedPnlAmount'];
+  const realisedPnlCumulativeAmount: unknown = input.item['realisedPnlCumulativeAmount'];
+  const allocationPct: unknown = input.item['allocationPct'];
+  const dataSourceSummaryJson: unknown = input.item['dataSourceSummaryJson'];
+  const createdAt: unknown = input.item['createdAt'];
+  if (
+    typeof snapshotDate !== 'string' ||
+    typeof assetId !== 'string' ||
+    typeof quantityHeld !== 'string' ||
+    typeof costBasisAmount !== 'string' ||
+    typeof marketValueAmount !== 'string' ||
+    typeof unrealisedPnlAmount !== 'string' ||
+    typeof realisedPnlCumulativeAmount !== 'string' ||
+    typeof dataSourceSummaryJson !== 'string' ||
+    typeof createdAt !== 'string'
+  ) {
+    return undefined;
+  }
+  if (marketPrice !== undefined && typeof marketPrice !== 'string') {
+    return undefined;
+  }
+  if (marketPriceCurrencyCode !== undefined && typeof marketPriceCurrencyCode !== 'string') {
+    return undefined;
+  }
+  if (allocationPct !== undefined && typeof allocationPct !== 'string') {
+    return undefined;
+  }
+  const marketPriceStr: string | undefined = marketPrice === undefined ? undefined : marketPrice;
+  const marketPriceCurrencyStr: string | undefined =
+    marketPriceCurrencyCode === undefined ? undefined : marketPriceCurrencyCode;
+  const allocationPctStr: string | undefined = allocationPct === undefined ? undefined : allocationPct;
+  return {
+    snapshotDate,
+    assetId,
+    quantityHeld,
+    costBasisAmount,
+    marketPrice: marketPriceStr,
+    marketPriceCurrencyCode: marketPriceCurrencyStr,
+    marketValueAmount,
+    unrealisedPnlAmount,
+    realisedPnlCumulativeAmount,
+    allocationPct: allocationPctStr,
+    dataSourceSummaryJson,
+    createdAtIso: createdAt,
+  };
 }

@@ -52,3 +52,13 @@ function addUtcDays(input: { readonly instant: Date; readonly days: number }): D
   copy.setUTCDate(copy.getUTCDate() + input.days);
   return copy;
 }
+
+/** Calendar-month shift on UTC YYYY-MM-DD (for performance range presets). */
+export function addUtcMonthsYmd(input: { readonly ymd: string; readonly months: number }): string {
+  const parts: string[] = input.ymd.split('-');
+  const year: number = Number.parseInt(parts[0] ?? '0', 10);
+  const monthIndex: number = Number.parseInt(parts[1] ?? '1', 10) - 1;
+  const day: number = Number.parseInt(parts[2] ?? '1', 10);
+  const shifted: Date = new Date(Date.UTC(year, monthIndex + input.months, day));
+  return shifted.toISOString().slice(0, 10);
+}

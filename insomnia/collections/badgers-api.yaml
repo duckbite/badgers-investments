@@ -433,6 +433,93 @@ collection:
             send: true
             store: true
           rebuildPath: true
+  - name: Snapshots & performance
+    meta:
+      id: fld_badgers_snapshots_perf
+      created: 1776053956256
+      modified: 1776053956256
+      sortKey: -550000
+      description: Latest derived snapshots and TWR read API (after login).
+    children:
+      - url: "{{ _.base_url }}/snapshots/latest"
+        name: Latest portfolio + positions
+        meta:
+          id: req_badgers_snapshots_latest
+          created: 1776053956256
+          modified: 1776053956256
+          isPrivate: false
+          description: ""
+          sortKey: -550100
+        method: GET
+        scripts:
+          afterResponse: |
+            insomnia.test('Status code is 200', () => {
+              insomnia.expect(insomnia.response.code).to.eql(200);
+            });
+            insomnia.test('Body shape', () => {
+              const body = insomnia.response.json();
+              insomnia.expect(body).to.have.property('snapshotDate');
+              insomnia.expect(body).to.have.property('portfolio');
+              insomnia.expect(body.positions).to.be.an('array');
+            });
+        settings:
+          renderRequestBody: true
+          encodeUrl: true
+          followRedirects: global
+          cookies:
+            send: true
+            store: true
+          rebuildPath: true
+      - url: "{{ _.base_url }}/performance/twr"
+        name: TWR series (all)
+        meta:
+          id: req_badgers_performance_twr
+          created: 1776053956256
+          modified: 1776053956256
+          isPrivate: false
+          description: ""
+          sortKey: -550200
+        method: GET
+        scripts:
+          afterResponse: |
+            insomnia.test('Status code is 200', () => {
+              insomnia.expect(insomnia.response.code).to.eql(200);
+            });
+            insomnia.test('Has items array', () => {
+              const body = insomnia.response.json();
+              insomnia.expect(body.items).to.be.an('array');
+            });
+        settings:
+          renderRequestBody: true
+          encodeUrl: true
+          followRedirects: global
+          cookies:
+            send: true
+            store: true
+          rebuildPath: true
+      - url: "{{ _.base_url }}/performance/twr?range=YTD"
+        name: TWR series (YTD preset)
+        meta:
+          id: req_badgers_performance_twr_ytd
+          created: 1776053956256
+          modified: 1776053956256
+          isPrivate: false
+          description: ""
+          sortKey: -550300
+        method: GET
+        scripts:
+          afterResponse: |
+            insomnia.test('Status code is 200', () => {
+              insomnia.expect(insomnia.response.code).to.eql(200);
+            });
+        settings:
+          renderRequestBody: true
+          encodeUrl: true
+          followRedirects: global
+          cookies:
+            send: true
+            store: true
+          rebuildPath: true
   - name: Holdings
     meta:
       id: fld_badgers_holdings

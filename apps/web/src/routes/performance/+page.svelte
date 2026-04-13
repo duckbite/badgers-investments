@@ -15,8 +15,11 @@
     readonly calculationMethod: string;
   };
 
+  type TwrRange = 'ALL' | '1M' | '3M' | 'YTD' | '1Y';
+
   let rows: readonly TwrRow[] = [];
   let isLoading: boolean = true;
+  let range: TwrRange = 'ALL';
 
   async function load(): Promise<void> {
     isLoading = true;
@@ -24,6 +27,7 @@
       const response = await apiClient.executeJson<{ readonly items: readonly TwrRow[] }>({
         method: 'GET',
         path: '/performance/twr',
+        query: range === 'ALL' ? undefined : { range },
       });
       rows = response.items;
     } catch (err) {
@@ -52,11 +56,25 @@
     <h1 class="text-2xl font-semibold text-gray-900 dark:text-foreground">Performance</h1>
     <p class="text-sm text-gray-600 dark:text-muted-foreground">
       Daily TWR (TWR_DAILY_V1) from portfolio snapshots. Run <strong>Rebuild snapshots</strong> on the Prices page after
-      ledger or price changes.
+      ledger or price changes. Presets use UTC calendar dates (same as snapshot rows).
     </p>
   </header>
 
-  <div class="flex gap-2">
+  <div class="flex flex-wrap items-center gap-3">
+    <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-foreground">
+      <span class="text-gray-600 dark:text-muted-foreground">Range</span>
+      <select
+        class="rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm dark:border-border dark:bg-card dark:text-foreground"
+        bind:value={range}
+        on:change={() => void load()}
+      >
+        <option value="ALL">All</option>
+        <option value="1M">1 month</option>
+        <option value="3M">3 months</option>
+        <option value="YTD">Year to date</option>
+        <option value="1Y">1 year</option>
+      </select>
+    </label>
     <button
       type="button"
       class="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-60 dark:border-border dark:bg-card dark:text-foreground dark:hover:bg-accent"
