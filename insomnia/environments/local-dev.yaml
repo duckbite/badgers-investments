@@ -19,4 +19,11 @@ environments:
     password: FakeLocalPassword-DoNotUseInProd-123!
     asset_id: ""
     transaction_id: ""
+  dataPropertyOrder:
+    "&":
+      - base_url
+      - username
+      - password
+      - asset_id
+      - transaction_id
   color: "#059669"

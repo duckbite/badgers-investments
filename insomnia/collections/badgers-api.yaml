@@ -5,8 +5,7 @@ meta:
   id: wrk_625858b41c6246109975a2b97235819d
   created: 1776053956239
   modified: 1776053956239
-  description: Portfolio, assets, ledger, holdings (cookie session auth). See
-    insomnia/README.md.
+  description: Portfolio, assets, ledger, holdings (cookie session auth). See insomnia/README.md.
 collection:
   - name: Auth
     meta:
@@ -65,11 +64,10 @@ collection:
           sortKey: -4000200
         method: GET
         scripts:
-          afterResponse: >
+          afterResponse: |
             insomnia.test('Status code is 200', () => {
               insomnia.expect(insomnia.response.code).to.eql(200);
             });
-
             insomnia.test('Body has authenticated flag', () => {
               const body = insomnia.response.json();
               insomnia.expect(body.authenticated === true || body.authenticated === false).to.eql(true);
@@ -356,12 +354,10 @@ collection:
           - name: Content-Type
             value: application/json
         scripts:
-          afterResponse: >
-            insomnia.test('Create returns 201 or 400 (needs valid asset_id)', ()
-            => {
+          afterResponse: |
+            insomnia.test('Create returns 201 or 400 (needs valid asset_id)', () => {
               insomnia.expect([201, 400]).to.include(insomnia.response.code);
             });
-
             if (insomnia.response.code === 201) {
               const body = insomnia.response.json();
               if (body.transactionId) {
@@ -492,4 +488,11 @@ environments:
     password: FakeLocalPassword-DoNotUseInProd-123!
     asset_id: ""
     transaction_id: ""
+  dataPropertyOrder:
+    "&":
+      - base_url
+      - username
+      - password
+      - asset_id
+      - transaction_id
   color: "#059669"

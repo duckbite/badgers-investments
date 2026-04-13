@@ -1,0 +1,67 @@
+---
+description:
+alwaysApply: false
+globs: insomnia/**/*.yaml
+---
+
+# Insomnia collection conventions (v5.1 YAML)
+
+## Layout
+
+- **`insomnia/collections/`** — one primary file: `badgers-api.yaml` (type `collection.insomnia.rest/5.0`, `schema_version: "5.1"`). Add or change requests here when the HTTP API changes.
+- **`insomnia/environments/`** — optional standalone env (e.g. `local-dev.yaml`, type `environment.insomnia.rest/5.0`). Same variable keys as the collection’s embedded base env when possible.
+- **`insomnia/README.md`** — import steps and variable table; update when import paths or workflow change.
+
+## File format
+
+- **Only** Insomnia v5 YAML in this tree (not legacy v4 `.insomnia.json` exports).
+- **URLs**: `{{ _.base_url }}/path` — `base_url` has **no trailing slash**.
+- **JSON bodies**: `body.mimeType: application/json`, sample JSON in `body.text` (multiline `|`). Use `{{ _.var }}` inside JSON strings where needed.
+- **Headers**: include `Content-Type: application/json` for JSON bodies.
+- **Session cookie auth**: on every request that needs login, set:
+
+```yaml
+settings:
+  cookies:
+    send: true
+    store: true
+```
+
+- **Scripts**: use `scripts.afterResponse` (not legacy `afterResponseScript`). Prefer **literal block** `|` for multiline JS so YAML folding (`>`) does not alter script lines.
+- **Assertions**: `insomnia.test` / `insomnia.expect` (Chai-style). Match expected status codes to the real route contract.
+- **Chaining**: when a later request needs an id from a create response, set `insomnia.environment.set('some_id', value)` in the create request’s `afterResponse` and reference `{{ _.some_id }}` in URLs or bodies.
+
+## Environment data to store
+
+| Key | Role |
+|-----|------|
+| `base_url` | API origin, e.g. `http://localhost:3000` |
+| `username` | Login user (align with bootstrap / root `.env`) |
+| `password` | Example only in repo — never real secrets |
+| `asset_id` | Filled by scripts or manually for PATCH/txn flows |
+| `transaction_id` | Same for transaction PATCH/DELETE |
+
+Keep **`dataPropertyOrder`** on environments (same key order as the table) so Insomnia’s environment editor stays stable across re-exports.
+
+## Folder / request organization
+
+- Group requests in **`collection`** folders that mirror API areas (e.g. Auth, Portfolio, Assets).
+- Preserve stable **`meta.id`** values when editing existing requests so Insomnia sync/import does not duplicate entities unnecessarily.
+
+## Examples
+
+<example>
+Good: New `GET /reports/summary` route → add a request under a sensible folder in `badgers-api.yaml` with GET, cookies on, and `afterResponse` asserting `200` and shape of JSON.
+</example>
+
+<example type="invalid">
+Bad: Adding only Vitest route tests but leaving `badgers-api.yaml` missing the new endpoint when that endpoint is part of the public REST API.
+</example>
+
+## Critical Points
+
+<critical>
+  - ALWAYS use v5.1 YAML types and `schema_version: "5.1"`.
+  - NEVER commit real credentials; example passwords only.
+  - ENSURE cookie send/store match session-auth behavior for protected routes.
+</critical>

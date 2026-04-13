@@ -34,6 +34,11 @@ priority: 2
   - Backend (API) coverage must be **>= 95%** (lines, statements, functions, branches) and should fail the test run if thresholds are not met.
 - **Environment**:
   - Respect the repo convention that environment variables live at the **repo root** (e.g. root `.env` / `.env.test` patterns), not per-package `.env` files.
+- **Insomnia (manual API / smoke requests)**:
+  - When **adding** or **modifying** HTTP API routes under `services/api`, **update** `insomnia/collections/badgers-api.yaml` in the **same task** (or immediately after) so the repo stays the source of truth for manual testing.
+  - Add or adjust the matching folder, request (`method`, `url`, `body`, `headers`), **`settings.cookies`** for session routes, and **`scripts.afterResponse`** checks for success and response shape.
+  - Follow **`.cursor/rules/1002-insomnia-auto.mdc`** for YAML structure, env keys, and script style.
+  - Keep **`insomnia/README.md`** in sync when import paths or variables change.
 
 ## Examples
 
@@ -47,6 +52,10 @@ Good: Add `services/api/src/modules/health/health-routes.spec.ts` next to `healt
 
 <example>
 Good: Enforce API coverage by configuring thresholds to >=95% and running coverage in CI.
+</example>
+
+<example>
+Good: After adding `PATCH /assets/:id`, extend Vitest route tests with `app.inject()` and add or update the Insomnia request in `insomnia/collections/badgers-api.yaml` with body, cookies, and after-response assertions.
 </example>
 
 <example type="invalid">
@@ -70,4 +79,5 @@ Bad: Using Supertest against a real port for basic route tests when `app.inject(
   - ENSURE test coverage matches code changes
   - ALWAYS use Vitest and co-located `*.spec.ts` / `*.integration.spec.ts`
   - ENFORCE backend coverage >= 95%
+  - ALWAYS update Insomnia `insomnia/collections/badgers-api.yaml` when public REST routes are added or changed (per `1002-insomnia-auto.mdc`)
 </critical>
