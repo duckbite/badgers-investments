@@ -8,6 +8,9 @@ const PRICE_PREFIX: string = 'PRICE#';
 const POS_SNAP_PREFIX: string = 'POS_SNAP#';
 const PORT_SNAP_PREFIX: string = 'PORT_SNAP#';
 const PERF_SNAP_PREFIX: string = 'PERF_SNAP#';
+const PORTFOLIO_CFG_VERSION_PREFIX: string = 'PORTFOLIO_CFG#V';
+
+export const PORTFOLIO_CONFIG_ACTIVE_SORT_KEY: string = 'PORTFOLIO_CFG#ACTIVE';
 
 export function buildUserPartitionKey(input: { readonly userId: string }): string {
   return `${USER_PREFIX}${input.userId}`;
@@ -55,6 +58,18 @@ export function buildPortfolioSnapshotSortKey(input: { readonly snapshotDate: st
 
 export function buildPerformanceSnapshotSortKey(input: { readonly periodDate: string }): string {
   return `${PERF_SNAP_PREFIX}${input.periodDate}`;
+}
+
+/**
+ * Sortable version rows for `portfolio_config_version` (unique per portfolio via padded `versionNumber`).
+ */
+export function buildPortfolioConfigVersionSortKey(input: { readonly versionNumber: number }): string {
+  const padded: string = String(input.versionNumber).padStart(8, '0');
+  return `${PORTFOLIO_CFG_VERSION_PREFIX}${padded}`;
+}
+
+export function buildPortfolioConfigVersionSortKeyPrefix(): string {
+  return PORTFOLIO_CFG_VERSION_PREFIX;
 }
 
 export const SNAPSHOT_STATE_SORT_KEY: string = 'SNAPSHOT_STATE';

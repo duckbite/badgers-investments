@@ -12,8 +12,11 @@ import { LotLinkRepository } from '../ledger/lot-link-repository.js';
 import { registerLedgerRoutes } from '../ledger/register-ledger-routes.js';
 import { TransactionRepository } from '../ledger/transaction-repository.js';
 import { registerPerformanceRoutes } from '../performance/register-performance-routes.js';
+import { PortfolioConfigRepository } from '../portfolio/portfolio-config-repository.js';
+import { PortfolioConfigService } from '../portfolio/portfolio-config-service.js';
 import { PortfolioRepository } from '../portfolio/portfolio-repository.js';
 import { PortfolioService } from '../portfolio/portfolio-service.js';
+import { registerPortfolioConfigRoutes } from '../portfolio/register-portfolio-config-routes.js';
 import { registerPortfolioDomainRoutes } from '../portfolio/register-portfolio-domain-routes.js';
 import { PerformanceSnapshotRepository } from '../snapshots/performance-snapshot-repository.js';
 import { PortfolioSnapshotRepository } from '../snapshots/portfolio-snapshot-repository.js';
@@ -35,6 +38,8 @@ const domainDataPluginImpl: FastifyPluginAsync = async (app): Promise<void> => {
   const tableName: string = dynamoDbConfig.tableName;
   const portfolioRepository = new PortfolioRepository({ documentClient, tableName });
   const portfolioService = new PortfolioService({ portfolioRepository });
+  const portfolioConfigRepository = new PortfolioConfigRepository({ documentClient, tableName });
+  const portfolioConfigService = new PortfolioConfigService({ portfolioConfigRepository, portfolioService });
   const assetRepository = new AssetRepository({ documentClient, tableName });
   const assetService = new AssetService({ assetRepository, portfolioService });
   const transactionRepository = new TransactionRepository({ documentClient, tableName });
@@ -75,6 +80,7 @@ const domainDataPluginImpl: FastifyPluginAsync = async (app): Promise<void> => {
     portfolioService,
   });
   registerPortfolioDomainRoutes({ app, portfolioService });
+  registerPortfolioConfigRoutes({ app, portfolioConfigService });
   registerAssetsRoutes({ app, assetService });
   registerLedgerRoutes({ app, ledgerService });
   registerValuationsRoutes({ app, priceSnapshotService });
