@@ -5,15 +5,26 @@ import { getDynamoDbConfig } from '../../config/get-dynamo-db-config.js';
 import { createDynamoDbClient } from '../../db/create-dynamo-db-client.js';
 import { AssetRepository } from '../assets/asset-repository.js';
 import { AssetService } from '../assets/asset-service.js';
+import { registerAssetsRoutes } from '../assets/register-assets-routes.js';
 import { FifoHoldingsService } from '../ledger/fifo-holdings-service.js';
 import { LedgerService } from '../ledger/ledger-service.js';
 import { LotLinkRepository } from '../ledger/lot-link-repository.js';
+import { registerLedgerRoutes } from '../ledger/register-ledger-routes.js';
 import { TransactionRepository } from '../ledger/transaction-repository.js';
+import { registerPerformanceRoutes } from '../performance/register-performance-routes.js';
 import { PortfolioRepository } from '../portfolio/portfolio-repository.js';
 import { PortfolioService } from '../portfolio/portfolio-service.js';
-import { registerAssetsRoutes } from '../assets/register-assets-routes.js';
-import { registerLedgerRoutes } from '../ledger/register-ledger-routes.js';
 import { registerPortfolioDomainRoutes } from '../portfolio/register-portfolio-domain-routes.js';
+import { PerformanceSnapshotRepository } from '../snapshots/performance-snapshot-repository.js';
+import { PortfolioSnapshotRepository } from '../snapshots/portfolio-snapshot-repository.js';
+import { PositionSnapshotRepository } from '../snapshots/position-snapshot-repository.js';
+import { registerSnapshotsRoutes } from '../snapshots/register-snapshots-routes.js';
+import { SnapshotInvalidationService } from '../snapshots/snapshot-invalidation-service.js';
+import { SnapshotRebuildService } from '../snapshots/snapshot-rebuild-service.js';
+import { SnapshotStateRepository } from '../snapshots/snapshot-state-repository.js';
+import { PriceSnapshotRepository } from '../valuations/price-snapshot-repository.js';
+import { PriceSnapshotService } from '../valuations/price-snapshot-service.js';
+import { registerValuationsRoutes } from '../valuations/register-valuations-routes.js';
 
 const domainDataPluginImpl: FastifyPluginAsync = async (app): Promise<void> => {
   const dynamoDbConfig = getDynamoDbConfig();
@@ -21,23 +32,59 @@ const domainDataPluginImpl: FastifyPluginAsync = async (app): Promise<void> => {
   const documentClient = DynamoDBDocumentClient.from(dynamoDbClient, {
     marshallOptions: { removeUndefinedValues: true },
   });
-  const portfolioRepository = new PortfolioRepository({ documentClient, tableName: dynamoDbConfig.tableName });
+  const tableName: string = dynamoDbConfig.tableName;
+  const portfolioRepository = new PortfolioRepository({ documentClient, tableName });
   const portfolioService = new PortfolioService({ portfolioRepository });
-  const assetRepository = new AssetRepository({ documentClient, tableName: dynamoDbConfig.tableName });
+  const assetRepository = new AssetRepository({ documentClient, tableName });
   const assetService = new AssetService({ assetRepository, portfolioService });
-  const transactionRepository = new TransactionRepository({ documentClient, tableName: dynamoDbConfig.tableName });
-  const lotLinkRepository = new LotLinkRepository({ documentClient, tableName: dynamoDbConfig.tableName });
+  const transactionRepository = new TransactionRepository({ documentClient, tableName });
+  const lotLinkRepository = new LotLinkRepository({ documentClient, tableName });
   const fifoHoldingsService = new FifoHoldingsService();
+  const snapshotStateRepository = new SnapshotStateRepository({ documentClient, tableName });
+  const snapshotInvalidationService = new SnapshotInvalidationService({ snapshotStateRepository });
   const ledgerService = new LedgerService({
     transactionRepository,
     lotLinkRepository,
     portfolioService,
     assetService,
     fifoHoldingsService,
+    snapshotInvalidation: snapshotInvalidationService,
+  });
+  const priceSnapshotRepository = new PriceSnapshotRepository({ documentClient, tableName });
+  const priceSnapshotService = new PriceSnapshotService({
+    priceSnapshotRepository,
+    assetService,
+    portfolioService,
+    snapshotInvalidation: snapshotInvalidationService,
+  });
+  const positionSnapshotRepository = new PositionSnapshotRepository({ documentClient, tableName });
+  const portfolioSnapshotRepository = new PortfolioSnapshotRepository({ documentClient, tableName });
+  const performanceSnapshotRepository = new PerformanceSnapshotRepository({ documentClient, tableName });
+  const snapshotRebuildService = new SnapshotRebuildService({
+    documentClient,
+    tableName,
+    transactionRepository,
+    fifoHoldingsService,
+    priceSnapshotRepository,
+    assetRepository,
+    portfolioRepository,
+    snapshotStateRepository,
+    positionSnapshotRepository,
+    portfolioSnapshotRepository,
+    performanceSnapshotRepository,
+    portfolioService,
   });
   registerPortfolioDomainRoutes({ app, portfolioService });
   registerAssetsRoutes({ app, assetService });
   registerLedgerRoutes({ app, ledgerService });
+  registerValuationsRoutes({ app, priceSnapshotService });
+  registerSnapshotsRoutes({
+    app,
+    snapshotRebuildService,
+    snapshotStateRepository,
+    portfolioService,
+  });
+  registerPerformanceRoutes({ app, performanceSnapshotRepository, portfolioService });
 };
 
 export const domainDataPlugin = fp(domainDataPluginImpl, {
