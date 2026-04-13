@@ -1,0 +1,29 @@
+type: environment.insomnia.rest/5.0
+schema_version: "5.1"
+name: local-dev
+meta:
+  id: wrk_42e4e2fa0eac42ebad41da7d85baa22e
+  created: 1776053857225
+  modified: 1776053857225
+  description: ""
+environments:
+  name: Base Environment
+  meta:
+    id: env_5be54b1f7934b3b44b3e22cd4a2f23a2a41672ba
+    created: 1776053857228
+    modified: 1776053914003
+    isPrivate: false
+  data:
+    base_url: http://localhost:3000
+    username: insomnia_demo_user
+    password: FakeLocalPassword-DoNotUseInProd-123!
+    asset_id: ""
+    transaction_id: ""
+  dataPropertyOrder:
+    "&":
+      - base_url
+      - username
+      - password
+      - asset_id
+      - transaction_id
+  color: "#059669"

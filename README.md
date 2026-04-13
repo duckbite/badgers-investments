@@ -160,7 +160,7 @@ Ensure AWS credentials allow `dynamodb:DescribeTable` (and other actions your ro
 
 - **Unit tests:** Financial logic (FIFO, TWR, rules, scoring) and domain services.
 - **Integration tests:** API paths, auth (DynamoDB mocked in-process), recommendation run (mocked OpenAI), where implemented.
-- **Insomnia:** After-response tests and cookie session flow — import **`insomnia/collections/badgers-api.insomnia.json`** (see **`insomnia/README.md`**).
+- **Insomnia:** After-response tests and cookie session flow — import **`insomnia/collections/badgers-api.yaml`** (see **`insomnia/README.md`**).
 
 From the repo root:
 
