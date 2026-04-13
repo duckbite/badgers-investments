@@ -40,7 +40,10 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 |------|-------------|
 | `services/api/` | Fastify backend REST API (Node.js/TypeScript). Entry: `src/index.ts`. Scripts: `dev` (tsx watch), `build` (tsc), `start`, `lint`, `clean`. Build output: `dist/`. Modules live under `src/modules/` (health + domain modules per `docs/architecture.md`). |
 | `services/api/src/config/get-dynamo-db-config.ts` | DynamoDB settings from env (`API_DYNAMODB_*`, region fallbacks); required for the API. |
-| `services/api/src/config/get-auth-config.ts` | Session cookie name/TTL, login rate limits, cookie `Secure` flag (`API_NODE_ENV` / `NODE_ENV`). |
+| `services/api/src/config/get-api-node-environment.ts` | Effective API mode: `API_NODE_ENV` ?? `NODE_ENV` ?? `development` (lowercase); `isApiProductionEnvironment()` for prod-only behavior. |
+| `services/api/src/config/get-auth-config.ts` | Session cookie name/TTL, login rate limits, cookie `Secure` flag (uses `getApiNodeEnvironment()`). |
+| `services/api/src/server/register-openapi-schema.ts` | Non-production: registers `@fastify/swagger` so routes contribute to the OpenAPI document. |
+| `services/api/src/server/register-openapi-ui.ts` | Non-production: registers `@fastify/swagger-ui` at `/api-docs` (e.g. `/api-docs/json` for the spec). |
 | `services/api/src/db/create-dynamo-db-client.ts` | Factory for `DynamoDBClient` (optional custom endpoint for tools like LocalStack). |
 | `services/api/src/modules/auth/` | Username/password auth: `auth-plugin.ts` (Fastify plugin), DynamoDB `USER_ACCOUNT` / `USER_SESSION` items, `POST /auth/login`, `POST /auth/logout`, `GET /auth/session`, `requireSession` pre-handler. |
 | `services/api/src/modules/domain/` | Shared domain helpers: DynamoDB key builders (`domain-keys.ts`), API error bodies, allowed currency codes; `domain-data-plugin.ts` registers portfolio + assets + ledger routes (depends on `auth-domain`). |
