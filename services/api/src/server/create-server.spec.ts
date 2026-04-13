@@ -57,4 +57,37 @@ describe('createServer', () => {
     expect(response.statusCode).toBe(404);
     await app.close();
   });
+
+  it('returns x-request-id on every response', async () => {
+    const app = await createServer();
+    await app.ready();
+    const response = await app.inject({ method: 'GET', url: '/health' });
+    expect(response.headers['x-request-id']).toBeDefined();
+    expect(String(response.headers['x-request-id']).length).toBeGreaterThan(0);
+    await app.close();
+  });
+
+  it('reuses incoming x-request-id when present', async () => {
+    const app = await createServer();
+    await app.ready();
+    const response = await app.inject({
+      method: 'GET',
+      url: '/health',
+      headers: { 'x-request-id': 'client-req-abc' },
+    });
+    expect(response.headers['x-request-id']).toBe('client-req-abc');
+    await app.close();
+  });
+
+  it('falls back to x-correlation-id when x-request-id is absent', async () => {
+    const app = await createServer();
+    await app.ready();
+    const response = await app.inject({
+      method: 'GET',
+      url: '/health',
+      headers: { 'x-correlation-id': 'corr-xyz' },
+    });
+    expect(response.headers['x-request-id']).toBe('corr-xyz');
+    await app.close();
+  });
 });
