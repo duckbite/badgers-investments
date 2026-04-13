@@ -25,3 +25,13 @@ export function getApiNodeEnvironment(): string {
 export function isApiProductionEnvironment(): boolean {
   return getApiNodeEnvironment() === 'production';
 }
+
+/**
+ * True when running inside AWS Lambda (API or worker). Used to skip OpenAPI/Swagger UI
+ * in bundled handlers where @fastify/swagger-ui static assets are not available, even if
+ * NODE_ENV is unset (Lambda default) and the app would otherwise look "non-production".
+ */
+export function isAwsLambdaExecutionEnvironment(): boolean {
+  const fn: string | undefined = getTrimmedEnvironmentValue({ key: 'AWS_LAMBDA_FUNCTION_NAME' });
+  return fn !== undefined;
+}

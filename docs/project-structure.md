@@ -83,7 +83,7 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 | `infra/terraform/envs/prod/` | Production stack: **Route53 zone** (`dns_zone_name`) + ACM + aliases, S3 + CloudFront, API Gateway + Lambda, worker Lambda, Secrets Manager, OIDC role. |
 | `infra/terraform/modules/public_dns_zone/` | Single public Route53 hosted zone (apex); outputs `zone_id` + delegation `name_servers`. |
 | `infra/terraform/modules/static_site/` | S3 static bucket + CloudFront + ACM (us-east-1) for `web_domain` (Route53 records when `route53_zone_id` set). |
-| `infra/terraform/modules/api_lambda/` | API Lambda, HTTP API, regional ACM + custom domain for `api_domain` (Route53 records when `route53_zone_id` set). |
+| `infra/terraform/modules/api_lambda/` | API Lambda, HTTP API, regional ACM + custom domain for `api_domain` (Route53 records when `route53_zone_id` set). Module variable `api_node_env` (default `production`) sets `API_NODE_ENV` / `NODE_ENV` on the function; prod root passes `var.api_node_env`. |
 | `infra/terraform/modules/worker_lambda/` | Worker Lambda + EventBridge schedule. |
 | `infra/terraform/modules/app-dynamodb-table/` | Reusable on-demand DynamoDB table (`PK` / `SK`, optional **`GSI1`** mirroring prod). |
 

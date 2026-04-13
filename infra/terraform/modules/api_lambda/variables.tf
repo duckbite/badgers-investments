@@ -50,3 +50,9 @@ variable "dynamodb_table_arn" {
 variable "secrets_arn" {
   type = string
 }
+
+variable "api_node_env" {
+  type        = string
+  description = "Effective API runtime mode for the Lambda (see services/api getApiNodeEnvironment). Sets API_NODE_ENV and NODE_ENV. Use production for deployed stacks; override for a non-prod API in AWS (e.g. staging) if needed."
+  default     = "production"
+}

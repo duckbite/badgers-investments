@@ -17,3 +17,6 @@ github_ref  = "refs/heads/main"
 
 # After OIDC role exists, set true and re-apply (locally or CI) so GitHub Actions can terraform apply.
 github_actions_grant_terraform_apply = false
+
+# Optional: API Lambda API_NODE_ENV + NODE_ENV (default production). Override for another stack’s tfvars if needed.
+# api_node_env = "production"

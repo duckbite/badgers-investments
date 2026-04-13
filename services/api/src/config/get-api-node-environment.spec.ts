@@ -1,10 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getApiNodeEnvironment, isApiProductionEnvironment } from './get-api-node-environment.js';
+import {
+  getApiNodeEnvironment,
+  isApiProductionEnvironment,
+  isAwsLambdaExecutionEnvironment,
+} from './get-api-node-environment.js';
 
 describe('getApiNodeEnvironment', () => {
   beforeEach(() => {
     vi.stubEnv('NODE_ENV', '');
     vi.stubEnv('API_NODE_ENV', '');
+    Reflect.deleteProperty(process.env, 'AWS_LAMBDA_FUNCTION_NAME');
   });
 
   afterEach(() => {
@@ -32,5 +37,17 @@ describe('getApiNodeEnvironment', () => {
     vi.stubEnv('NODE_ENV', 'test');
     vi.stubEnv('API_NODE_ENV', 'production');
     expect(isApiProductionEnvironment()).toBe(true);
+  });
+
+  it('detects AWS Lambda when AWS_LAMBDA_FUNCTION_NAME is non-empty', () => {
+    vi.unstubAllEnvs();
+    vi.stubEnv('AWS_LAMBDA_FUNCTION_NAME', 'badgers-api');
+    expect(isAwsLambdaExecutionEnvironment()).toBe(true);
+  });
+
+  it('does not treat empty AWS_LAMBDA_FUNCTION_NAME as Lambda', () => {
+    vi.unstubAllEnvs();
+    vi.stubEnv('AWS_LAMBDA_FUNCTION_NAME', '   ');
+    expect(isAwsLambdaExecutionEnvironment()).toBe(false);
   });
 });

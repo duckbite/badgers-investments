@@ -57,6 +57,7 @@ module "api_lambda" {
   tags                = local.tags
   aws_region          = var.aws_region
   api_domain          = var.api_domain
+  api_node_env        = var.api_node_env
   cors_allow_origin   = "https://${var.web_domain}"
   route53_zone_id     = module.public_dns_zone.zone_id
   manage_dns_records  = true
@@ -74,16 +75,16 @@ module "worker_lambda" {
 module "github_actions_oidc" {
   source = "../../modules/github-actions-oidc"
 
-  name_prefix                       = "${var.project_name}-${var.environment}"
-  github_org                        = var.github_org
-  github_repo                       = var.github_repo
-  github_ref                        = var.github_ref
-  web_s3_bucket_arn                 = module.static_site.bucket_arn
-  cloudfront_distribution_arn       = module.static_site.cloudfront_distribution_arn
-  lambda_api_function_arn           = module.api_lambda.function_arn
-  lambda_worker_function_arn        = module.worker_lambda.function_arn
-  grant_terraform_apply_permissions = var.github_actions_grant_terraform_apply
-  terraform_remote_state_s3_bucket_arn            = local.terraform_remote_state_s3_bucket_arn
+  name_prefix                                    = "${var.project_name}-${var.environment}"
+  github_org                                     = var.github_org
+  github_repo                                    = var.github_repo
+  github_ref                                     = var.github_ref
+  web_s3_bucket_arn                              = module.static_site.bucket_arn
+  cloudfront_distribution_arn                    = module.static_site.cloudfront_distribution_arn
+  lambda_api_function_arn                        = module.api_lambda.function_arn
+  lambda_worker_function_arn                     = module.worker_lambda.function_arn
+  grant_terraform_apply_permissions              = var.github_actions_grant_terraform_apply
+  terraform_remote_state_s3_bucket_arn           = local.terraform_remote_state_s3_bucket_arn
   terraform_remote_state_lock_dynamodb_table_arn = local.terraform_remote_state_lock_dynamodb_table_arn
-  tags                              = local.tags
+  tags                                           = local.tags
 }

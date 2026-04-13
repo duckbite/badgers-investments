@@ -95,9 +95,11 @@ resource "aws_lambda_function" "api" {
     variables = {
       API_DYNAMODB_TABLE_NAME   = var.dynamodb_table_name
       API_DYNAMODB_REGION       = var.aws_region
+      API_NODE_ENV              = var.api_node_env
       AWS_NODEJS_DISABLE_COLORS = "1"
       COOKIE_SECRET             = local.app_secrets["COOKIE_SECRET"]
       CORS_ORIGIN               = var.cors_allow_origin
+      NODE_ENV                  = var.api_node_env
     }
   }
 
