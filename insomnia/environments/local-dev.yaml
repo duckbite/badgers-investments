@@ -13,17 +13,10 @@ environments:
     created: 1776053857228
     modified: 1776053914003
     isPrivate: false
-  color: "#059669"
   data:
     base_url: http://localhost:3000
     username: insomnia_demo_user
     password: FakeLocalPassword-DoNotUseInProd-123!
     asset_id: ""
     transaction_id: ""
-  dataPropertyOrder:
-    "&":
-      - base_url
-      - username
-      - password
-      - asset_id
-      - transaction_id
+  color: "#059669"

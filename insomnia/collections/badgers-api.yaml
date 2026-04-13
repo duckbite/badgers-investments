@@ -5,7 +5,8 @@ meta:
   id: wrk_625858b41c6246109975a2b97235819d
   created: 1776053956239
   modified: 1776053956239
-  description: Portfolio, assets, ledger, holdings (cookie session auth). See insomnia/README.md.
+  description: Portfolio, assets, ledger, holdings (cookie session auth). See
+    insomnia/README.md.
 collection:
   - name: Auth
     meta:
@@ -15,12 +16,14 @@ collection:
       sortKey: -4000000
       description: Run Login before other folders so the session cookie is stored.
     children:
-      - name: Login
-        url: "{{ _.base_url }}/auth/login"
+      - url: "{{ _.base_url }}/auth/login"
+        name: Login
         meta:
           id: req_badgers_login
           created: 1776053956241
           modified: 1776053956241
+          isPrivate: false
+          description: ""
           sortKey: -4000100
         method: POST
         body:
@@ -51,19 +54,22 @@ collection:
             send: true
             store: true
           rebuildPath: true
-      - name: Session
-        url: "{{ _.base_url }}/auth/session"
+      - url: "{{ _.base_url }}/auth/session"
+        name: Session
         meta:
           id: req_badgers_session
           created: 1776053956242
           modified: 1776053956242
+          isPrivate: false
+          description: ""
           sortKey: -4000200
         method: GET
         scripts:
-          afterResponse: |
+          afterResponse: >
             insomnia.test('Status code is 200', () => {
               insomnia.expect(insomnia.response.code).to.eql(200);
             });
+
             insomnia.test('Body has authenticated flag', () => {
               const body = insomnia.response.json();
               insomnia.expect(body.authenticated === true || body.authenticated === false).to.eql(true);
@@ -76,12 +82,14 @@ collection:
             send: true
             store: true
           rebuildPath: true
-      - name: Logout
-        url: "{{ _.base_url }}/auth/logout"
+      - url: "{{ _.base_url }}/auth/logout"
+        name: Logout
         meta:
           id: req_badgers_logout
           created: 1776053956243
           modified: 1776053956243
+          isPrivate: false
+          description: ""
           sortKey: -4000300
         method: POST
         scripts:
@@ -103,13 +111,16 @@ collection:
       created: 1776053956244
       modified: 1776053956244
       sortKey: -3000000
+      description: ""
     children:
-      - name: Get (or create default)
-        url: "{{ _.base_url }}/portfolio"
+      - url: "{{ _.base_url }}/portfolio"
+        name: Get (or create default)
         meta:
           id: req_badgers_portfolio_get
           created: 1776053956245
           modified: 1776053956245
+          isPrivate: false
+          description: ""
           sortKey: -3000100
         method: GET
         scripts:
@@ -130,12 +141,14 @@ collection:
             send: true
             store: true
           rebuildPath: true
-      - name: Patch
-        url: "{{ _.base_url }}/portfolio"
+      - url: "{{ _.base_url }}/portfolio"
+        name: Patch
         meta:
           id: req_badgers_portfolio_patch
           created: 1776053956246
           modified: 1776053956246
+          isPrivate: false
+          description: ""
           sortKey: -3000200
         method: PATCH
         body:
@@ -173,12 +186,14 @@ collection:
       sortKey: -2000000
       description: Create stores asset_id in the active environment (after-response script).
     children:
-      - name: List
-        url: "{{ _.base_url }}/assets?active=all"
+      - url: "{{ _.base_url }}/assets?active=all"
+        name: List
         meta:
           id: req_badgers_assets_list
           created: 1776053956248
           modified: 1776053956248
+          isPrivate: false
+          description: ""
           sortKey: -2000100
         method: GET
         scripts:
@@ -198,12 +213,14 @@ collection:
             send: true
             store: true
           rebuildPath: true
-      - name: Create (STOCK)
-        url: "{{ _.base_url }}/assets"
+      - url: "{{ _.base_url }}/assets"
+        name: Create (STOCK)
         meta:
           id: req_badgers_assets_create
           created: 1776053956249
           modified: 1776053956249
+          isPrivate: false
+          description: ""
           sortKey: -2000200
         method: POST
         body:
@@ -245,12 +262,14 @@ collection:
             send: true
             store: true
           rebuildPath: true
-      - name: Patch (needs asset_id)
-        url: "{{ _.base_url }}/assets/{{ _.asset_id }}"
+      - url: "{{ _.base_url }}/assets/{{ _.asset_id }}"
+        name: Patch (needs asset_id)
         meta:
           id: req_badgers_assets_patch
           created: 1776053956250
           modified: 1776053956250
+          isPrivate: false
+          description: ""
           sortKey: -2000300
         method: PATCH
         body:
@@ -284,12 +303,14 @@ collection:
       sortKey: -1000000
       description: Create (BUY) stores transaction_id in the active environment.
     children:
-      - name: List
-        url: "{{ _.base_url }}/transactions"
+      - url: "{{ _.base_url }}/transactions"
+        name: List
         meta:
           id: req_badgers_txn_list
           created: 1776053956252
           modified: 1776053956252
+          isPrivate: false
+          description: ""
           sortKey: -1000100
         method: GET
         scripts:
@@ -309,12 +330,14 @@ collection:
             send: true
             store: true
           rebuildPath: true
-      - name: Create (BUY — needs asset_id)
-        url: "{{ _.base_url }}/transactions"
+      - url: "{{ _.base_url }}/transactions"
+        name: Create (BUY — needs asset_id)
         meta:
           id: req_badgers_txn_create_buy
           created: 1776053956253
           modified: 1776053956253
+          isPrivate: false
+          description: ""
           sortKey: -1000200
         method: POST
         body:
@@ -333,10 +356,12 @@ collection:
           - name: Content-Type
             value: application/json
         scripts:
-          afterResponse: |
-            insomnia.test('Create returns 201 or 400 (needs valid asset_id)', () => {
+          afterResponse: >
+            insomnia.test('Create returns 201 or 400 (needs valid asset_id)', ()
+            => {
               insomnia.expect([201, 400]).to.include(insomnia.response.code);
             });
+
             if (insomnia.response.code === 201) {
               const body = insomnia.response.json();
               if (body.transactionId) {
@@ -351,12 +376,14 @@ collection:
             send: true
             store: true
           rebuildPath: true
-      - name: Patch (needs transaction_id)
-        url: "{{ _.base_url }}/transactions/{{ _.transaction_id }}"
+      - url: "{{ _.base_url }}/transactions/{{ _.transaction_id }}"
+        name: Patch (needs transaction_id)
         meta:
           id: req_badgers_txn_patch
           created: 1776053956254
           modified: 1776053956254
+          isPrivate: false
+          description: ""
           sortKey: -1000300
         method: PATCH
         body:
@@ -382,12 +409,14 @@ collection:
             send: true
             store: true
           rebuildPath: true
-      - name: Delete soft (needs transaction_id)
-        url: "{{ _.base_url }}/transactions/{{ _.transaction_id }}"
+      - url: "{{ _.base_url }}/transactions/{{ _.transaction_id }}"
+        name: Delete soft (needs transaction_id)
         meta:
           id: req_badgers_txn_delete
           created: 1776053956255
           modified: 1776053956255
+          isPrivate: false
+          description: ""
           sortKey: -1000400
         method: DELETE
         scripts:
@@ -414,13 +443,16 @@ collection:
       created: 1776053956256
       modified: 1776053956256
       sortKey: -500000
+      description: ""
     children:
-      - name: Get
-        url: "{{ _.base_url }}/holdings"
+      - url: "{{ _.base_url }}/holdings"
+        name: Get
         meta:
           id: req_badgers_holdings_get
           created: 1776053956257
           modified: 1776053956257
+          isPrivate: false
+          description: ""
           sortKey: -500100
         method: GET
         scripts:
@@ -454,17 +486,10 @@ environments:
     created: 1776053956247
     modified: 1776053956247
     isPrivate: false
-  color: "#059669"
   data:
     base_url: http://localhost:3000
     username: insomnia_demo_user
     password: FakeLocalPassword-DoNotUseInProd-123!
     asset_id: ""
     transaction_id: ""
-  dataPropertyOrder:
-    "&":
-      - base_url
-      - username
-      - password
-      - asset_id
-      - transaction_id
+  color: "#059669"
