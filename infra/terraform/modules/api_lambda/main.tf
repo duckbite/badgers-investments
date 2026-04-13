@@ -98,6 +98,7 @@ resource "aws_lambda_function" "api" {
       AWS_NODEJS_DISABLE_COLORS = "1"
       COOKIE_SECRET             = local.app_secrets["COOKIE_SECRET"]
       CORS_ORIGIN               = var.cors_allow_origin
+      NODE_ENV                  = "production"
     }
   }
 

@@ -19,6 +19,7 @@ describe('registerModules', () => {
     dynamoDbSdkMock.reset();
     vi.stubEnv('NODE_ENV', 'test');
     vi.stubEnv('API_NODE_ENV', '');
+    Reflect.deleteProperty(process.env, 'AWS_LAMBDA_FUNCTION_NAME');
     vi.stubEnv('API_DYNAMODB_TABLE_NAME', 't');
     vi.stubEnv('API_DYNAMODB_REGION', 'eu-west-1');
     hoisted.createDynamoDbClientMock.mockImplementation(
@@ -64,6 +65,18 @@ describe('registerModules', () => {
   it('does not register OpenAPI routes in production (API_NODE_ENV)', async () => {
     vi.stubEnv('NODE_ENV', 'development');
     vi.stubEnv('API_NODE_ENV', 'production');
+    const app = Fastify({ logger: false });
+    await registerModules({ app });
+    await app.ready();
+    const response = await app.inject({ method: 'GET', url: '/api-docs/json' });
+    expect(response.statusCode).toBe(404);
+    await app.close();
+  });
+
+  it('does not register OpenAPI routes when running in AWS Lambda', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('API_NODE_ENV', 'development');
+    vi.stubEnv('AWS_LAMBDA_FUNCTION_NAME', 'badgers-investments-prod-api');
     const app = Fastify({ logger: false });
     await registerModules({ app });
     await app.ready();

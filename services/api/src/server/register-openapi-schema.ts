@@ -1,9 +1,9 @@
 import type { FastifyInstance } from 'fastify';
 import swagger from '@fastify/swagger';
-import { isApiProductionEnvironment } from '../config/get-api-node-environment.js';
+import { isApiProductionEnvironment, isAwsLambdaExecutionEnvironment } from '../config/get-api-node-environment.js';
 
 export async function registerOpenapiSchemaCollection(input: { readonly app: FastifyInstance }): Promise<void> {
-  if (isApiProductionEnvironment()) {
+  if (isApiProductionEnvironment() || isAwsLambdaExecutionEnvironment()) {
     return;
   }
   await input.app.register(swagger, {
