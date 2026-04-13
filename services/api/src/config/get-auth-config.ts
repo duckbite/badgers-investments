@@ -1,3 +1,5 @@
+import { getApiNodeEnvironment } from './get-api-node-environment.js';
+
 export type AuthConfig = {
   readonly sessionCookieName: string;
   readonly sessionTtlSeconds: number;
@@ -11,18 +13,6 @@ const DEFAULT_SESSION_TTL_SECONDS: number = 60 * 60 * 24 * 7;
 const DEFAULT_LOGIN_RATE_LIMIT_MAX: number = 20;
 const DEFAULT_LOGIN_RATE_LIMIT_WINDOW_MS: number = 60_000;
 
-function getPositiveIntegerFromEnv(input: { readonly key: string; readonly defaultValue: number }): number {
-  const raw: string | undefined = process.env[input.key];
-  if (raw === undefined || raw.trim().length === 0) {
-    return input.defaultValue;
-  }
-  const parsed: number = Number(raw);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new Error(`Invalid environment variable ${input.key}: expected a positive integer`);
-  }
-  return Math.floor(parsed);
-}
-
 function getTrimmedEnvironmentValue(input: { readonly key: string }): string | undefined {
   const rawValue: string | undefined = process.env[input.key];
   if (rawValue === undefined) {
@@ -33,6 +23,18 @@ function getTrimmedEnvironmentValue(input: { readonly key: string }): string | u
     return undefined;
   }
   return trimmedValue;
+}
+
+function getPositiveIntegerFromEnv(input: { readonly key: string; readonly defaultValue: number }): number {
+  const raw: string | undefined = process.env[input.key];
+  if (raw === undefined || raw.trim().length === 0) {
+    return input.defaultValue;
+  }
+  const parsed: number = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(`Invalid environment variable ${input.key}: expected a positive integer`);
+  }
+  return Math.floor(parsed);
 }
 
 /**
@@ -53,12 +55,7 @@ export function getAuthConfig(): AuthConfig {
     key: 'API_LOGIN_RATE_LIMIT_WINDOW_MS',
     defaultValue: DEFAULT_LOGIN_RATE_LIMIT_WINDOW_MS,
   });
-  const nodeEnv: string = (
-    getTrimmedEnvironmentValue({ key: 'API_NODE_ENV' }) ??
-    getTrimmedEnvironmentValue({ key: 'NODE_ENV' }) ??
-    'development'
-  ).toLowerCase();
-  const isCookieSecure: boolean = nodeEnv === 'production';
+  const isCookieSecure: boolean = getApiNodeEnvironment() === 'production';
   return {
     sessionCookieName,
     sessionTtlSeconds,
