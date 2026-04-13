@@ -7,6 +7,7 @@ import type { PortfolioService } from '../portfolio/portfolio-service.js';
 import { FifoHoldingsService, FifoValidationError } from './fifo-holdings-service.js';
 import type { LotLinkRepository } from './lot-link-repository.js';
 import type { AdjustmentSide, TransactionRecord, TransactionRepository, TransactionType } from './transaction-repository.js';
+import type { SnapshotInvalidationService } from '../snapshots/snapshot-invalidation-service.js';
 
 export type TransactionDto = {
   readonly transactionId: string;
@@ -35,6 +36,7 @@ export class LedgerService {
   private readonly portfolioService: PortfolioService;
   private readonly assetService: AssetService;
   private readonly fifoHoldingsService: FifoHoldingsService;
+  private readonly snapshotInvalidation: SnapshotInvalidationService | undefined;
 
   public constructor(input: {
     readonly transactionRepository: TransactionRepository;
@@ -42,12 +44,14 @@ export class LedgerService {
     readonly portfolioService: PortfolioService;
     readonly assetService: AssetService;
     readonly fifoHoldingsService: FifoHoldingsService;
+    readonly snapshotInvalidation: SnapshotInvalidationService | undefined;
   }) {
     this.transactionRepository = input.transactionRepository;
     this.lotLinkRepository = input.lotLinkRepository;
     this.portfolioService = input.portfolioService;
     this.assetService = input.assetService;
     this.fifoHoldingsService = input.fifoHoldingsService;
+    this.snapshotInvalidation = input.snapshotInvalidation;
   }
 
   public async listTransactions(input: {
@@ -141,6 +145,12 @@ export class LedgerService {
       createdByUserId: input.userId,
     });
     await this.recomputeFifo({ userId: input.userId, portfolioId, nowIso: createdAtIso });
+    await this.notifySnapshotIfNeeded({
+      userId: input.userId,
+      portfolioId,
+      tradeDates: [normalized.tradeDate],
+      nowIso: createdAtIso,
+    });
     const created: TransactionRecord | undefined = await this.transactionRepository.getById({
       userId: input.userId,
       portfolioId,
@@ -220,6 +230,12 @@ export class LedgerService {
       updatedAtIso,
     });
     await this.recomputeFifo({ userId: input.userId, portfolioId, nowIso: updatedAtIso });
+    await this.notifySnapshotIfNeeded({
+      userId: input.userId,
+      portfolioId,
+      tradeDates: [existing.tradeDate, merged.tradeDate],
+      nowIso: updatedAtIso,
+    });
     const refreshed: TransactionRecord | undefined = await this.transactionRepository.getById({
       userId: input.userId,
       portfolioId,
@@ -255,6 +271,12 @@ export class LedgerService {
       updatedAtIso,
     });
     await this.recomputeFifo({ userId: input.userId, portfolioId, nowIso: updatedAtIso });
+    await this.notifySnapshotIfNeeded({
+      userId: input.userId,
+      portfolioId,
+      tradeDates: [existing.tradeDate],
+      nowIso: updatedAtIso,
+    });
     const refreshed: TransactionRecord | undefined = await this.transactionRepository.getById({
       userId: input.userId,
       portfolioId,
@@ -278,6 +300,24 @@ export class LedgerService {
     const nowIso: string = input.now.toISOString();
     const computation = this.fifoHoldingsService.compute({ transactions: rows, nowIso });
     return { holdings: computation.positions, lotLinks: computation.lotLinks };
+  }
+
+  private async notifySnapshotIfNeeded(input: {
+    readonly userId: string;
+    readonly portfolioId: string;
+    readonly tradeDates: readonly string[];
+    readonly nowIso: string;
+  }): Promise<void> {
+    if (this.snapshotInvalidation === undefined) {
+      return;
+    }
+    const unique: string[] = [...new Set(input.tradeDates)];
+    await this.snapshotInvalidation.notifyLedgerTradeDates({
+      userId: input.userId,
+      portfolioId: input.portfolioId,
+      tradeDates: unique,
+      nowIso: input.nowIso,
+    });
   }
 
   private async recomputeFifo(input: { readonly userId: string; readonly portfolioId: string; readonly nowIso: string }): Promise<void> {

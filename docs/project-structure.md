@@ -29,6 +29,7 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 | `apps/web/src/styles/tailwind.css` | `@tailwindcss` + `@source` for `**/*.{js,ts,svelte}` + `tw-animate-css`. |
 | `apps/web/package.json` | **`lucide-svelte`** icons (parity with prototype `lucide-react`). |
 | `apps/web/src/lib/theme/theme.ts` | Theme: `document.documentElement.classList.toggle('dark', …)` + `localStorage` `badgers-theme` (inline script in `app.html` sets initial class). |
+| `apps/web/src/routes/prices/+page.svelte` | Manual price entry, latest price per asset, and snapshot rebuild action (slice 3 / DB-97). |
 | `apps/web/src/routes/explore/+page.svelte` | Explore hub placeholder (full content in DB-144). |
 | `apps/web/src/routes/library/+page.svelte` | Library placeholder for saved reports (full content in DB-145). |
 | `apps/web/src/lib/toast/toast.ts` | Lightweight toast queue (`toast.error` / `toast.success`) for Sonner-like UX (top-right); used on login and available app-wide. |
@@ -51,7 +52,10 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 | `services/api/src/modules/domain/` | Shared domain helpers: DynamoDB key builders (`domain-keys.ts`), API error bodies, allowed currency codes; `domain-data-plugin.ts` registers portfolio + assets + ledger routes (depends on `auth-domain`). |
 | `services/api/src/modules/portfolio/` | Portfolio: `portfolio-repository.ts`, `portfolio-service.ts`, `register-portfolio-domain-routes.ts` — `GET/PATCH /portfolio` (single portfolio per user, base currency). |
 | `services/api/src/modules/assets/` | Assets (STOCK/ETF): `asset-repository.ts`, `asset-service.ts`, `register-assets-routes.ts` — `GET/POST /assets`, `PATCH /assets/:assetId`. |
-| `services/api/src/modules/ledger/` | Ledger + FIFO: `transaction-repository.ts`, `ledger-service.ts`, `fifo-holdings-service.ts`, `lot-link-repository.ts`, `register-ledger-routes.ts` — `GET/POST/PATCH/DELETE /transactions`, `GET /holdings`. |
+| `services/api/src/modules/ledger/` | Ledger + FIFO: `transaction-repository.ts`, `ledger-service.ts`, `fifo-holdings-service.ts`, `lot-link-repository.ts`, `register-ledger-routes.ts` — `GET/POST/PATCH/DELETE /transactions`, `GET /holdings`. Ledger mutations notify `SnapshotInvalidationService` (optional dependency) to set `earliestAffectedDate`. |
+| `services/api/src/modules/valuations/` | Manual prices: `price-snapshot-repository.ts`, `price-snapshot-service.ts`, `register-valuations-routes.ts` — `POST /prices/manual`, `GET /prices`, `GET /prices/latest` (DynamoDB `PRICE_SNAPSHOT` items under portfolio PK). |
+| `services/api/src/modules/snapshots/` | Derived snapshots: `snapshot-state-repository.ts` (`SNAPSHOT_STATE`), `position-snapshot-repository.ts`, `portfolio-snapshot-repository.ts`, `performance-snapshot-repository.ts`, `snapshot-invalidation-service.ts`, `snapshot-rebuild-service.ts`, `snapshot-date-utils.ts`, `snapshot-purge.ts`, `register-snapshots-routes.ts` — `GET /snapshots/status`, `POST /snapshots/rebuild`. |
+| `services/api/src/modules/performance/` | TWR: `twr-daily-v1.ts` (deterministic chain), `twr-daily-v1.spec.ts`, `register-performance-routes.ts` — `GET /performance/twr`. |
 | `services/api/src/modules/health/dynamo-db-health-service.ts` | Readiness: `DescribeTable` on the configured table. |
 | `services/api/src/scripts/dynamodb-smoke-write.ts` | Dev CLI: put+delete smoke item; run via `pnpm dynamodb:smoke-write` from repo root. |
 | `services/api/src/scripts/put-dev-user.ts` | CLI: upsert `user_account` in the table from `API_DYNAMODB_TABLE_NAME` using `BOOTSTRAP_USERNAME` / `BOOTSTRAP_PASSWORD`; preserves `userId` when updating; run via `pnpm bootstrap:user`. |

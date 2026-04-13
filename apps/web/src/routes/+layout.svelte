@@ -8,6 +8,7 @@
   import {
     BookMarked,
     BookOpen,
+    CircleDollarSign,
     Compass,
     DollarSign,
     Eye,
@@ -23,6 +24,7 @@
   const navigationItems = [
     { href: '/dashboard', label: 'Dashboard', Icon: LayoutDashboard },
     { href: '/assets', label: 'Assets', Icon: Wallet },
+    { href: '/prices', label: 'Prices', Icon: CircleDollarSign },
     { href: '/ledger', label: 'Ledger', Icon: BookOpen },
     { href: '/performance', label: 'Performance', Icon: TrendingUp },
     { href: '/recommendations', label: 'Recommendations', Icon: Lightbulb },
