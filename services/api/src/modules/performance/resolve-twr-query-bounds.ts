@@ -16,34 +16,33 @@ export function resolveTwrQueryBounds(input: {
   readonly to: string | undefined;
   readonly todayYmd: string;
 }): TwrQueryBounds {
-  const hasRange: boolean = input.range !== undefined && input.range.length > 0;
   const hasFromTo: boolean = input.from !== undefined || input.to !== undefined;
-  if (hasRange && hasFromTo) {
-    return { ok: false, message: 'Cannot combine range with from or to' };
+  if (input.range !== undefined && input.range.length > 0) {
+    if (hasFromTo) {
+      return { ok: false, message: 'Cannot combine range with from or to' };
+    }
+    const preset: string = input.range.toUpperCase();
+    if (!RANGE_PRESETS.has(preset)) {
+      return { ok: false, message: 'Invalid range (use ALL, 1M, 3M, YTD, 1Y)' };
+    }
+    if (preset === 'ALL') {
+      return { ok: true };
+    }
+    const toInclusive: string = input.todayYmd;
+    let fromInclusive: string;
+    if (preset === '1M') {
+      fromInclusive = addUtcMonthsYmd({ ymd: toInclusive, months: -1 });
+    } else if (preset === '3M') {
+      fromInclusive = addUtcMonthsYmd({ ymd: toInclusive, months: -3 });
+    } else if (preset === 'YTD') {
+      fromInclusive = `${toInclusive.slice(0, 4)}-01-01`;
+    } else {
+      fromInclusive = addUtcMonthsYmd({ ymd: toInclusive, months: -12 });
+    }
+    if (fromInclusive > toInclusive) {
+      fromInclusive = toInclusive;
+    }
+    return { ok: true, fromInclusive, toInclusive };
   }
-  if (!hasRange) {
-    return { ok: true, fromInclusive: input.from, toInclusive: input.to };
-  }
-  const preset: string = input.range.toUpperCase();
-  if (!RANGE_PRESETS.has(preset)) {
-    return { ok: false, message: 'Invalid range (use ALL, 1M, 3M, YTD, 1Y)' };
-  }
-  if (preset === 'ALL') {
-    return { ok: true };
-  }
-  const toInclusive: string = input.todayYmd;
-  let fromInclusive: string;
-  if (preset === '1M') {
-    fromInclusive = addUtcMonthsYmd({ ymd: toInclusive, months: -1 });
-  } else if (preset === '3M') {
-    fromInclusive = addUtcMonthsYmd({ ymd: toInclusive, months: -3 });
-  } else if (preset === 'YTD') {
-    fromInclusive = `${toInclusive.slice(0, 4)}-01-01`;
-  } else {
-    fromInclusive = addUtcMonthsYmd({ ymd: toInclusive, months: -12 });
-  }
-  if (fromInclusive > toInclusive) {
-    fromInclusive = toInclusive;
-  }
-  return { ok: true, fromInclusive, toInclusive };
+  return { ok: true, fromInclusive: input.from, toInclusive: input.to };
 }
