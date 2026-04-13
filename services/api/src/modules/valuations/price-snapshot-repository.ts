@@ -1,5 +1,5 @@
 import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
-import { DeleteCommand, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { buildPortfolioScopedPartitionKey, buildPriceSortKey, buildPriceSortKeyPrefixForAsset } from '../domain/domain-keys.js';
 
 const PARTITION_KEY: string = 'PK';
