@@ -87,3 +87,9 @@ variable "github_actions_grant_terraform_apply" {
   description = "Attach AdministratorAccess to the GitHub OIDC deploy role so CI can terraform apply. Apply once with elevated credentials, then enable; see README."
   default     = false
 }
+
+variable "api_node_env" {
+  type        = string
+  description = "API Lambda runtime mode (sets API_NODE_ENV and NODE_ENV on the function). Default production; override per stack (e.g. staging tfvars) if a deployed API should not use production gating."
+  default     = "production"
+}
