@@ -1,14 +1,14 @@
 # Insomnia — Badgers Investments API
 
-API collections and environments live here, colocated with the repo (see `collections/` and `environments/`).
+API collections and environments live here, colocated with the repo (Insomnia **v5.1** YAML).
 
 Import into [Insomnia](https://insomnia.rest/) to exercise authenticated portfolio, assets, ledger, and holdings endpoints.
 
 ## Import
 
 1. **Application → Preferences → Data → Import data** (or **Create → Import from File**).
-2. Import **`collections/badgers-api.insomnia.json`** (workspace + requests + embedded base environment).
-3. Optionally import **`environments/local.example.insomnia.json`** to merge or replace the **Local** environment (fake credentials only).
+2. Import **`badgers-api.yaml`** (collection + requests + embedded **Local (Badgers API)** environment).
+3. Optionally import **`local-dev.yaml`** as a separate global environment file if you keep environments outside the collection (same variable keys as below).
 
 ## Before you send requests
 
@@ -31,17 +31,17 @@ If `asset_id` or `transaction_id` are empty, run **Create** requests first or pa
 
 ## After-response “tests”
 
-Scripts use `insomnia.test` / `insomnia.expect` (Chai-style). They run when you **Send** a request in the **Debug** tab. If your Insomnia build stores scripts under **Scripts → After-response** instead of importing `afterResponseScript`, paste the script from the request JSON or re-save the request in the UI.
+Scripts use `insomnia.test` / `insomnia.expect` (Chai-style). They are stored under **`scripts.afterResponse`** in the YAML and run when you **Send** a request in the **Debug** tab.
 
 ## Variables (local example)
 
 | Variable | Purpose |
-|-------------------|---------|
-| `base_url`        | API origin (e.g. `http://localhost:3000`) |
-| `username`        | Must match bootstrapped user (example file uses fake values) |
-| `password`        | Fake example only — align with your local `.env` |
-| `asset_id`        | Filled by **Assets / Create** script or manually |
-| `transaction_id`  | Filled by **Transactions / Create (BUY)** script or manually |
+|----------|---------|
+| `base_url` | API origin (no trailing slash), e.g. `http://localhost:3000` |
+| `username` | Must match bootstrapped user (example file uses fake values) |
+| `password` | Fake example only — align with your local `.env` |
+| `asset_id` | Filled by **Assets / Create** script or manually |
+| `transaction_id` | Filled by **Transactions / Create (BUY)** script or manually |
 
 ## CORS
 

@@ -11,7 +11,7 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 | `turbo.json` | Turborepo pipeline: `build` (with ^build), `dev` (persistent), `lint`, `test`, `clean`. |
 | `.env.example` | Root environment template (copy to `.env`). DynamoDB and API settings; all env variables live at repo root. |
 | `README.md` | How to run, test, and deploy the application. |
-| `insomnia/` | Insomnia REST client assets: `collections/` (e.g. `badgers-api.insomnia.json`), `environments/` (example env), `README.md` — manual API testing; not part of the pnpm workspace. |
+| `insomnia/` | Insomnia REST client assets (v5.1 YAML): `badgers-api.yaml` (collection + embedded env), `local-dev.yaml` (optional standalone env), `README.md` — manual API testing; not part of the pnpm workspace. |
 | `.gitignore` | Ignored paths (node_modules, build outputs, env files, etc.). |
 | `.github/` | GitHub Actions workflows (CI/CD). |
 | `.github/workflows/ci-reusable.yml` | Reusable workflow: `pnpm lint`, `test`, `build` (Turbo). Called from PR **CI** and from **main** deploy workflow. |

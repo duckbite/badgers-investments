@@ -1,35 +1,446 @@
 type: collection.insomnia.rest/5.0
 schema_version: "5.1"
-name: badgers-api
+name: Badgers Investments API
 meta:
   id: wrk_625858b41c6246109975a2b97235819d
   created: 1776053956239
   modified: 1776053956239
-  description: ""
+  description: Portfolio, assets, ledger, holdings (cookie session auth). See insomnia/README.md.
 collection:
-  - url: badgers
-    name: badgers
+  - name: Auth
     meta:
-      id: req_a8978954ebec4734ad71feda3da67b69
-      created: 1776053975099
-      modified: 1776053985987
-      isPrivate: false
-      description: ""
-      sortKey: -1776053975099
-    method: GET
-    headers:
-      - name: User-Agent
-        value: insomnia/12.5.0
-        description: ""
-        disabled: false
-    settings:
-      renderRequestBody: true
-      encodeUrl: true
-      followRedirects: global
-      cookies:
-        send: true
-        store: true
-      rebuildPath: true
+      id: fld_badgers_auth
+      created: 1776053956240
+      modified: 1776053956240
+      sortKey: -4000000
+      description: Run Login before other folders so the session cookie is stored.
+    children:
+      - name: Login
+        url: "{{ _.base_url }}/auth/login"
+        meta:
+          id: req_badgers_login
+          created: 1776053956241
+          modified: 1776053956241
+          sortKey: -4000100
+        method: POST
+        body:
+          mimeType: application/json
+          text: |
+            {
+              "username": "{{ _.username }}",
+              "password": "{{ _.password }}"
+            }
+        headers:
+          - name: Content-Type
+            value: application/json
+        scripts:
+          afterResponse: |
+            insomnia.test('Status code is 200', () => {
+              insomnia.expect(insomnia.response.code).to.eql(200);
+            });
+            insomnia.test('Response includes user', () => {
+              const body = insomnia.response.json();
+              insomnia.expect(body.user).to.be.an('object');
+              insomnia.expect(body.user.userId).to.be.a('string');
+            });
+        settings:
+          renderRequestBody: true
+          encodeUrl: true
+          followRedirects: global
+          cookies:
+            send: true
+            store: true
+          rebuildPath: true
+      - name: Session
+        url: "{{ _.base_url }}/auth/session"
+        meta:
+          id: req_badgers_session
+          created: 1776053956242
+          modified: 1776053956242
+          sortKey: -4000200
+        method: GET
+        scripts:
+          afterResponse: |
+            insomnia.test('Status code is 200', () => {
+              insomnia.expect(insomnia.response.code).to.eql(200);
+            });
+            insomnia.test('Body has authenticated flag', () => {
+              const body = insomnia.response.json();
+              insomnia.expect(body.authenticated === true || body.authenticated === false).to.eql(true);
+            });
+        settings:
+          renderRequestBody: true
+          encodeUrl: true
+          followRedirects: global
+          cookies:
+            send: true
+            store: true
+          rebuildPath: true
+      - name: Logout
+        url: "{{ _.base_url }}/auth/logout"
+        meta:
+          id: req_badgers_logout
+          created: 1776053956243
+          modified: 1776053956243
+          sortKey: -4000300
+        method: POST
+        scripts:
+          afterResponse: |
+            insomnia.test('Status code is 204', () => {
+              insomnia.expect(insomnia.response.code).to.eql(204);
+            });
+        settings:
+          renderRequestBody: true
+          encodeUrl: true
+          followRedirects: global
+          cookies:
+            send: true
+            store: true
+          rebuildPath: true
+  - name: Portfolio
+    meta:
+      id: fld_badgers_portfolio
+      created: 1776053956244
+      modified: 1776053956244
+      sortKey: -3000000
+    children:
+      - name: Get (or create default)
+        url: "{{ _.base_url }}/portfolio"
+        meta:
+          id: req_badgers_portfolio_get
+          created: 1776053956245
+          modified: 1776053956245
+          sortKey: -3000100
+        method: GET
+        scripts:
+          afterResponse: |
+            insomnia.test('Status code is 200', () => {
+              insomnia.expect(insomnia.response.code).to.eql(200);
+            });
+            insomnia.test('Has portfolioId', () => {
+              const body = insomnia.response.json();
+              insomnia.expect(body.portfolioId).to.be.a('string');
+              insomnia.expect(body.baseCurrencyCode).to.be.a('string');
+            });
+        settings:
+          renderRequestBody: true
+          encodeUrl: true
+          followRedirects: global
+          cookies:
+            send: true
+            store: true
+          rebuildPath: true
+      - name: Patch
+        url: "{{ _.base_url }}/portfolio"
+        meta:
+          id: req_badgers_portfolio_patch
+          created: 1776053956246
+          modified: 1776053956246
+          sortKey: -3000200
+        method: PATCH
+        body:
+          mimeType: application/json
+          text: |
+            {
+              "name": "Insomnia test portfolio",
+              "baseCurrencyCode": "USD"
+            }
+        headers:
+          - name: Content-Type
+            value: application/json
+        scripts:
+          afterResponse: |
+            insomnia.test('Status code is 200', () => {
+              insomnia.expect(insomnia.response.code).to.eql(200);
+            });
+            insomnia.test('Name updated', () => {
+              const body = insomnia.response.json();
+              insomnia.expect(body.name).to.eql('Insomnia test portfolio');
+            });
+        settings:
+          renderRequestBody: true
+          encodeUrl: true
+          followRedirects: global
+          cookies:
+            send: true
+            store: true
+          rebuildPath: true
+  - name: Assets
+    meta:
+      id: fld_badgers_assets
+      created: 1776053956247
+      modified: 1776053956247
+      sortKey: -2000000
+      description: Create stores asset_id in the active environment (after-response script).
+    children:
+      - name: List
+        url: "{{ _.base_url }}/assets?active=all"
+        meta:
+          id: req_badgers_assets_list
+          created: 1776053956248
+          modified: 1776053956248
+          sortKey: -2000100
+        method: GET
+        scripts:
+          afterResponse: |
+            insomnia.test('Status code is 200', () => {
+              insomnia.expect(insomnia.response.code).to.eql(200);
+            });
+            insomnia.test('Has items array', () => {
+              const body = insomnia.response.json();
+              insomnia.expect(body.items).to.be.an('array');
+            });
+        settings:
+          renderRequestBody: true
+          encodeUrl: true
+          followRedirects: global
+          cookies:
+            send: true
+            store: true
+          rebuildPath: true
+      - name: Create (STOCK)
+        url: "{{ _.base_url }}/assets"
+        meta:
+          id: req_badgers_assets_create
+          created: 1776053956249
+          modified: 1776053956249
+          sortKey: -2000200
+        method: POST
+        body:
+          mimeType: application/json
+          text: |
+            {
+              "assetType": "STOCK",
+              "name": "Demo Equity",
+              "symbol": "DEMO",
+              "currencyCode": "USD",
+              "ownershipPct": "100.00",
+              "notes": "Created from Insomnia collection"
+            }
+        headers:
+          - name: Content-Type
+            value: application/json
+        scripts:
+          afterResponse: |
+            insomnia.test('Status code is 201', () => {
+              insomnia.expect(insomnia.response.code).to.eql(201);
+            });
+            if (insomnia.response.code === 201) {
+              const body = insomnia.response.json();
+              if (body.assetId) {
+                insomnia.environment.set('asset_id', body.assetId);
+              }
+            }
+            insomnia.test('Response has assetId when 201', () => {
+              if (insomnia.response.code === 201) {
+                const body = insomnia.response.json();
+                insomnia.expect(body.assetId).to.be.a('string');
+              }
+            });
+        settings:
+          renderRequestBody: true
+          encodeUrl: true
+          followRedirects: global
+          cookies:
+            send: true
+            store: true
+          rebuildPath: true
+      - name: Patch (needs asset_id)
+        url: "{{ _.base_url }}/assets/{{ _.asset_id }}"
+        meta:
+          id: req_badgers_assets_patch
+          created: 1776053956250
+          modified: 1776053956250
+          sortKey: -2000300
+        method: PATCH
+        body:
+          mimeType: application/json
+          text: |
+            {
+              "notes": "Updated from Insomnia",
+              "sector": "Technology"
+            }
+        headers:
+          - name: Content-Type
+            value: application/json
+        scripts:
+          afterResponse: |
+            insomnia.test('Patch returns 200 or 404 (run Create first)', () => {
+              insomnia.expect([200, 404]).to.include(insomnia.response.code);
+            });
+        settings:
+          renderRequestBody: true
+          encodeUrl: true
+          followRedirects: global
+          cookies:
+            send: true
+            store: true
+          rebuildPath: true
+  - name: Transactions
+    meta:
+      id: fld_badgers_transactions
+      created: 1776053956251
+      modified: 1776053956251
+      sortKey: -1000000
+      description: Create (BUY) stores transaction_id in the active environment.
+    children:
+      - name: List
+        url: "{{ _.base_url }}/transactions"
+        meta:
+          id: req_badgers_txn_list
+          created: 1776053956252
+          modified: 1776053956252
+          sortKey: -1000100
+        method: GET
+        scripts:
+          afterResponse: |
+            insomnia.test('Status code is 200', () => {
+              insomnia.expect(insomnia.response.code).to.eql(200);
+            });
+            insomnia.test('Has items array', () => {
+              const body = insomnia.response.json();
+              insomnia.expect(body.items).to.be.an('array');
+            });
+        settings:
+          renderRequestBody: true
+          encodeUrl: true
+          followRedirects: global
+          cookies:
+            send: true
+            store: true
+          rebuildPath: true
+      - name: Create (BUY — needs asset_id)
+        url: "{{ _.base_url }}/transactions"
+        meta:
+          id: req_badgers_txn_create_buy
+          created: 1776053956253
+          modified: 1776053956253
+          sortKey: -1000200
+        method: POST
+        body:
+          mimeType: application/json
+          text: |
+            {
+              "assetId": "{{ _.asset_id }}",
+              "transactionType": "BUY",
+              "tradeDate": "2026-04-12",
+              "currencyCode": "USD",
+              "quantity": "10",
+              "unitPrice": "100.00",
+              "feeAmount": "0"
+            }
+        headers:
+          - name: Content-Type
+            value: application/json
+        scripts:
+          afterResponse: |
+            insomnia.test('Create returns 201 or 400 (needs valid asset_id)', () => {
+              insomnia.expect([201, 400]).to.include(insomnia.response.code);
+            });
+            if (insomnia.response.code === 201) {
+              const body = insomnia.response.json();
+              if (body.transactionId) {
+                insomnia.environment.set('transaction_id', body.transactionId);
+              }
+            }
+        settings:
+          renderRequestBody: true
+          encodeUrl: true
+          followRedirects: global
+          cookies:
+            send: true
+            store: true
+          rebuildPath: true
+      - name: Patch (needs transaction_id)
+        url: "{{ _.base_url }}/transactions/{{ _.transaction_id }}"
+        meta:
+          id: req_badgers_txn_patch
+          created: 1776053956254
+          modified: 1776053956254
+          sortKey: -1000300
+        method: PATCH
+        body:
+          mimeType: application/json
+          text: |
+            {
+              "notes": "Adjusted in Insomnia",
+              "feeAmount": "1.00"
+            }
+        headers:
+          - name: Content-Type
+            value: application/json
+        scripts:
+          afterResponse: |
+            insomnia.test('Patch txn returns 200 or 404', () => {
+              insomnia.expect([200, 404]).to.include(insomnia.response.code);
+            });
+        settings:
+          renderRequestBody: true
+          encodeUrl: true
+          followRedirects: global
+          cookies:
+            send: true
+            store: true
+          rebuildPath: true
+      - name: Delete soft (needs transaction_id)
+        url: "{{ _.base_url }}/transactions/{{ _.transaction_id }}"
+        meta:
+          id: req_badgers_txn_delete
+          created: 1776053956255
+          modified: 1776053956255
+          sortKey: -1000400
+        method: DELETE
+        scripts:
+          afterResponse: |
+            insomnia.test('Delete outcome', () => {
+              const c = insomnia.response.code;
+              insomnia.expect([200, 404]).to.include(c);
+              if (c === 200) {
+                const body = insomnia.response.json();
+                insomnia.expect(body.isDeleted).to.eql(true);
+              }
+            });
+        settings:
+          renderRequestBody: true
+          encodeUrl: true
+          followRedirects: global
+          cookies:
+            send: true
+            store: true
+          rebuildPath: true
+  - name: Holdings
+    meta:
+      id: fld_badgers_holdings
+      created: 1776053956256
+      modified: 1776053956256
+      sortKey: -500000
+    children:
+      - name: Get
+        url: "{{ _.base_url }}/holdings"
+        meta:
+          id: req_badgers_holdings_get
+          created: 1776053956257
+          modified: 1776053956257
+          sortKey: -500100
+        method: GET
+        scripts:
+          afterResponse: |
+            insomnia.test('Status code is 200', () => {
+              insomnia.expect(insomnia.response.code).to.eql(200);
+            });
+            insomnia.test('Has holdings and lotLinks', () => {
+              const body = insomnia.response.json();
+              insomnia.expect(body.holdings).to.be.an('array');
+              insomnia.expect(body.lotLinks).to.be.an('array');
+            });
+        settings:
+          renderRequestBody: true
+          encodeUrl: true
+          followRedirects: global
+          cookies:
+            send: true
+            store: true
+          rebuildPath: true
 cookieJar:
   name: Default Jar
   meta:
@@ -37,9 +448,23 @@ cookieJar:
     created: 1776053956249
     modified: 1776053956249
 environments:
-  name: Base Environment
+  name: Local (Badgers API)
   meta:
     id: env_8e1eff224890efa933c3ceffc2429be5dee35849
     created: 1776053956247
     modified: 1776053956247
     isPrivate: false
+  color: "#059669"
+  data:
+    base_url: http://localhost:3000
+    username: insomnia_demo_user
+    password: FakeLocalPassword-DoNotUseInProd-123!
+    asset_id: ""
+    transaction_id: ""
+  dataPropertyOrder:
+    "&":
+      - base_url
+      - username
+      - password
+      - asset_id
+      - transaction_id
