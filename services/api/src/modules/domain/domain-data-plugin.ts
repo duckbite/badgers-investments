@@ -83,6 +83,8 @@ const domainDataPluginImpl: FastifyPluginAsync = async (app): Promise<void> => {
     snapshotRebuildService,
     snapshotStateRepository,
     portfolioService,
+    portfolioSnapshotRepository,
+    positionSnapshotRepository,
   });
   registerPerformanceRoutes({ app, performanceSnapshotRepository, portfolioService });
 };

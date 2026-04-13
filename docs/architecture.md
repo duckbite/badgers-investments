@@ -327,7 +327,8 @@ Canonical data is authoritative. Derived data can be invalidated and rebuilt.
 ### Snapshots / Performance
 - `POST /snapshots/rebuild`
 - `GET /snapshots/status`
-- `GET /performance/twr`
+- `GET /snapshots/latest` (latest `PORT_SNAP` plus `POS_SNAP` rows for that date)
+- `GET /performance/twr` (optional `from` / `to` YYYY-MM-DD, or `range`: `ALL` | `1M` | `3M` | `YTD` | `1Y`; presets use UTC calendar dates)
 
 ### Recommendations
 - `POST /recommendations/runs`

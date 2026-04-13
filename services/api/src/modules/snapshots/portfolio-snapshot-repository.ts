@@ -55,6 +55,28 @@ export class PortfolioSnapshotRepository {
     );
   }
 
+  public async getLatest(input: { readonly userId: string; readonly portfolioId: string }): Promise<PortfolioSnapshotRecord | undefined> {
+    const pk: string = buildPortfolioScopedPartitionKey({ userId: input.userId, portfolioId: input.portfolioId });
+    const response = await this.documentClient.send(
+      new QueryCommand({
+        TableName: this.tableName,
+        KeyConditionExpression: 'PK = :pk AND begins_with(SK, :skPrefix)',
+        ExpressionAttributeValues: {
+          ':pk': pk,
+          ':skPrefix': 'PORT_SNAP#',
+        },
+        ScanIndexForward: false,
+        Limit: 1,
+        ConsistentRead: true,
+      }),
+    );
+    const item: Record<string, unknown> | undefined = response.Items?.[0];
+    if (item === undefined) {
+      return undefined;
+    }
+    return parsePortfolioSnapshotRecord({ item });
+  }
+
   public async listAllAscending(input: { readonly userId: string; readonly portfolioId: string }): Promise<readonly PortfolioSnapshotRecord[]> {
     const pk: string = buildPortfolioScopedPartitionKey({ userId: input.userId, portfolioId: input.portfolioId });
     const collected: PortfolioSnapshotRecord[] = [];
