@@ -31,6 +31,13 @@ export default ts.config(
     },
   },
   {
+    files: ['**/*.svelte'],
+    rules: {
+      // typescript-eslint can throw on Svelte AST nodes (e.g. reactive $: labels).
+      '@typescript-eslint/no-unused-vars': 'off',
+    },
+  },
+  {
     rules: {
       '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports' }],
     },

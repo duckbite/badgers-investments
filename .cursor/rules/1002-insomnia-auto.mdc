@@ -36,6 +36,7 @@ settings:
 | Key | Role |
 |-----|------|
 | `base_url` | API origin, e.g. `http://localhost:3000` |
+| `web_origin` | SPA dev origin, e.g. `http://localhost:10606` (match `WEB_PORT` / `CORS_ORIGIN` in root `.env`) |
 | `username` | Login user (align with bootstrap / root `.env`) |
 | `password` | Example only in repo — never real secrets |
 | `asset_id` | Filled by scripts or manually for PATCH/txn flows |

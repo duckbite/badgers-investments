@@ -567,10 +567,11 @@ environments:
   meta:
     id: env_8e1eff224890efa933c3ceffc2429be5dee35849
     created: 1776053956247
-    modified: 1776053956247
+    modified: 1776060000000
     isPrivate: false
   data:
     base_url: http://localhost:3000
+    web_origin: http://localhost:10606
     username: insomnia_demo_user
     password: FakeLocalPassword-DoNotUseInProd-123!
     asset_id: ""
@@ -578,6 +579,7 @@ environments:
   dataPropertyOrder:
     "&":
       - base_url
+      - web_origin
       - username
       - password
       - asset_id

@@ -6,6 +6,8 @@
   import { onMount } from 'svelte';
   import { apiClient } from '$lib/api/api-client-instance';
   import { toast } from '$lib/toast/toast';
+  import { amountPrivacy } from '$lib/privacy/amount-privacy-store';
+  import { formatMaskedMoney } from '$lib/privacy/format-amount';
 
   type TwrRow = {
     readonly periodDate: string;
@@ -20,15 +22,22 @@
   let rows: readonly TwrRow[] = [];
   let isLoading: boolean = true;
   let range: TwrRange = 'ALL';
+  let baseCurrencyCode: string = 'USD';
+
+  $: masked = $amountPrivacy;
 
   async function load(): Promise<void> {
     isLoading = true;
     try {
-      const response = await apiClient.executeJson<{ readonly items: readonly TwrRow[] }>({
-        method: 'GET',
-        path: '/performance/twr',
-        query: range === 'ALL' ? undefined : { range },
-      });
+      const [pf, response] = await Promise.all([
+        apiClient.executeJson<{ readonly baseCurrencyCode: string }>({ method: 'GET', path: '/portfolio' }),
+        apiClient.executeJson<{ readonly items: readonly TwrRow[] }>({
+          method: 'GET',
+          path: '/performance/twr',
+          query: range === 'ALL' ? undefined : { range },
+        }),
+      ]);
+      baseCurrencyCode = pf.baseCurrencyCode;
       rows = response.items;
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to load TWR');
@@ -113,7 +122,9 @@
               <td class="px-3 py-2 text-gray-800 dark:text-foreground">{row.periodDate}</td>
               <td class="px-3 py-2 text-gray-700 dark:text-muted-foreground">{formatPct(row.subperiodReturn)}</td>
               <td class="px-3 py-2 text-gray-800 dark:text-foreground">{formatPct(row.cumulativeTwrReturn)}</td>
-              <td class="px-3 py-2 text-gray-700 dark:text-muted-foreground">{row.valuationEndAmount}</td>
+              <td class="px-3 py-2 text-gray-700 dark:text-muted-foreground">
+                {formatMaskedMoney({ masked, decimalString: row.valuationEndAmount, currencyCode: baseCurrencyCode })}
+              </td>
               <td class="px-3 py-2 text-gray-600 dark:text-muted-foreground">{row.calculationMethod}</td>
             </tr>
           {/each}

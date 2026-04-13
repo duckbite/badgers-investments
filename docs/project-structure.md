@@ -24,7 +24,7 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 |------|-------------|
 | `apps/web/` | SvelteKit (Svelte 5) frontend. Entry: `src/routes/+page.svelte`. Scripts: `dev`, `build`, `preview`, `check`, `lint`. Build output: `.svelte-kit/` and Vite build artifacts. |
 | `apps/web/static/badgers-logo.png` | Login branding asset (same artwork as `docs/prototype` Figma export); served at `/badgers-logo.png`. |
-| `apps/web/vite.config.ts` | Vite + **`@tailwindcss/vite`** (Tailwind v4, aligned with `docs/prototype`). |
+| `apps/web/vite.config.ts` | Vite + **`@tailwindcss/vite`** (Tailwind v4, aligned with `docs/prototype`). Loads root `.env` via `envDir`; dev `server.port` from `WEB_PORT` (default `5173`); `define` sets `import.meta.env.PUBLIC_API_BASE_URL` to `PUBLIC_API_BASE_URL` or `http://localhost:<API_PORT>` so the static SPA targets the API. |
 | `apps/web/src/styles/index.css` | Entry: imports Tailwind + **`theme.css`** (shadcn-style tokens copied from `docs/prototype/src/styles/theme.css`). |
 | `apps/web/src/styles/tailwind.css` | `@tailwindcss` + `@source` for `**/*.{js,ts,svelte}` + `tw-animate-css`. |
 | `apps/web/package.json` | **`lucide-svelte`** icons (parity with prototype `lucide-react`). |
@@ -34,6 +34,17 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 | `apps/web/src/routes/library/+page.svelte` | Library placeholder for saved reports (full content in DB-145). |
 | `apps/web/src/lib/toast/toast.ts` | Lightweight toast queue (`toast.error` / `toast.success`) for Sonner-like UX (top-right); used on login and available app-wide. |
 | `apps/web/src/lib/toast/ToastHost.svelte` | Fixed top-right viewport; mounted from `src/routes/+layout.svelte`. |
+| `apps/web/src/lib/privacy/amount-privacy-store.ts` | Session-backed **anonymize** toggle (`sessionStorage`): mask monetary values across wealth UI; PIN to reveal via `PUBLIC_AMOUNT_REVEAL_PIN` (default `1234`). |
+| `apps/web/src/lib/privacy/format-amount.ts` | `formatMaskedMoney` / `formatMaskedNumber` helpers for privacy mode. |
+| `apps/web/src/lib/charts/register-chart-js.ts` | Tree-shaken **Chart.js** registration (pie + line controllers) for dashboard charts. |
+| `apps/web/src/lib/components/PinRevealDialog.svelte` | Modal to verify PIN before revealing amounts (DB-146). |
+| `apps/web/src/lib/components/PortfolioCharts.svelte` | Dashboard allocation pie + portfolio value line (TWR valuation series). |
+| `apps/web/src/lib/components/SimpleLineChart.svelte` | Single line chart (e.g. asset price history). |
+| `apps/web/src/routes/dashboard/+page.svelte` | Wealth overview: latest snapshot KPIs, top holdings, sector allocation, freshness, Chart.js charts (hidden when anonymized), links. |
+| `apps/web/src/routes/assets/+page.svelte` | Holdings table (snapshot positions × assets); filter active/archived; links to asset detail. |
+| `apps/web/src/routes/assets/[assetId]/+page.svelte` | Asset drill-down: snapshot metrics, manual price chart, FIFO lot links, transaction list. |
+| `apps/web/src/routes/ledger/+page.svelte` | Transaction list with filters, include-deleted, add/edit modal, soft-delete confirmation (DB-95). |
+| `apps/web/package.json` | Depends on **`chart.js`** (ADR-010 charts). |
 
 ## Services
 
@@ -59,6 +70,7 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 | `services/api/src/modules/health/dynamo-db-health-service.ts` | Readiness: `DescribeTable` on the configured table. |
 | `services/api/src/scripts/dynamodb-smoke-write.ts` | Dev CLI: put+delete smoke item; run via `pnpm dynamodb:smoke-write` from repo root. |
 | `services/api/src/scripts/put-dev-user.ts` | CLI: upsert `user_account` in the table from `API_DYNAMODB_TABLE_NAME` using `BOOTSTRAP_USERNAME` / `BOOTSTRAP_PASSWORD`; preserves `userId` when updating; run via `pnpm bootstrap:user`. |
+| `services/api/src/scripts/seed-dev-wealth-demo.ts` | CLI: **destructive** demo seed for the bootstrap user’s portfolio — wipes portfolio-scoped items except `PORTFOLIO_CFG*`, creates ~10 US equities/ETFs (tech, energy, healthcare, biotech, real estate, indices), ~2 years of BUY/SELL/DIVIDEND, weekly manual prices, FIFO lot links, and runs a full snapshot rebuild. Requires existing `user_account`; run `pnpm seed:dev-wealth` from repo root (uses root `.env`). |
 
 ## Workers
 
