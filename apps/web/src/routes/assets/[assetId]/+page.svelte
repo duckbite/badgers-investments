@@ -10,6 +10,9 @@
   import SimpleLineChart from '$lib/components/SimpleLineChart.svelte';
   import { amountPrivacy } from '$lib/privacy/amount-privacy-store';
   import { formatMaskedMoney, formatMaskedNumber } from '$lib/privacy/format-amount';
+  import { formatInstrumentDisplayLabel } from '$lib/formatting/instrument-display-label';
+  import { formatMatchedLotRealisedPnlPercent } from '$lib/formatting/matched-lot-realised-pnl-percent';
+  import PnlMoneyWithArrow from '$lib/components/PnlMoneyWithArrow.svelte';
 
   type AssetDto = {
     readonly assetId: string;
@@ -146,7 +149,9 @@
     {@const base = portfolio?.baseCurrencyCode ?? 'USD'}
     <header class="space-y-1">
       <a class="text-sm text-emerald-700 hover:underline dark:text-emerald-400" href="/assets">← Holdings</a>
-      <h1 class="text-2xl font-semibold text-gray-900 dark:text-foreground">{asset.symbol} · {asset.name}</h1>
+      <h1 class="text-2xl font-semibold text-gray-900 dark:text-foreground">
+        {formatInstrumentDisplayLabel({ name: asset.name, symbol: asset.symbol, fallbackId: asset.assetId })}
+      </h1>
       <p class="text-sm text-gray-600 dark:text-muted-foreground">
         {asset.sector ?? 'Sector not set'} · {asset.isActive ? 'Active' : 'Archived'} · {asset.currencyCode}
       </p>
@@ -178,13 +183,13 @@
         <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-border dark:bg-card">
           <div class="text-xs font-medium uppercase text-gray-500 dark:text-muted-foreground">Unrealised P/L</div>
           <div class="mt-1 text-lg font-semibold text-gray-900 dark:text-foreground">
-            {formatMaskedMoney({ masked, decimalString: position.unrealisedPnlAmount, currencyCode: base })}
+            <PnlMoneyWithArrow masked={masked} decimalString={position.unrealisedPnlAmount} currencyCode={base} />
           </div>
         </div>
         <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-border dark:bg-card">
           <div class="text-xs font-medium uppercase text-gray-500 dark:text-muted-foreground">Realised P/L (snap)</div>
           <div class="mt-1 text-lg font-semibold text-gray-900 dark:text-foreground">
-            {formatMaskedMoney({ masked, decimalString: position.realisedPnlCumulativeAmount, currencyCode: base })}
+            <PnlMoneyWithArrow masked={masked} decimalString={position.realisedPnlCumulativeAmount} currencyCode={base} />
           </div>
         </div>
       </div>
@@ -228,6 +233,11 @@
             </thead>
             <tbody>
               {#each assetLotLinks as row (row.linkId)}
+                {@const lotPct = formatMatchedLotRealisedPnlPercent({
+                  matchedQuantity: row.matchedQuantity,
+                  buyUnitPrice: row.buyUnitPrice,
+                  realisedPnlAmount: row.realisedPnlAmount,
+                })}
                 <tr class="border-b border-gray-100 dark:border-border">
                   <td class="px-3 py-2 text-gray-800 dark:text-foreground">
                     {formatMaskedNumber({ masked, decimalString: row.matchedQuantity, maximumFractionDigits: 8 })}
@@ -239,7 +249,12 @@
                     {formatMaskedMoney({ masked, decimalString: row.sellUnitPrice, currencyCode: row.currencyCode })}
                   </td>
                   <td class="px-3 py-2 text-gray-700 dark:text-muted-foreground">
-                    {formatMaskedMoney({ masked, decimalString: row.realisedPnlAmount, currencyCode: row.currencyCode })}
+                    <PnlMoneyWithArrow
+                      masked={masked}
+                      decimalString={row.realisedPnlAmount}
+                      currencyCode={row.currencyCode}
+                      percentNumberPart={lotPct}
+                    />
                   </td>
                 </tr>
               {/each}

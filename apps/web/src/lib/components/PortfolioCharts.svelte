@@ -63,12 +63,18 @@
               label(context) {
                 const raw: unknown = context.raw;
                 const value: number = typeof raw === 'number' ? raw : Number(raw);
+                const datasetRaw: unknown = context.chart.data.datasets[0]?.data;
+                const parts: number[] = Array.isArray(datasetRaw)
+                  ? datasetRaw.map((x) => (typeof x === 'number' ? x : Number(x))).filter((x) => Number.isFinite(x))
+                  : [];
+                const sum: number = parts.reduce((a, b) => a + b, 0);
+                const pct: number = sum > 0 && Number.isFinite(value) ? (value / sum) * 100 : 0;
                 const formatted: string = new Intl.NumberFormat('en-US', {
                   style: 'currency',
                   currency: currencyCode,
                 }).format(value);
                 const label: string = context.label.length > 0 ? `${context.label}: ` : '';
-                return `${label}${formatted}`;
+                return `${label}${pct.toFixed(2)}% · ${formatted}`;
               },
             },
           },

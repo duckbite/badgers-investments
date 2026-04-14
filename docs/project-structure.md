@@ -36,6 +36,10 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 | `apps/web/src/lib/toast/ToastHost.svelte` | Fixed top-right viewport; mounted from `src/routes/+layout.svelte`. |
 | `apps/web/src/lib/privacy/amount-privacy-store.ts` | Session-backed **anonymize** toggle (`sessionStorage`): mask monetary values across wealth UI; PIN to reveal via `PUBLIC_AMOUNT_REVEAL_PIN` (default `1234`). |
 | `apps/web/src/lib/privacy/format-amount.ts` | `formatMaskedMoney` / `formatMaskedNumber` helpers for privacy mode. |
+| `apps/web/src/lib/formatting/instrument-display-label.ts` | `formatInstrumentDisplayLabel` — primary wealth UI label `Name (TICKER)`. |
+| `apps/web/src/lib/formatting/percent-display.ts` | `formatPortfolioAllocationPercent`, `formatUnitRateAsPercent2`, `formatNumberAsPercent2` — percentages to 2 decimals. |
+| `apps/web/src/lib/formatting/matched-lot-realised-pnl-percent.ts` | FIFO lot realised P/L as % of matched cost basis. |
+| `apps/web/src/lib/components/PnlMoneyWithArrow.svelte` | Currency P/L: **coloured arrows only**; amount (and optional `(pct%)`) use neutral text; supports privacy mask. |
 | `apps/web/src/lib/charts/register-chart-js.ts` | Tree-shaken **Chart.js** registration (pie + line controllers) for dashboard charts. |
 | `apps/web/src/lib/components/PinRevealDialog.svelte` | Modal to verify PIN before revealing amounts (DB-146). |
 | `apps/web/src/lib/components/PortfolioCharts.svelte` | Dashboard allocation pie + portfolio value line (TWR valuation series). |
