@@ -48,7 +48,26 @@ variable "dynamodb_table_arn" {
 }
 
 variable "secrets_arn" {
-  type = string
+  type        = string
+  description = "Secrets Manager secret ARN (IAM + future runtime reads). Lambda env uses the *_secret variables below so plan does not depend on the currently published JSON version."
+}
+
+variable "cookie_secret" {
+  type        = string
+  sensitive   = true
+  description = "COOKIE_SECRET for the API Lambda environment (must match Secrets Manager JSON)."
+}
+
+variable "api_ai_settings_secret" {
+  type        = string
+  sensitive   = true
+  description = "API_AI_SETTINGS_SECRET for the API Lambda environment (must match Secrets Manager JSON)."
+}
+
+variable "api_privacy_secret" {
+  type        = string
+  sensitive   = true
+  description = "API_PRIVACY_SECRET for the API Lambda environment (must match Secrets Manager JSON)."
 }
 
 variable "api_node_env" {
