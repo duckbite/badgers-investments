@@ -94,20 +94,8 @@ variable "api_node_env" {
   default     = "production"
 }
 
-variable "api_ai_model_openai" {
-  type        = string
-  description = "API_AI_MODEL_OPENAI on the Lambda (non-secret default model id)."
-  default     = "gpt-4o-mini"
-}
-
 variable "api_ai_model_anthropic" {
   type        = string
-  description = "API_AI_MODEL_ANTHROPIC on the Lambda."
+  description = "API_AI_MODEL_ANTHROPIC on the Lambda (Claude model id)."
   default     = "claude-opus-4-6"
-}
-
-variable "api_ai_model_google_gemini" {
-  type        = string
-  description = "API_AI_MODEL_GOOGLE_GEMINI on the Lambda."
-  default     = "gemini-1.5-flash"
 }

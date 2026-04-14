@@ -15,7 +15,7 @@
   type TabId = 'profile' | 'investment' | 'ai' | 'security';
 
   type AiSettingsDto = {
-    readonly provider: 'OPENAI' | 'ANTHROPIC' | 'GOOGLE_GEMINI';
+    readonly provider: 'ANTHROPIC';
     readonly modelId: string;
     readonly apiKeyMasked: string | null;
     readonly hasStoredApiKey: boolean;
@@ -27,7 +27,7 @@
   const tabs: readonly { id: TabId; label: string; description: string; Icon: typeof User }[] = [
     { id: 'profile', label: 'Profile', description: 'Personal details', Icon: User },
     { id: 'investment', label: 'Investing', description: 'Risk & preferences', Icon: Target },
-    { id: 'ai', label: 'AI', description: 'Provider & key', Icon: Sparkles },
+    { id: 'ai', label: 'AI', description: 'Claude API key', Icon: Sparkles },
     { id: 'security', label: 'Security', description: 'Password & PIN', Icon: Lock },
   ] as const;
 
@@ -77,7 +77,6 @@
   let esgPriority: string = 'MEDIUM';
   let marketsFocus: string = '';
 
-  let aiProvider: AiSettingsDto['provider'] = 'OPENAI';
   let aiKeyInput: string = '';
   let aiSettings: AiSettingsDto | undefined;
   let aiVerifyLoading: boolean = false;
@@ -198,7 +197,6 @@
       readInvestmentPrefs(prefs);
       profileHydrationKey += 1;
       aiSettings = ai;
-      aiProvider = ai.provider;
       aiKeyInput = '';
       hasAmountRevealPin = priv.hasAmountRevealPin;
     } catch (e) {
@@ -289,7 +287,7 @@
   async function saveAi(): Promise<void> {
     saving = true;
     try {
-      const body: { provider: string; apiKey?: string } = { provider: aiProvider };
+      const body: { apiKey?: string } = {};
       if (aiKeyInput.trim().length > 0) {
         body.apiKey = aiKeyInput.trim();
       }
@@ -328,10 +326,10 @@
   async function clearAiKey(): Promise<void> {
     saving = true;
     try {
-      await apiClient.executeJson<AiSettingsDto, { readonly provider: string; readonly apiKey: string }>({
+      await apiClient.executeJson<AiSettingsDto, { readonly apiKey: string }>({
         method: 'PUT',
         path: '/settings/ai',
-        body: { provider: aiProvider, apiKey: '' },
+        body: { apiKey: '' },
       });
       aiSettings = await apiClient.executeJson<AiSettingsDto>({ method: 'GET', path: '/settings/ai' });
       toast.success('Stored API key removed');
@@ -599,24 +597,13 @@
           <section
             class="rounded-2xl border border-gray-200/80 bg-white p-6 shadow-sm dark:border-border dark:bg-card sm:p-8"
           >
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-foreground">AI provider</h2>
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-foreground">Anthropic (Claude)</h2>
             <p class="mt-1 text-sm text-muted-foreground">
-              Choose a provider and paste your API key. Keys are encrypted at rest (<code class="rounded bg-muted px-1 text-xs">API_AI_SETTINGS_SECRET</code>).
-              The model is fixed per provider via server configuration (<code class="rounded bg-muted px-1 text-xs">API_AI_MODEL_*</code> in <code
-                class="rounded bg-muted px-1 text-xs">.env</code>).
+              Paste your <a class="underline hover:text-foreground" href="https://console.anthropic.com/">Anthropic API key</a>. Keys are encrypted at rest
+              (<code class="rounded bg-muted px-1 text-xs">API_AI_SETTINGS_SECRET</code>). The model id is set server-side (<code
+                class="rounded bg-muted px-1 text-xs">API_AI_MODEL_ANTHROPIC</code> in <code class="rounded bg-muted px-1 text-xs">.env</code>).
             </p>
             <div class="mt-6 space-y-4">
-              <label class="block">
-                <span class="mb-1 block text-xs font-medium uppercase tracking-wide text-muted-foreground">Provider</span>
-                <select
-                  class="w-full max-w-md rounded-lg border border-gray-300 px-3 py-2.5 text-sm dark:border-border dark:bg-background"
-                  bind:value={aiProvider}
-                >
-                  <option value="OPENAI">OpenAI</option>
-                  <option value="ANTHROPIC">Claude (Anthropic)</option>
-                  <option value="GOOGLE_GEMINI">Gemini (Google)</option>
-                </select>
-              </label>
               {#if aiSettings}
                 <div class="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3 text-sm dark:border-border dark:bg-muted/40">
                   <span class="font-medium text-foreground">Configured model</span>

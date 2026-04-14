@@ -12,7 +12,7 @@ Infrastructure-as-code for **bootstrap** (remote state), **dev** (optional Dynam
 ## Conventions
 
 - **Region:** set `aws_region` in each env’s `terraform.tfvars`.
-- **Secrets:** prod stores `COOKIE_SECRET`, `API_AI_SETTINGS_SECRET`, and `API_PRIVACY_SECRET` in Secrets Manager JSON (`secrets` module, Terraform `random_password`). The API Lambda environment is set from **module outputs** of those same values (not from a `data` read of the secret), so `terraform plan` succeeds when the secret version is about to add new JSON keys. Non-secret defaults such as `API_AI_MODEL_*` come from prod `terraform.tfvars` / variables (defaults match `.env.example`).
+- **Secrets:** prod stores `COOKIE_SECRET`, `API_AI_SETTINGS_SECRET`, and `API_PRIVACY_SECRET` in Secrets Manager JSON (`secrets` module, Terraform `random_password`). The API Lambda environment is set from **module outputs** of those same values (not from a `data` read of the secret), so `terraform plan` succeeds when the secret version is about to add new JSON keys. Non-secret defaults such as `API_AI_MODEL_ANTHROPIC` come from prod `terraform.tfvars` / variables (defaults match `.env.example`).
 
 ## Useful commands (repo root)
 

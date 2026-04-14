@@ -59,7 +59,7 @@ This SAD implements the architectural decisions captured in the ADR pack.
 - Amazon DynamoDB (managed NoSQL in prod)
 - AWS SDK for DynamoDB (application repositories; no ORM required)
 - DynamoDB-backed server sessions
-- User-configured LLM provider integration (`ai` module; supported providers per product, e.g. OpenAI, Anthropic, Google Gemini)
+- User-configured **Anthropic (Claude)** API integration (`ai` module; MVP uses a single provider; additional vendors are out of scope until explicitly extended)
 - REST JSON APIs with typed DTOs
 - Full snapshot layer from day one
 
@@ -88,10 +88,10 @@ Badgers Investments consists of:
 - a **worker runtime** for scheduled/heavy jobs,
 - **Amazon DynamoDB** for canonical and derived data,
 - AWS-managed services for secrets, scheduling, and logging,
-- a **user-configured LLM provider** (e.g. OpenAI, Anthropic, Google Gemini) for recommendation synthesis.
+- a **user-configured Anthropic (Claude) API key** for recommendation synthesis (MVP).
 
 ## 5.2 External Dependencies (MVP)
-- **LLM provider APIs** — recommendation synthesis (provider and model chosen in Settings; see `ai` module)
+- **Anthropic Messages API** — recommendation synthesis (API key in Settings; model id from server env; see `ai` module)
 - **AWS EventBridge** — scheduled job triggers
 - **AWS Secrets Manager + KMS** — secret management
 - **CloudWatch Logs** — application logs

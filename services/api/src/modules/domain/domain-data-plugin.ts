@@ -34,6 +34,9 @@ import { UserAiSettingsRepository } from '../ai/user-ai-settings-repository.js';
 import { PrivacySettingsService } from '../privacy/privacy-settings-service.js';
 import { registerPrivacySettingsRoutes } from '../privacy/register-privacy-settings-routes.js';
 import { UserPrivacySettingsRepository } from '../privacy/user-privacy-settings-repository.js';
+import { RecommendationRunRepository } from '../recommendations/recommendation-run-repository.js';
+import { RecommendationRunService } from '../recommendations/recommendation-run-service.js';
+import { registerRecommendationsRoutes } from '../recommendations/register-recommendations-routes.js';
 
 const domainDataPluginImpl: FastifyPluginAsync = async (app): Promise<void> => {
   const dynamoDbConfig = getDynamoDbConfig();
@@ -102,6 +105,21 @@ const domainDataPluginImpl: FastifyPluginAsync = async (app): Promise<void> => {
   const userAiSettingsRepository = new UserAiSettingsRepository({ documentClient, tableName });
   const aiSettingsService = new AiSettingsService({ userAiSettingsRepository });
   registerAiSettingsRoutes({ app, aiSettingsService });
+  const recommendationRunRepository = new RecommendationRunRepository({ documentClient, tableName });
+  const recommendationRunService = new RecommendationRunService({
+    portfolioService,
+    portfolioConfigService,
+    assetRepository,
+    transactionRepository,
+    portfolioSnapshotRepository,
+    positionSnapshotRepository,
+    performanceSnapshotRepository,
+    priceSnapshotRepository,
+    snapshotRebuildService,
+    recommendationRunRepository,
+    userAiSettingsRepository,
+  });
+  registerRecommendationsRoutes({ app, recommendationRunService });
   const userPrivacySettingsRepository = new UserPrivacySettingsRepository({ documentClient, tableName });
   const privacySettingsService = new PrivacySettingsService({ userPrivacySettingsRepository });
   registerPrivacySettingsRoutes({ app, privacySettingsService });

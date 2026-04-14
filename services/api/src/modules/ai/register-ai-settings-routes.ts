@@ -2,14 +2,12 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { buildValidationErrorBody } from '../domain/domain-error-bodies.js';
 import { AiSettingsService, AiSettingsServiceError } from './ai-settings-service.js';
 
-const providerSchema = { type: 'string', enum: ['OPENAI', 'ANTHROPIC', 'GOOGLE_GEMINI', 'CLAUDE', 'GEMINI', 'GOOGLE'] } as const;
-
 const publicDtoSchema = {
   type: 'object',
   additionalProperties: false,
   required: ['provider', 'modelId', 'apiKeyMasked', 'hasStoredApiKey', 'lastVerifyOk', 'lastVerifiedAt', 'updatedAt'],
   properties: {
-    provider: { type: 'string', enum: ['OPENAI', 'ANTHROPIC', 'GOOGLE_GEMINI'] },
+    provider: { type: 'string', enum: ['ANTHROPIC'] },
     modelId: { type: 'string' },
     apiKeyMasked: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     hasStoredApiKey: { type: 'boolean' },
@@ -22,9 +20,7 @@ const publicDtoSchema = {
 const putBodySchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['provider'],
   properties: {
-    provider: providerSchema,
     apiKey: { type: 'string', maxLength: 8192 },
   },
 } as const;
@@ -67,12 +63,11 @@ export function registerAiSettingsRoutes(input: { readonly app: FastifyInstance;
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const userId: string = request.authUser?.userId ?? '';
-      const body = request.body as { readonly provider: string; readonly apiKey?: string };
+      const body = request.body as { readonly apiKey?: string };
       try {
         return await input.aiSettingsService.putForUser({
           userId,
           body: {
-            provider: body.provider as 'OPENAI' | 'ANTHROPIC' | 'GOOGLE_GEMINI',
             ...(body.apiKey === undefined ? {} : { apiKey: body.apiKey }),
           },
           now: new Date(),
