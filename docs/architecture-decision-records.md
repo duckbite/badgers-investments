@@ -14,7 +14,7 @@ This pack contains the initial Architecture Decision Records (ADRs) for the MVP.
 - ADR-006 — Passwordless Email OTP Authentication via AWS SES
 - ADR-011 — Username/Password Authentication (Supersedes ADR-006)
 - ADR-007 — DynamoDB-Backed Cookie Session Strategy
-- ADR-008 — OpenAI-First Recommendation Integration and Validation Pipeline
+- ADR-008 — User-Configured LLM Recommendation Integration and Validation Pipeline
 - ADR-009 — API Style and Frontend Integration (REST JSON + Typed DTOs)
 - ADR-010 — Charting and Observability Baseline (Chart.js + CloudWatch Logs)
 
@@ -215,13 +215,13 @@ Implement the following orchestration flow:
 6. Compute deterministic scores and baseline actions
 7. Compute stable `analytics_input_hash`
 8. Deduplicate same-input runs
-9. Invoke OpenAI
+9. Invoke configured LLM provider
 10. Validate AI output
 11. Persist run + findings + items
 12. Return result
 
-### AI Policy
-AI is assumed available and is the primary recommendation synthesis path.
+### AI / LLM policy
+When AI is included in a run, the **user-configured LLM** is the primary synthesis path (see `ai` module). Deterministic rules and scores remain authoritative.
 
 ### Deterministic Score Policy
 Deterministic scores are source of truth.
@@ -328,25 +328,24 @@ Use **server-side sessions stored in Amazon DynamoDB**, with an opaque session I
 
 ---
 
-## ADR-008 — OpenAI-First Recommendation Integration and Validation Pipeline
-- **Status:** Accepted
+## ADR-008 — User-Configured LLM Recommendation Integration and Validation Pipeline
+- **Status:** Accepted (amended 2026-04-14: model-agnostic, user-configured provider)
 - **Date:** 2026-02-23
 
 ### Context
-You chose:
-- OpenAI first
-- KISS
-- prompt versions in code
-- no provider abstraction yet
+Recommendation synthesis uses an external LLM. The product uses a **user-configured provider and model** (e.g. OpenAI, Anthropic, Google Gemini), not a single hard-coded vendor.
 
 ### Decision
-Implement a direct **OpenAI integration** in backend `ai` module for MVP.
+Implement LLM integration in backend **`ai` module** with:
+- **Provider selection and API keys** stored per user (see Settings / FR-SET-*)
+- **Model id** resolved from user settings and/or deployment defaults (`API_AI_MODEL_*` env per provider family where applicable)
+- **Small provider-specific adapters** (HTTP/SDK) behind a consistent “synthesis request” contract
 
 ### Rules
-- Prompt templates/version IDs live in code
-- Deterministic analytics/rules/scoring run before AI call
-- AI output must be strict JSON (or parseable to expected JSON)
-- Backend validates AI output before persistence/use
+- Prompt templates/version IDs live in code (provider-agnostic prompt contract to the model)
+- Deterministic analytics/rules/scoring run before LLM call
+- LLM output must be strict JSON (or parseable to expected JSON)
+- Backend validates output before persistence/use
 
 ### Validation (minimum)
 - parseable JSON
@@ -356,9 +355,9 @@ Implement a direct **OpenAI integration** in backend `ai` module for MVP.
 - deterministic scores remain authoritative
 
 ### Rationale
-- Fastest delivery
-- Lowest abstraction overhead
-- Still replaceable later because integration is confined to one module
+- Matches user-owned keys and model choice
+- Keeps validation and orchestration in one module
+- Adding a provider means extending `ai`, not scattering HTTP calls
 
 ---
 
@@ -493,4 +492,4 @@ No full audit table is required for MVP by current decision. Keep lightweight mu
 - Broker sync architecture
 - Auto-trading execution architecture
 - Staging environment topology
-- AI provider abstraction layer
+- Additional LLM providers beyond the supported MVP set
