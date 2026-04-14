@@ -1,6 +1,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 
-const AES_ALGO: string = 'aes-256-gcm';
+/** Literal algorithm so `createCipheriv` resolves to the GCM overload (`authTagLength` allowed). */
+const AES_ALGO = 'aes-256-gcm' as const;
 const IV_LENGTH: number = 12;
 const AUTH_TAG_LENGTH: number = 16;
 
