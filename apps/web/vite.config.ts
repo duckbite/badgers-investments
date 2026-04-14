@@ -13,11 +13,13 @@ export default defineConfig(({ mode }) => {
   const apiPort: string = env.API_PORT?.trim() || '3000';
   const publicApiBaseUrl: string =
     env.PUBLIC_API_BASE_URL?.trim() || `http://localhost:${apiPort}`;
+  const publicGoogleMapsKey: string = env.PUBLIC_GOOGLE_MAPS_API_KEY?.trim() ?? '';
 
   return {
     envDir: repoRoot,
     define: {
       'import.meta.env.PUBLIC_API_BASE_URL': JSON.stringify(publicApiBaseUrl),
+      'import.meta.env.PUBLIC_GOOGLE_MAPS_API_KEY': JSON.stringify(publicGoogleMapsKey),
     },
     plugins: [tailwindcss(), sveltekit()],
     server: { port },

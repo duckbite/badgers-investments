@@ -48,6 +48,24 @@ export class UserAccountRepository {
     return { userId, username, passwordHash, isActive: active };
   }
 
+  public async updatePasswordHash(input: { readonly username: string; readonly passwordHash: string; readonly updatedAtIso: string }): Promise<void> {
+    const usernameNormalized: string = normalizeUsername({ rawUsername: input.username });
+    await this.documentClient.send(
+      new UpdateCommand({
+        TableName: this.tableName,
+        Key: {
+          [PARTITION_KEY]: buildUserAccountPartitionKey({ usernameNormalized }),
+          [SORT_KEY]: getMetaSortKey(),
+        },
+        UpdateExpression: 'SET passwordHash = :passwordHash, updatedAt = :updatedAt',
+        ExpressionAttributeValues: {
+          ':passwordHash': input.passwordHash,
+          ':updatedAt': input.updatedAtIso,
+        },
+      }),
+    );
+  }
+
   public async touchLastLoginAt(input: { readonly username: string; readonly atIso: string }): Promise<void> {
     const usernameNormalized: string = normalizeUsername({ rawUsername: input.username });
     await this.documentClient.send(

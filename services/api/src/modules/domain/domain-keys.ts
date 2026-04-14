@@ -73,3 +73,9 @@ export function buildPortfolioConfigVersionSortKeyPrefix(): string {
 }
 
 export const SNAPSHOT_STATE_SORT_KEY: string = 'SNAPSHOT_STATE';
+
+/** Per-user AI provider credentials for recommendation runs (encrypted at rest). */
+export const USER_SETTINGS_AI_SORT_KEY: string = 'USER_SETTINGS#AI';
+
+/** Per-user privacy settings (e.g. amount-reveal PIN hash). */
+export const USER_SETTINGS_PRIVACY_SORT_KEY: string = 'USER_SETTINGS#PRIVACY';

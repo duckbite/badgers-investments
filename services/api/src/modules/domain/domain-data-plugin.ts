@@ -28,6 +28,12 @@ import { SnapshotStateRepository } from '../snapshots/snapshot-state-repository.
 import { PriceSnapshotRepository } from '../valuations/price-snapshot-repository.js';
 import { PriceSnapshotService } from '../valuations/price-snapshot-service.js';
 import { registerValuationsRoutes } from '../valuations/register-valuations-routes.js';
+import { AiSettingsService } from '../ai/ai-settings-service.js';
+import { registerAiSettingsRoutes } from '../ai/register-ai-settings-routes.js';
+import { UserAiSettingsRepository } from '../ai/user-ai-settings-repository.js';
+import { PrivacySettingsService } from '../privacy/privacy-settings-service.js';
+import { registerPrivacySettingsRoutes } from '../privacy/register-privacy-settings-routes.js';
+import { UserPrivacySettingsRepository } from '../privacy/user-privacy-settings-repository.js';
 
 const domainDataPluginImpl: FastifyPluginAsync = async (app): Promise<void> => {
   const dynamoDbConfig = getDynamoDbConfig();
@@ -93,6 +99,12 @@ const domainDataPluginImpl: FastifyPluginAsync = async (app): Promise<void> => {
     positionSnapshotRepository,
   });
   registerPerformanceRoutes({ app, performanceSnapshotRepository, portfolioService });
+  const userAiSettingsRepository = new UserAiSettingsRepository({ documentClient, tableName });
+  const aiSettingsService = new AiSettingsService({ userAiSettingsRepository });
+  registerAiSettingsRoutes({ app, aiSettingsService });
+  const userPrivacySettingsRepository = new UserPrivacySettingsRepository({ documentClient, tableName });
+  const privacySettingsService = new PrivacySettingsService({ userPrivacySettingsRepository });
+  registerPrivacySettingsRoutes({ app, privacySettingsService });
 };
 
 export const domainDataPlugin = fp(domainDataPluginImpl, {

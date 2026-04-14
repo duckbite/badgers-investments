@@ -37,13 +37,6 @@ function createAmountPrivacyStore() {
       set(false);
       persistMasked({ masked: false });
     },
-    getExpectedPin(): string {
-      const fromEnv: string | undefined = import.meta.env.PUBLIC_AMOUNT_REVEAL_PIN?.trim();
-      if (fromEnv !== undefined && fromEnv.length > 0) {
-        return fromEnv;
-      }
-      return '1234';
-    },
   };
 }
 
