@@ -7,8 +7,11 @@
   import { apiClient } from '$lib/api/api-client-instance';
   import { toast } from '$lib/toast/toast';
   import PortfolioCharts from '$lib/components/PortfolioCharts.svelte';
+  import PnlMoneyWithArrow from '$lib/components/PnlMoneyWithArrow.svelte';
   import { amountPrivacy } from '$lib/privacy/amount-privacy-store';
   import { formatMaskedMoney } from '$lib/privacy/format-amount';
+  import { formatInstrumentDisplayLabel } from '$lib/formatting/instrument-display-label';
+  import { formatNumberAsPercent2, formatPortfolioAllocationPercent } from '$lib/formatting/percent-display';
 
   type PortfolioDto = {
     readonly portfolioId: string;
@@ -65,11 +68,18 @@
   $: masked = $amountPrivacy;
 
   $: sortedTop = [...positions]
-    .map((p) => ({
-      ...p,
-      mv: Number.parseFloat(p.marketValueAmount),
-      label: assetById.get(p.assetId)?.symbol ?? p.assetId.slice(0, 8),
-    }))
+    .map((p) => {
+      const a = assetById.get(p.assetId);
+      return {
+        ...p,
+        mv: Number.parseFloat(p.marketValueAmount),
+        label: formatInstrumentDisplayLabel({
+          name: a?.name ?? '',
+          symbol: a?.symbol ?? '',
+          fallbackId: p.assetId.slice(0, 8),
+        }),
+      };
+    })
     .filter((p) => Number.isFinite(p.mv) && p.mv > 0)
     .sort((a, b) => b.mv - a.mv)
     .slice(0, 5);
@@ -84,7 +94,13 @@
       const sector: string = assetById.get(p.assetId)?.sector?.trim() || 'Unspecified';
       map.set(sector, (map.get(sector) ?? 0) + mv);
     }
-    return [...map.entries()].sort((a, b) => b[1] - a[1]);
+    const entries: readonly [string, number][] = [...map.entries()].sort((a, b) => b[1] - a[1]);
+    const total: number = entries.reduce((s, [, v]) => s + v, 0);
+    return entries.map(([sector, mv]) => ({
+      sector,
+      mv,
+      pct: total > 0 ? (mv / total) * 100 : 0,
+    }));
   })();
 
   $: pieLabels = sortedTop.map((p) => p.label);
@@ -177,13 +193,13 @@
       <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-border dark:bg-card">
         <div class="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-muted-foreground">Unrealised P/L</div>
         <div class="mt-1 text-xl font-semibold text-gray-900 dark:text-foreground">
-          {formatMaskedMoney({ masked, decimalString: portfolioSnap.totalUnrealisedPnlAmount, currencyCode: base })}
+          <PnlMoneyWithArrow masked={masked} decimalString={portfolioSnap.totalUnrealisedPnlAmount} currencyCode={base} />
         </div>
       </div>
       <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-border dark:bg-card">
         <div class="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-muted-foreground">Realised P/L (cumulative)</div>
         <div class="mt-1 text-xl font-semibold text-gray-900 dark:text-foreground">
-          {formatMaskedMoney({ masked, decimalString: portfolioSnap.totalRealisedPnlAmount, currencyCode: base })}
+          <PnlMoneyWithArrow masked={masked} decimalString={portfolioSnap.totalRealisedPnlAmount} currencyCode={base} />
         </div>
       </div>
       <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-border dark:bg-card">
@@ -208,12 +224,12 @@
           {#each sortedTop as row (row.assetId)}
             <li class="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
               <a class="font-medium text-emerald-700 hover:underline dark:text-emerald-400" href={`/assets/${row.assetId}`}>
-                {assetById.get(row.assetId)?.symbol ?? row.assetId}
+                {row.label}
               </a>
               <span class="text-gray-700 dark:text-muted-foreground">
                 {formatMaskedMoney({ masked, decimalString: row.marketValueAmount, currencyCode: base })}
                 {#if row.allocationPct}
-                  <span class="text-gray-500"> · {row.allocationPct}%</span>
+                  <span class="text-gray-500"> · {formatPortfolioAllocationPercent(row.allocationPct)}</span>
                 {/if}
               </span>
             </li>
@@ -226,11 +242,13 @@
           <p class="mt-2 text-sm text-gray-600 dark:text-muted-foreground">No sector tags on assets yet.</p>
         {:else}
           <ul class="mt-3 space-y-2 text-sm">
-            {#each sectorAlloc as [sector, mv] (sector)}
+            {#each sectorAlloc as row (row.sector)}
               <li class="flex justify-between gap-2">
-                <span class="text-gray-800 dark:text-foreground">{sector}</span>
-                <span class="text-gray-600 dark:text-muted-foreground">
-                  {formatMaskedMoney({ masked, decimalString: String(mv), currencyCode: base })}
+                <span class="text-gray-800 dark:text-foreground">{row.sector}</span>
+                <span class="text-right text-gray-600 dark:text-muted-foreground">
+                  <span class="font-medium text-gray-800 dark:text-foreground">{formatNumberAsPercent2(row.pct)}</span>
+                  <span class="mx-1 text-gray-400 dark:text-muted-foreground">·</span>
+                  {formatMaskedMoney({ masked, decimalString: String(row.mv), currencyCode: base })}
                 </span>
               </li>
             {/each}

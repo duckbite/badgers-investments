@@ -8,6 +8,9 @@
   import { toast } from '$lib/toast/toast';
   import { amountPrivacy } from '$lib/privacy/amount-privacy-store';
   import { formatMaskedMoney, formatMaskedNumber } from '$lib/privacy/format-amount';
+  import { formatInstrumentDisplayLabel } from '$lib/formatting/instrument-display-label';
+  import { formatPortfolioAllocationPercent } from '$lib/formatting/percent-display';
+  import PnlMoneyWithArrow from '$lib/components/PnlMoneyWithArrow.svelte';
 
   type AssetDto = {
     readonly assetId: string;
@@ -77,17 +80,6 @@
   onMount(() => {
     void load();
   });
-
-  function formatPct(raw: string | null): string {
-    if (raw === null) {
-      return '—';
-    }
-    const n: number = Number.parseFloat(raw);
-    if (!Number.isFinite(n)) {
-      return raw;
-    }
-    return `${n.toFixed(2)}%`;
-  }
 </script>
 
 <section class="space-y-4">
@@ -154,9 +146,8 @@
               <tr class="border-b border-gray-100 dark:border-border">
                 <td class="px-3 py-2">
                   <a class="font-medium text-emerald-700 hover:underline dark:text-emerald-400" href={`/assets/${asset.assetId}`}>
-                    {asset.symbol}
+                    {formatInstrumentDisplayLabel({ name: asset.name, symbol: asset.symbol, fallbackId: asset.assetId })}
                   </a>
-                  <div class="text-xs text-gray-500 dark:text-muted-foreground">{asset.name}</div>
                 </td>
                 <td class="px-3 py-2 text-gray-700 dark:text-muted-foreground">{asset.sector ?? '—'}</td>
                 <td class="px-3 py-2 text-gray-800 dark:text-foreground">
@@ -176,9 +167,9 @@
                   {formatMaskedMoney({ masked, decimalString: pos.marketValueAmount, currencyCode: base })}
                 </td>
                 <td class="px-3 py-2 text-gray-700 dark:text-muted-foreground">
-                  {formatMaskedMoney({ masked, decimalString: pos.unrealisedPnlAmount, currencyCode: base })}
+                  <PnlMoneyWithArrow masked={masked} decimalString={pos.unrealisedPnlAmount} currencyCode={base} />
                 </td>
-                <td class="px-3 py-2 text-gray-600 dark:text-muted-foreground">{formatPct(pos.allocationPct)}</td>
+                <td class="px-3 py-2 text-gray-600 dark:text-muted-foreground">{formatPortfolioAllocationPercent(pos.allocationPct)}</td>
               </tr>
             {/if}
           {/each}

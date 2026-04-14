@@ -8,6 +8,7 @@
   import { toast } from '$lib/toast/toast';
   import { amountPrivacy } from '$lib/privacy/amount-privacy-store';
   import { formatMaskedMoney } from '$lib/privacy/format-amount';
+  import { formatUnitRateAsPercent2 } from '$lib/formatting/percent-display';
 
   type TwrRow = {
     readonly periodDate: string;
@@ -51,13 +52,6 @@
     void load();
   });
 
-  function formatPct(raw: string): string {
-    const n: number = Number.parseFloat(raw);
-    if (!Number.isFinite(n)) {
-      return raw;
-    }
-    return `${(n * 100).toFixed(2)}%`;
-  }
 </script>
 
 <section class="space-y-3">
@@ -120,8 +114,8 @@
           {#each rows as row (row.periodDate)}
             <tr class="border-b border-gray-100 dark:border-border">
               <td class="px-3 py-2 text-gray-800 dark:text-foreground">{row.periodDate}</td>
-              <td class="px-3 py-2 text-gray-700 dark:text-muted-foreground">{formatPct(row.subperiodReturn)}</td>
-              <td class="px-3 py-2 text-gray-800 dark:text-foreground">{formatPct(row.cumulativeTwrReturn)}</td>
+              <td class="px-3 py-2 text-gray-700 dark:text-muted-foreground">{formatUnitRateAsPercent2(row.subperiodReturn)}</td>
+              <td class="px-3 py-2 text-gray-800 dark:text-foreground">{formatUnitRateAsPercent2(row.cumulativeTwrReturn)}</td>
               <td class="px-3 py-2 text-gray-700 dark:text-muted-foreground">
                 {formatMaskedMoney({ masked, decimalString: row.valuationEndAmount, currencyCode: baseCurrencyCode })}
               </td>
