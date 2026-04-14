@@ -21,7 +21,7 @@ The MVP covers:
 
 ## 2.2 External Systems (Supporting Actors)
 - **Market Data Provider** (prices, optionally FX)
-- **AI Provider** (OpenAI via user-supplied API key)
+- **AI / LLM Provider** (user-supplied API key; supported providers per product, e.g. OpenAI, Anthropic, Google Gemini)
 - **Time/Job Scheduler** (optional for background refreshes, if implemented in MVP)
 
 ---
@@ -302,7 +302,7 @@ at portfolio level and/or asset level.
 Each recommendation item shall include a human-readable rationale.
 
 ### FR-REC-006 — AI Provider Integration
-The system shall support AI-assisted synthesis using OpenAI via user-supplied API key and a provider abstraction layer.
+The system shall support AI-assisted synthesis using the **user-configured** LLM provider and model (supported set defined in product/settings), with provider-specific wiring encapsulated in the backend `ai` module.
 
 ### FR-REC-007 — AI Output Validation
 The system shall validate AI outputs (e.g., JSON schema/enums) before storing/displaying them.
@@ -363,8 +363,8 @@ The system shall provide a basic UI or admin page to inspect recent audit/activi
 
 ## 4.12 Settings and Provider Configuration
 
-### FR-SET-001 — OpenAI API Key Storage
-The system shall allow the user to store an OpenAI API key securely for recommendation generation.
+### FR-SET-001 — LLM API Key Storage
+The system shall allow the user to store an API key securely for the selected LLM provider (recommendation generation).
 
 ### FR-SET-002 — AI Model Selection
 The system shall allow selecting a supported AI model (from configured/allowed options).

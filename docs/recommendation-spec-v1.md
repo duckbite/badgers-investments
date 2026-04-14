@@ -19,7 +19,7 @@ This spec is implementation-focused and aligned to the MVP constraints:
 - ledger-first portfolio model
 - TWR (daily method)
 - explicit **BUY / SELL / HOLD** recommendations
-- AI-assisted output using OpenAI via a direct backend integration; a general provider abstraction is deferred beyond the MVP
+- AI-assisted output via the **`ai` module**, using the **user-configured LLM provider and model** (supported providers product-defined, e.g. OpenAI, Anthropic, Google Gemini); validation and orchestration stay provider-agnostic at the contract level
 
 ---
 

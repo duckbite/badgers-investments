@@ -159,8 +159,7 @@ Log:
 - Settings changes
 
 ### 11) Settings and API Keys
-- OpenAI API key (secure storage)
-- AI model selection
+- LLM provider selection, API key(s), and model (secure storage; user-configured)
 - Base currency
 - Provider settings (if needed)
 
@@ -169,7 +168,7 @@ Log:
 ### First-Time Setup
 1. Open app
 2. Log in / initial credentials
-3. Configure base currency, risk config, OpenAI key
+3. Configure base currency, risk config, LLM provider and API key
 4. Add assets and transactions
 5. Refresh prices
 6. View dashboard
@@ -241,7 +240,7 @@ Log:
 - **Front-end:** Svelte SPA application
 - **Backend:** Fastify-based Node.js REST API (separate from the frontend)
 - **Database:** Amazon DynamoDB
-- **Integrations:** OpenAI API + at least one market data provider
+- **Integrations:** User-configured LLM API (e.g. OpenAI, Anthropic, Google Gemini) + at least one market data provider
 
 ## Error Handling
 - User-readable, actionable errors

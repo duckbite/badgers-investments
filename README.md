@@ -11,7 +11,7 @@ A single-user investment monitoring and recommendation web app. Track holdings f
 - **Ledger-first:** Positions are derived from transactions; you never edit position totals directly.
 - **Wealth view:** Dashboard with total value, allocation, P/L, and charts (allocation, portfolio value over time).
 - **Performance:** Time-weighted return (TWR, daily method) with selectable ranges.
-- **Recommendations:** Manual run produces BUY/SELL/HOLD (and optional WATCH) with rationale; rules + OpenAI, with deterministic fallback if AI fails.
+- **Recommendations:** Manual run produces BUY/SELL/HOLD (and optional WATCH) with rationale; rules + user-configured LLM (e.g. OpenAI, Anthropic, Gemini), with deterministic fallback if AI fails.
 - **Auth:** Username + password (stored hashed) and DynamoDB-backed sessions.
 
 ---
@@ -22,7 +22,7 @@ A single-user investment monitoring and recommendation web app. Track holdings f
 - **Backend:** Fastify (Node.js/TypeScript) REST API
 - **Database:** Amazon DynamoDB (AWS SDK v3)
 - **Auth:** Username + password (hashed); DynamoDB-backed cookie sessions
-- **Recommendations:** OpenAI (direct integration); rules engine + deduplication
+- **Recommendations:** User-configured LLM provider (`ai` module); rules engine + deduplication
 - **Deployment:** Local dev against cloud DynamoDB; production on AWS (S3 + CloudFront for static web, API Gateway HTTP API + Lambda for API, scheduled Lambda worker, DynamoDB, Secrets Manager, CloudWatch)
 
 ---
@@ -63,7 +63,7 @@ pnpm install
 
 ### 2. Environment
 
-Copy the root env template and set **DynamoDB** table name, region, API port, and (when needed) `OPENAI_KEY`.
+Copy the root env template and set **DynamoDB** table name, region, API port, and (when needed) LLM-related env (e.g. legacy `OPENAI_KEY` and/or per-user keys via Settings—see `.env.example`).
 
 All env variables live at the repo root (no per-service `.env` files).
 
@@ -82,7 +82,7 @@ Optional:
 - `API_DYNAMODB_ENDPOINT` — custom endpoint only (e.g. LocalStack). Omit for real DynamoDB.
 - `WEB_PORT` — Vite dev server port (default `5173` if unset). Set `CORS_ORIGIN` to `http://localhost:<WEB_PORT>` when you use an explicit CORS allowlist and change the port.
 - `CORS_ORIGIN` — browser origin for the web app (e.g. `http://localhost:5173`, matching `WEB_PORT`). Set this when the UI and API run on different origins so `fetch` with cookies (`credentials: 'include'`) and `Set-Cookie` work for login.
-- `OPENAI_KEY` — when the recommendations module is enabled.
+- `OPENAI_KEY` — optional legacy global key for recommendations when per-user AI settings are not used; prefer **Settings → AI** (encrypted per-user keys) when `API_AI_SETTINGS_SECRET` is configured.
 
 ### 3. DynamoDB (dev table)
 
@@ -168,7 +168,7 @@ Ensure AWS credentials allow `dynamodb:DescribeTable` (and other actions your ro
 ## Testing
 
 - **Unit tests:** Financial logic (FIFO, TWR, rules, scoring) and domain services.
-- **Integration tests:** API paths, auth (DynamoDB mocked in-process), recommendation run (mocked OpenAI), where implemented.
+- **Integration tests:** API paths, auth (DynamoDB mocked in-process), recommendation run (mocked LLM provider), where implemented.
 - **Insomnia:** After-response tests and cookie session flow — import **`insomnia/collections/badgers-api.yaml`** (see **`insomnia/README.md`**).
 
 From the repo root:

@@ -59,7 +59,7 @@ This SAD implements the architectural decisions captured in the ADR pack.
 - Amazon DynamoDB (managed NoSQL in prod)
 - AWS SDK for DynamoDB (application repositories; no ORM required)
 - DynamoDB-backed server sessions
-- OpenAI integration (KISS, direct module)
+- User-configured LLM provider integration (`ai` module; supported providers per product, e.g. OpenAI, Anthropic, Google Gemini)
 - REST JSON APIs with typed DTOs
 - Full snapshot layer from day one
 
@@ -69,7 +69,6 @@ This SAD implements the architectural decisions captured in the ADR pack.
 - Multi-user tenancy
 - Staging environment (initial release)
 - Full audit subsystem
-- AI provider abstraction layer (MVP)
 
 ## 4.3 Key Assumptions
 - AI model availability is assumed for recommendation runs
@@ -89,10 +88,10 @@ Badgers Investments consists of:
 - a **worker runtime** for scheduled/heavy jobs,
 - **Amazon DynamoDB** for canonical and derived data,
 - AWS-managed services for secrets, scheduling, and logging,
-- **OpenAI** for recommendation synthesis.
+- a **user-configured LLM provider** (e.g. OpenAI, Anthropic, Google Gemini) for recommendation synthesis.
 
 ## 5.2 External Dependencies (MVP)
-- **OpenAI API** — recommendation synthesis
+- **LLM provider APIs** — recommendation synthesis (provider and model chosen in Settings; see `ai` module)
 - **AWS EventBridge** — scheduled job triggers
 - **AWS Secrets Manager + KMS** — secret management
 - **CloudWatch Logs** — application logs
@@ -139,7 +138,7 @@ Responsibilities:
 - Persist canonical data and snapshots
 - Orchestrate recommendation runs (interactive path)
 - Trigger/coordinate rebuilds and jobs
-- Integrate with OpenAI
+- Integrate with the user’s configured LLM provider for AI-assisted recommendation synthesis
 
 ### Worker (Node.js / shared domain code)
 Responsibilities:
@@ -161,9 +160,9 @@ Responsibilities:
 - **Secrets Manager + KMS:** secrets and encryption keys
 - **CloudWatch Logs:** centralised logging for API and worker
 
-### OpenAI
+### LLM providers (user-configured)
 Responsibilities:
-- Synthesize recommendation narrative/outputs from deterministic analytics payload and rule findings
+- Synthesize recommendation narrative/outputs from deterministic analytics payload and rule findings, using the provider and model stored in user AI settings
 
 ---
 
@@ -200,7 +199,7 @@ Responsibilities:
    - deterministic recommendation rules
    - deterministic scoring
 11. **ai**
-   - OpenAI client wrapper
+   - call user-configured LLM provider (supported set defined in product/code)
    - prompt templates/versioning (code)
    - response validation adapter
 12. **jobs**
@@ -437,7 +436,7 @@ On canonical-data mutation:
 6. Compute deterministic scores + baseline actions
 7. Compute `analytics_input_hash`
 8. Deduplicate same-input runs
-9. Invoke OpenAI
+9. Invoke configured LLM provider
 10. Validate AI output
 11. Persist run + findings + items
 12. Return result
@@ -453,11 +452,11 @@ If an equivalent run exists:
 - return existing result, or
 - return in-progress status/reference
 
-## 15.4 OpenAI Integration (MVP)
-- Direct OpenAI client integration in `ai` module
-- Prompt templates/version IDs in code
+## 15.4 LLM integration (MVP)
+- User-selected provider and model via Settings (`ai` module; persisted per user where implemented)
+- Prompt templates/version IDs in code (provider-agnostic contract to the model)
 - Strict response validation before persistence
-- AI assumed available for normal recommendation operation
+- AI assumed available for normal recommendation operation when credentials and provider verification succeed
 
 ---
 
@@ -505,7 +504,7 @@ If an equivalent run exists:
 - Public access terminates at HTTPS load balancer
 - Frontend and backend accessible over HTTPS
 - Backend and worker access DynamoDB via AWS APIs (IAM-scoped)
-- OpenAI called outbound from API/worker tasks
+- Configured LLM provider called outbound from API/worker tasks
 
 ## 17.3 Environment Strategy
 ### MVP Release
@@ -623,7 +622,7 @@ This SAD adopts the username/password authentication model and supersedes earlie
 - No session creation without successful credential verification
 - Log attempt outcome (sanitised; no credential data)
 
-## 21.2 OpenAI Failure / Invalid Output
+## 21.2 LLM provider failure / invalid output
 - Recommendation run returns explicit failure/partial status
 - Run metadata should still be persisted where practical for debugging
 - Deterministic analytics and scores remain available internally (implementation may choose whether to surface partial output)
@@ -660,7 +659,7 @@ This SAD adopts the username/password authentication model and supersedes earlie
   - rules, scoring, TWR, FIFO matching, hash canonicalisation
 - **Integration tests**
   - API + DynamoDB (AWS SDK)
-  - recommendation orchestration path with mocked OpenAI
+  - recommendation orchestration path with mocked LLM provider
   - auth login + session flow
 - **Regression fixtures**
   - known portfolios and expected P/L/TWR outputs
@@ -677,7 +676,7 @@ This SAD adopts the username/password authentication model and supersedes earlie
 - Broker sync import architecture
 - Auto-trading execution subsystem and guardrails
 - Staging environment topology
-- AI provider abstraction layer
+- Additional LLM providers beyond the supported MVP set (extend `ai` module adapters)
 
 ## 23.2 Expected Evolution Paths
 - Add provider adapters while preserving manual entry paths
@@ -698,7 +697,7 @@ This SAD implements the following accepted ADRs:
 - **ADR-006** Passwordless email OTP via SES (superseded)
 - **ADR-011** Username/password authentication (superseding ADR-006)
 - **ADR-007** DynamoDB-backed cookie sessions
-- **ADR-008** OpenAI-first integration
+- **ADR-008** User-configured LLM integration and validation pipeline
 - **ADR-009** REST JSON + typed DTOs
 - **ADR-010** Chart.js + CloudWatch logging
 
