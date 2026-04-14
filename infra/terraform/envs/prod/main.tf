@@ -52,18 +52,21 @@ module "static_site" {
 }
 
 module "api_lambda" {
-  source              = "../../modules/api_lambda"
-  name_prefix         = "${var.project_name}-${var.environment}"
-  tags                = local.tags
-  aws_region          = var.aws_region
-  api_domain          = var.api_domain
-  api_node_env        = var.api_node_env
-  cors_allow_origin   = "https://${var.web_domain}"
-  route53_zone_id     = module.public_dns_zone.zone_id
-  manage_dns_records  = true
-  dynamodb_table_name = module.app_dynamodb.table_name
-  dynamodb_table_arn  = module.app_dynamodb.table_arn
-  secrets_arn         = module.secrets.app_secret_arn
+  source                     = "../../modules/api_lambda"
+  name_prefix                = "${var.project_name}-${var.environment}"
+  tags                       = local.tags
+  aws_region                 = var.aws_region
+  api_domain                 = var.api_domain
+  api_node_env               = var.api_node_env
+  api_ai_model_openai        = var.api_ai_model_openai
+  api_ai_model_anthropic     = var.api_ai_model_anthropic
+  api_ai_model_google_gemini = var.api_ai_model_google_gemini
+  cors_allow_origin          = "https://${var.web_domain}"
+  route53_zone_id            = module.public_dns_zone.zone_id
+  manage_dns_records         = true
+  dynamodb_table_name        = module.app_dynamodb.table_name
+  dynamodb_table_arn         = module.app_dynamodb.table_arn
+  secrets_arn                = module.secrets.app_secret_arn
 }
 
 module "worker_lambda" {

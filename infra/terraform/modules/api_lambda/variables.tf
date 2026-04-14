@@ -56,3 +56,21 @@ variable "api_node_env" {
   description = "Effective API runtime mode for the Lambda (see services/api getApiNodeEnvironment). Sets API_NODE_ENV and NODE_ENV. Use production for deployed stacks; override for a non-prod API in AWS (e.g. staging) if needed."
   default     = "production"
 }
+
+variable "api_ai_model_openai" {
+  type        = string
+  description = "Default OpenAI model id for the API (API_AI_MODEL_OPENAI)."
+  default     = "gpt-4o-mini"
+}
+
+variable "api_ai_model_anthropic" {
+  type        = string
+  description = "Default Anthropic model id for the API (API_AI_MODEL_ANTHROPIC)."
+  default     = "claude-3-5-haiku-20241022"
+}
+
+variable "api_ai_model_google_gemini" {
+  type        = string
+  description = "Default Google Gemini model id for the API (API_AI_MODEL_GOOGLE_GEMINI)."
+  default     = "gemini-1.5-flash"
+}

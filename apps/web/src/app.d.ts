@@ -5,6 +5,7 @@
 declare global {
   interface ImportMetaEnv {
     readonly PUBLIC_API_BASE_URL?: string;
+    readonly PUBLIC_AMOUNT_REVEAL_PIN?: string;
     /** Browser Maps JS key (Places). Restrict by HTTP referrer in Google Cloud. */
     readonly PUBLIC_GOOGLE_MAPS_API_KEY?: string;
   }
