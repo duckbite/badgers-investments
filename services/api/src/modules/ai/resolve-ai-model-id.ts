@@ -1,23 +1,13 @@
-import type { AiProviderKind } from './verify-ai-provider-connection.js';
-
-const FALLBACK: Readonly<Record<AiProviderKind, string>> = {
-  OPENAI: 'gpt-4o-mini',
-  ANTHROPIC: 'claude-3-5-haiku-20241022',
-  GOOGLE_GEMINI: 'gemini-1.5-flash',
-};
+const FALLBACK_ANTHROPIC: string = 'claude-opus-4-6';
 
 /**
- * Model id used for recommendation AI calls per provider. Override via env:
- * `API_AI_MODEL_OPENAI`, `API_AI_MODEL_ANTHROPIC`, `API_AI_MODEL_GOOGLE_GEMINI`.
+ * Claude model id for recommendation AI (MVP: Anthropic only).
+ * Override via `API_AI_MODEL_ANTHROPIC`.
  */
-export function getResolvedAiModelIdForProvider(provider: AiProviderKind): string {
-  const raw: string | undefined = {
-    OPENAI: process.env['API_AI_MODEL_OPENAI'],
-    ANTHROPIC: process.env['API_AI_MODEL_ANTHROPIC'],
-    GOOGLE_GEMINI: process.env['API_AI_MODEL_GOOGLE_GEMINI'],
-  }[provider]?.trim();
+export function getResolvedAnthropicModelId(): string {
+  const raw: string | undefined = process.env['API_AI_MODEL_ANTHROPIC']?.trim();
   if (raw !== undefined && raw.length > 0) {
     return raw;
   }
-  return FALLBACK[provider];
+  return FALLBACK_ANTHROPIC;
 }

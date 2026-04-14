@@ -79,3 +79,26 @@ export const USER_SETTINGS_AI_SORT_KEY: string = 'USER_SETTINGS#AI';
 
 /** Per-user privacy settings (e.g. amount-reveal PIN hash). */
 export const USER_SETTINGS_PRIVACY_SORT_KEY: string = 'USER_SETTINGS#PRIVACY';
+
+const REC_RUN_PREFIX: string = 'REC_RUN#';
+const REC_FINDING_PREFIX: string = 'REC_FIND#';
+const REC_ITEM_PREFIX: string = 'REC_ITEM#';
+
+/**
+ * Recommendation run header row (portfolio-scoped PK). SK orders runs by start time for listing.
+ */
+export function buildRecommendationRunSortKey(input: { readonly startedAtIso: string; readonly runId: string }): string {
+  return `${REC_RUN_PREFIX}${input.startedAtIso}#${input.runId}`;
+}
+
+export function buildRecommendationFindingSortKey(input: { readonly runId: string; readonly findingId: string }): string {
+  return `${REC_FINDING_PREFIX}${input.runId}#${input.findingId}`;
+}
+
+export function buildRecommendationItemSortKey(input: { readonly runId: string; readonly itemId: string }): string {
+  return `${REC_ITEM_PREFIX}${input.runId}#${input.itemId}`;
+}
+
+export function buildRecommendationRunSortKeyPrefix(): string {
+  return REC_RUN_PREFIX;
+}

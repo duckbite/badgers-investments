@@ -1,11 +1,11 @@
 import { getAiSettingsEncryptionKeyBytes } from '../../config/get-ai-settings-encryption-key.js';
 import { decryptAiSettingsSecret, encryptAiSettingsSecret } from './ai-settings-cipher.js';
-import { getResolvedAiModelIdForProvider } from './resolve-ai-model-id.js';
+import { getResolvedAnthropicModelId } from './resolve-ai-model-id.js';
 import type { UserAiSettingsRepository } from './user-ai-settings-repository.js';
 import type { AiProviderKind } from './verify-ai-provider-connection.js';
 import { verifyAiProviderConnection } from './verify-ai-provider-connection.js';
 
-const ALLOWED_PROVIDERS: ReadonlySet<AiProviderKind> = new Set(['OPENAI', 'ANTHROPIC', 'GOOGLE_GEMINI']);
+const MVP_PROVIDER: AiProviderKind = 'ANTHROPIC';
 
 export type UserAiSettingsPublicDto = {
   readonly provider: AiProviderKind;
@@ -17,8 +17,8 @@ export type UserAiSettingsPublicDto = {
   readonly updatedAt: string | null;
 };
 
+/** MVP: only `apiKey` is accepted; provider is always Anthropic. */
 export type UserAiSettingsPutBody = {
-  readonly provider: AiProviderKind;
   /** When set, replaces the stored key. Empty string removes stored credentials. Omit to keep the existing secret. */
   readonly apiKey?: string;
 };
@@ -41,11 +41,11 @@ export class AiSettingsService {
 
   public async getForUser(input: { readonly userId: string }): Promise<UserAiSettingsPublicDto> {
     const record = await this.userAiSettingsRepository.getByUserId({ userId: input.userId });
+    const modelId: string = getResolvedAnthropicModelId();
     if (record === undefined || record.apiKeyCipherTextBase64.length === 0) {
-      const provider: AiProviderKind = 'OPENAI';
       return {
-        provider,
-        modelId: getResolvedAiModelIdForProvider(provider),
+        provider: MVP_PROVIDER,
+        modelId,
         apiKeyMasked: null,
         hasStoredApiKey: false,
         lastVerifyOk: null,
@@ -53,10 +53,9 @@ export class AiSettingsService {
         updatedAt: null,
       };
     }
-    const provider: AiProviderKind = normalizeProvider({ raw: record.aiProvider });
     return {
-      provider,
-      modelId: getResolvedAiModelIdForProvider(provider),
+      provider: MVP_PROVIDER,
+      modelId,
       apiKeyMasked: '••••••••••••••••',
       hasStoredApiKey: true,
       lastVerifyOk: record.lastVerifyOk === undefined ? null : record.lastVerifyOk,
@@ -73,11 +72,8 @@ export class AiSettingsService {
         message: 'Server is not configured to store AI API keys (set API_AI_SETTINGS_SECRET).',
       });
     }
-    const provider: AiProviderKind = normalizeProvider({ raw: input.body.provider });
-    if (!ALLOWED_PROVIDERS.has(provider)) {
-      throw new AiSettingsServiceError({ code: 'AI_SETTINGS_PROVIDER_INVALID', message: 'AI provider is not supported.' });
-    }
-    const modelId: string = getResolvedAiModelIdForProvider(provider);
+    const provider: AiProviderKind = MVP_PROVIDER;
+    const modelId: string = getResolvedAnthropicModelId();
     const existing = await this.userAiSettingsRepository.getByUserId({ userId: input.userId });
     const hasStoredCipher: boolean =
       existing !== undefined &&
@@ -147,7 +143,6 @@ export class AiSettingsService {
     if (record === undefined || record.apiKeyCipherTextBase64.length === 0) {
       throw new AiSettingsServiceError({ code: 'AI_SETTINGS_KEY_MISSING', message: 'No API key is stored for this account.' });
     }
-    const provider: AiProviderKind = normalizeProvider({ raw: record.aiProvider });
     const apiKey: string = decryptAiSettingsSecret({
       key: keyMaterial,
       payload: {
@@ -156,7 +151,7 @@ export class AiSettingsService {
         authTagBase64: record.apiKeyAuthTagBase64,
       },
     });
-    const result = await verifyAiProviderConnection({ provider, apiKey });
+    const result = await verifyAiProviderConnection({ apiKey });
     const ok: boolean = result.ok === true;
     await this.userAiSettingsRepository.put({
       record: {
@@ -168,18 +163,4 @@ export class AiSettingsService {
     });
     return { ok };
   }
-}
-
-function normalizeProvider(input: { readonly raw: string }): AiProviderKind {
-  const upper: string = input.raw.trim().toUpperCase();
-  if (upper === 'GOOGLE' || upper === 'GEMINI') {
-    return 'GOOGLE_GEMINI';
-  }
-  if (upper === 'CLAUDE') {
-    return 'ANTHROPIC';
-  }
-  if (upper === 'OPENAI' || upper === 'ANTHROPIC' || upper === 'GOOGLE_GEMINI') {
-    return upper;
-  }
-  return 'OPENAI';
 }

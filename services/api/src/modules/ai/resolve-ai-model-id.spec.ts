@@ -1,14 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { getResolvedAiModelIdForProvider } from './resolve-ai-model-id.js';
+import { afterEach, describe, expect, it } from 'vitest';
+import { getResolvedAnthropicModelId } from './resolve-ai-model-id.js';
 
-describe('getResolvedAiModelIdForProvider', () => {
-  const keys: readonly string[] = ['API_AI_MODEL_OPENAI', 'API_AI_MODEL_ANTHROPIC', 'API_AI_MODEL_GOOGLE_GEMINI'];
-
-  beforeEach(() => {
-    for (const k of keys) {
-      delete process.env[k];
-    }
-  });
+describe('getResolvedAnthropicModelId', () => {
+  const keys: readonly string[] = ['API_AI_MODEL_ANTHROPIC'];
 
   afterEach(() => {
     for (const k of keys) {
@@ -16,14 +10,12 @@ describe('getResolvedAiModelIdForProvider', () => {
     }
   });
 
-  it('uses env override when set', () => {
-    process.env['API_AI_MODEL_OPENAI'] = 'gpt-4o';
-    expect(getResolvedAiModelIdForProvider('OPENAI')).toBe('gpt-4o');
+  it('uses API_AI_MODEL_ANTHROPIC when set', () => {
+    process.env['API_AI_MODEL_ANTHROPIC'] = 'claude-haiku-4-5-20251001';
+    expect(getResolvedAnthropicModelId()).toBe('claude-haiku-4-5-20251001');
   });
 
-  it('falls back when env unset', () => {
-    expect(getResolvedAiModelIdForProvider('OPENAI')).toBe('gpt-4o-mini');
-    expect(getResolvedAiModelIdForProvider('ANTHROPIC')).toBe('claude-3-5-haiku-20241022');
-    expect(getResolvedAiModelIdForProvider('GOOGLE_GEMINI')).toBe('gemini-1.5-flash');
+  it('falls back when env is unset', () => {
+    expect(getResolvedAnthropicModelId()).toBe('claude-opus-4-6');
   });
 });

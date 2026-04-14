@@ -5,6 +5,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { apiClient } from '$lib/api/api-client-instance';
+  import { fetchRecommendationLatestSummary, type RecommendationRunSummary } from '$lib/api/recommendations';
   import { toast } from '$lib/toast/toast';
   import PortfolioCharts from '$lib/components/PortfolioCharts.svelte';
   import PnlMoneyWithArrow from '$lib/components/PnlMoneyWithArrow.svelte';
@@ -63,6 +64,7 @@
   let assets: readonly AssetDto[] = [];
   let twrRows: readonly TwrRow[] = [];
   let isLoading: boolean = true;
+  let latestRec: RecommendationRunSummary | null = null;
 
   $: assetById = new Map(assets.map((a) => [a.assetId, a] as const));
   $: masked = $amountPrivacy;
@@ -139,6 +141,11 @@
         snapshotStatus = await apiClient.executeJson<SnapshotStatus>({ method: 'GET', path: '/snapshots/status' });
       } catch {
         snapshotStatus = undefined;
+      }
+      try {
+        latestRec = await fetchRecommendationLatestSummary({ client: apiClient });
+      } catch {
+        latestRec = null;
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to load dashboard');
@@ -258,10 +265,36 @@
     </div>
 
     <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-border dark:bg-card">
-      <h2 class="text-sm font-semibold text-gray-900 dark:text-foreground">Recommendations</h2>
-      <p class="mt-2 text-sm text-gray-600 dark:text-muted-foreground">
-        Recommendation runs are not wired to the API yet — see the Recommendations page (coming soon).
-      </p>
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h2 class="text-sm font-semibold text-gray-900 dark:text-foreground">Latest recommendation</h2>
+        <a
+          class="text-sm font-medium text-emerald-700 hover:underline dark:text-emerald-400"
+          href="/recommendations"
+        >
+          All runs
+        </a>
+      </div>
+      {#if latestRec === null}
+        <p class="mt-2 text-sm text-gray-600 dark:text-muted-foreground">
+          No runs yet. Open Recommendations to execute a rules + AI pass on your current snapshot.
+        </p>
+      {:else}
+        <p class="mt-2 text-sm text-gray-900 dark:text-foreground">{latestRec.portfolioLevelSummary}</p>
+        <p class="mt-1 text-xs text-gray-500 dark:text-muted-foreground">
+          {new Date(latestRec.startedAt).toLocaleString()} · {latestRec.synthesisSource}
+          {#if latestRec.aiStatus === 'FAILED'}
+            · AI failed (deterministic output){#if latestRec.aiError}: {latestRec.aiError}{/if}
+          {:else if latestRec.aiStatus === 'SKIPPED'}
+            · AI skipped (add key + API_AI_SETTINGS_SECRET)
+          {/if}
+        </p>
+        <a
+          class="mt-2 inline-block text-sm font-medium text-emerald-700 hover:underline dark:text-emerald-400"
+          href={`/recommendations/${latestRec.runId}`}
+        >
+          View run detail
+        </a>
+      {/if}
     </div>
 
     {#if masked}

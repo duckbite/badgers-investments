@@ -85,18 +85,16 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
-      API_AI_MODEL_ANTHROPIC     = var.api_ai_model_anthropic
-      API_AI_MODEL_GOOGLE_GEMINI = var.api_ai_model_google_gemini
-      API_AI_MODEL_OPENAI        = var.api_ai_model_openai
-      API_AI_SETTINGS_SECRET     = var.api_ai_settings_secret
-      API_DYNAMODB_TABLE_NAME    = var.dynamodb_table_name
-      API_DYNAMODB_REGION        = var.aws_region
-      API_NODE_ENV               = var.api_node_env
-      API_PRIVACY_SECRET         = var.api_privacy_secret
-      AWS_NODEJS_DISABLE_COLORS  = "1"
-      COOKIE_SECRET              = var.cookie_secret
-      CORS_ORIGIN                = var.cors_allow_origin
-      NODE_ENV                   = var.api_node_env
+      API_AI_MODEL_ANTHROPIC    = var.api_ai_model_anthropic
+      API_AI_SETTINGS_SECRET    = var.api_ai_settings_secret
+      API_DYNAMODB_TABLE_NAME   = var.dynamodb_table_name
+      API_DYNAMODB_REGION       = var.aws_region
+      API_NODE_ENV              = var.api_node_env
+      API_PRIVACY_SECRET        = var.api_privacy_secret
+      AWS_NODEJS_DISABLE_COLORS = "1"
+      COOKIE_SECRET             = var.cookie_secret
+      CORS_ORIGIN               = var.cors_allow_origin
+      NODE_ENV                  = var.api_node_env
     }
   }
 

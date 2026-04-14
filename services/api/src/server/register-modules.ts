@@ -8,7 +8,6 @@ import { jobsRoutes } from '../modules/jobs/jobs-routes.js';
 import { loggingModule } from '../modules/logging/logging-module.js';
 import { registerOpenapiSchemaCollection } from './register-openapi-schema.js';
 import { registerOpenapiInteractiveDocumentation } from './register-openapi-ui.js';
-import { recommendationsRoutes } from '../modules/recommendations/recommendations-routes.js';
 import { rulesRoutes } from '../modules/rules/rules-routes.js';
 import { sessionsRoutes } from '../modules/sessions/sessions-routes.js';
 
@@ -47,7 +46,6 @@ export async function registerModules(input: { readonly app: FastifyInstance }):
   await input.app.register(authDomainPlugin);
   await input.app.register(sessionsRoutes);
   await input.app.register(domainDataPlugin);
-  await input.app.register(recommendationsRoutes);
   await input.app.register(rulesRoutes);
   await input.app.register(jobsRoutes);
   await registerOpenapiInteractiveDocumentation({ app: input.app });
