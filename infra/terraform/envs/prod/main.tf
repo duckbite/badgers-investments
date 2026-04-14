@@ -67,6 +67,9 @@ module "api_lambda" {
   dynamodb_table_name        = module.app_dynamodb.table_name
   dynamodb_table_arn         = module.app_dynamodb.table_arn
   secrets_arn                = module.secrets.app_secret_arn
+  cookie_secret              = module.secrets.cookie_secret
+  api_ai_settings_secret     = module.secrets.api_ai_settings_secret
+  api_privacy_secret         = module.secrets.api_privacy_secret
 }
 
 module "worker_lambda" {
