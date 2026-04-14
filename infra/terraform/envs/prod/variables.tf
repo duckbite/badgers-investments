@@ -93,3 +93,21 @@ variable "api_node_env" {
   description = "API Lambda runtime mode (sets API_NODE_ENV and NODE_ENV on the function). Default production; override per stack (e.g. staging tfvars) if a deployed API should not use production gating."
   default     = "production"
 }
+
+variable "api_ai_model_openai" {
+  type        = string
+  description = "API_AI_MODEL_OPENAI on the Lambda (non-secret default model id)."
+  default     = "gpt-4o-mini"
+}
+
+variable "api_ai_model_anthropic" {
+  type        = string
+  description = "API_AI_MODEL_ANTHROPIC on the Lambda."
+  default     = "claude-opus-4-6"
+}
+
+variable "api_ai_model_google_gemini" {
+  type        = string
+  description = "API_AI_MODEL_GOOGLE_GEMINI on the Lambda."
+  default     = "gemini-1.5-flash"
+}

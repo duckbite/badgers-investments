@@ -20,3 +20,8 @@ github_actions_grant_terraform_apply = false
 
 # Optional: API Lambda API_NODE_ENV + NODE_ENV (default production). Override for another stack’s tfvars if needed.
 # api_node_env = "production"
+
+# Optional: default AI model ids on the Lambda (API_AI_MODEL_*); override per environment if needed.
+# api_ai_model_openai = "gpt-4o-mini"
+# api_ai_model_anthropic     = "claude-3-5-haiku-20241022"
+# api_ai_model_google_gemini = "gemini-1.5-flash"

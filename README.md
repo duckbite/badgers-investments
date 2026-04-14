@@ -189,7 +189,7 @@ Production runs on **AWS** (serverless-oriented):
 - **API Gateway (HTTP API) + AWS Lambda (Node.js 20)** for the Fastify API (`@fastify/aws-lambda`)
 - **EventBridge + Lambda** for scheduled worker jobs
 - **Amazon DynamoDB** for application data (`dynamodb_table_name` in Terraform; table must already exist)
-- **Secrets Manager** for app secrets (e.g. cookie signing); **CloudWatch Logs** for Lambdas
+- **Secrets Manager** for app secrets (cookie signing, AI settings / privacy peppers); **CloudWatch Logs** for Lambdas
 
 Infrastructure-as-code: `infra/terraform/`.
 
@@ -267,6 +267,7 @@ pnpm smoke:prod
 - `AWS_ROLE_ARN` — assume via OIDC (Terraform output `github_actions_deploy_role_arn`).
 - `PROD_TF_BACKEND_HCL` — paste full contents of `infra/terraform/envs/prod/backend.hcl` (same fields as `infra/terraform/envs/prod/backend.hcl.example`).
 - `PROD_TFVARS` — paste full contents of `infra/terraform/envs/prod/terraform.tfvars` (include `github_actions_grant_terraform_apply = true` once you want CI to apply; see below).
+- `PUBLIC_GOOGLE_MAPS_API_KEY` — optional. If set, passed into `pnpm --filter web build` for `PUBLIC_GOOGLE_MAPS_API_KEY` (Vite `define`). Omit or leave empty if Maps / Places is not used in production.
 
 **Terraform in CI (one-time bootstrap)**
 

@@ -218,6 +218,7 @@ jobs:
       WEB_DOMAIN: ${{ vars.WEB_DOMAIN }}
       TURBO_TELEMETRY_DISABLED: "1"
       PUBLIC_API_BASE_URL: https://${{ vars.API_DOMAIN }}
+      PUBLIC_GOOGLE_MAPS_API_KEY: ${{ secrets.PUBLIC_GOOGLE_MAPS_API_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

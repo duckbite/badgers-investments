@@ -24,7 +24,7 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 |------|-------------|
 | `apps/web/` | SvelteKit (Svelte 5) frontend. Entry: `src/routes/+page.svelte`. Scripts: `dev`, `build`, `preview`, `check`, `lint`. Build output: `.svelte-kit/` and Vite build artifacts. |
 | `apps/web/static/badgers-logo.png` | Login branding asset (same artwork as `docs/prototype` Figma export); served at `/badgers-logo.png`. |
-| `apps/web/vite.config.ts` | Vite + **`@tailwindcss/vite`** (Tailwind v4, aligned with `docs/prototype`). Loads root `.env` via `envDir`; dev `server.port` from `WEB_PORT` (default `5173`); `define` sets `import.meta.env.PUBLIC_API_BASE_URL` to `PUBLIC_API_BASE_URL` or `http://localhost:<API_PORT>` so the static SPA targets the API. |
+| `apps/web/vite.config.ts` | Vite + **`@tailwindcss/vite`** (Tailwind v4, aligned with `docs/prototype`). Loads root `.env` via `envDir`; dev `server.port` from `WEB_PORT` (default `5173`); `define` sets `import.meta.env.PUBLIC_API_BASE_URL` and `import.meta.env.PUBLIC_GOOGLE_MAPS_API_KEY` (from root env; prod builds use GitHub secret `PUBLIC_GOOGLE_MAPS_API_KEY`). |
 | `apps/web/src/styles/index.css` | Entry: imports Tailwind + **`theme.css`** (shadcn-style tokens copied from `docs/prototype/src/styles/theme.css`). |
 | `apps/web/src/styles/tailwind.css` | `@tailwindcss` + `@source` for `**/*.{js,ts,svelte}` + `tw-animate-css`. |
 | `apps/web/package.json` | **`lucide-svelte`** icons (parity with prototype `lucide-react`). |
@@ -111,9 +111,10 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 | `infra/terraform/envs/prod/` | Production stack: **Route53 zone** (`dns_zone_name`) + ACM + aliases, S3 + CloudFront, API Gateway + Lambda, worker Lambda, Secrets Manager, OIDC role. |
 | `infra/terraform/modules/public_dns_zone/` | Single public Route53 hosted zone (apex); outputs `zone_id` + delegation `name_servers`. |
 | `infra/terraform/modules/static_site/` | S3 static bucket + CloudFront + ACM (us-east-1) for `web_domain` (Route53 records when `route53_zone_id` set). |
-| `infra/terraform/modules/api_lambda/` | API Lambda, HTTP API, regional ACM + custom domain for `api_domain` (Route53 records when `route53_zone_id` set). Module variable `api_node_env` (default `production`) sets `API_NODE_ENV` / `NODE_ENV` on the function; prod root passes `var.api_node_env`. |
+| `infra/terraform/modules/api_lambda/` | API Lambda, HTTP API, regional ACM + custom domain for `api_domain` (Route53 records when `route53_zone_id` set). Module variable `api_node_env` (default `production`) sets `API_NODE_ENV` / `NODE_ENV`; optional `api_ai_model_*` set `API_AI_MODEL_*`. Reads Secrets Manager JSON (via `secrets_arn`) for `COOKIE_SECRET`, `API_AI_SETTINGS_SECRET`, `API_PRIVACY_SECRET` injected as env vars. |
 | `infra/terraform/modules/worker_lambda/` | Worker Lambda + EventBridge schedule. |
 | `infra/terraform/modules/app-dynamodb-table/` | Reusable on-demand DynamoDB table (`PK` / `SK`, optional **`GSI1`** mirroring prod). |
+| `infra/terraform/modules/secrets/` | AWS Secrets Manager application secret: single JSON payload (`COOKIE_SECRET`, `API_AI_SETTINGS_SECRET`, `API_PRIVACY_SECRET`) from Terraform `random_password` resources so applies do not drop ad hoc keys. |
 
 ## Docs and tooling
 
