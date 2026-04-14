@@ -32,9 +32,13 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 | `apps/web/src/routes/prices/+page.svelte` | Manual price entry, latest price per asset, and snapshot rebuild action (slice 3 / DB-97). |
 | `apps/web/src/routes/explore/+page.svelte` | Explore hub placeholder (full content in DB-144). |
 | `apps/web/src/routes/library/+page.svelte` | Library placeholder for saved reports (full content in DB-145). |
+| `apps/web/src/lib/api/build-portfolio-config-put-body.ts` | Builds `PUT /portfolio/config` JSON with only API-allowed fields (no `configVersionId` / version metadata from `GET`); used by settings save and header currency sync. |
+| `apps/web/src/lib/maps/load-google-maps-places.ts` | Singleton Maps JS bootstrap (`loading=async`) + `importLibrary('places')` for `PlaceAutocompleteElement` (Places API New). |
+| `apps/web/src/lib/components/GooglePlacesLocationInput.svelte` | Profile location: `PlaceAutocompleteElement` + `gmp-select` when key is set; plain text fallback. |
+| `apps/web/src/lib/components/WholeCurrencyAmountInput.svelte` | Whole-number amount with locale thousands grouping + ISO currency select (allowed codes). |
 | `apps/web/src/lib/toast/toast.ts` | Lightweight toast queue (`toast.error` / `toast.success`) for Sonner-like UX (top-right); used on login and available app-wide. |
 | `apps/web/src/lib/toast/ToastHost.svelte` | Fixed top-right viewport; mounted from `src/routes/+layout.svelte`. |
-| `apps/web/src/lib/privacy/amount-privacy-store.ts` | Session-backed **anonymize** toggle (`sessionStorage`): mask monetary values across wealth UI; PIN to reveal via `PUBLIC_AMOUNT_REVEAL_PIN` (default `1234`). |
+| `apps/web/src/lib/privacy/amount-privacy-store.ts` | Session-backed **anonymize** toggle (`sessionStorage`): mask monetary values across wealth UI; PIN verified via `POST /settings/privacy/verify-amount-reveal-pin` (PIN set under **Settings → Security**). |
 | `apps/web/src/lib/privacy/format-amount.ts` | `formatMaskedMoney` / `formatMaskedNumber` helpers for privacy mode. |
 | `apps/web/src/lib/formatting/instrument-display-label.ts` | `formatInstrumentDisplayLabel` — primary wealth UI label `Name (TICKER)`. |
 | `apps/web/src/lib/formatting/percent-display.ts` | `formatPortfolioAllocationPercent`, `formatUnitRateAsPercent2`, `formatNumberAsPercent2` — percentages to 2 decimals. |
@@ -42,6 +46,10 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 | `apps/web/src/lib/components/PnlMoneyWithArrow.svelte` | Currency P/L: **coloured arrows only**; amount (and optional `(pct%)`) use neutral text; supports privacy mask. |
 | `apps/web/src/lib/charts/register-chart-js.ts` | Tree-shaken **Chart.js** registration (pie + line controllers) for dashboard charts. |
 | `apps/web/src/lib/components/PinRevealDialog.svelte` | Modal to verify PIN before revealing amounts (DB-146). |
+| `apps/web/src/routes/settings/+page.svelte` | Full-page **Settings**: profile, investing preferences (risk score / ESG copy, searchable sector multi-select), AI provider + key (model from server env), security (password + amount-reveal PIN). |
+| `apps/web/src/lib/components/SearchableSectorMultiSelect.svelte` | Filterable list + chips for **sectors to avoid** (preferences JSON array). |
+| `apps/web/src/lib/domain/investment-sector-options.ts` | Static sector label list for the multi-select. |
+| `apps/web/src/lib/domain/allowed-currency-codes.ts` | Allowed ISO currency codes for header selector; must match API `currency-codes.ts`. |
 | `apps/web/src/lib/components/PortfolioCharts.svelte` | Dashboard allocation pie + portfolio value line (TWR valuation series). |
 | `apps/web/src/lib/components/SimpleLineChart.svelte` | Single line chart (e.g. asset price history). |
 | `apps/web/src/routes/dashboard/+page.svelte` | Wealth overview: latest snapshot KPIs, top holdings, sector allocation, freshness, Chart.js charts (hidden when anonymized), links. |
@@ -63,8 +71,12 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 | `services/api/src/server/register-openapi-schema.ts` | Non-production: registers `@fastify/swagger` so routes contribute to the OpenAPI document. |
 | `services/api/src/server/register-openapi-ui.ts` | Non-production: registers `@fastify/swagger-ui` at `/api-docs` (e.g. `/api-docs/json` for the spec). |
 | `services/api/src/db/create-dynamo-db-client.ts` | Factory for `DynamoDBClient` (optional custom endpoint for tools like LocalStack). |
-| `services/api/src/modules/auth/` | Username/password auth: `auth-plugin.ts` (Fastify plugin), DynamoDB `USER_ACCOUNT` / `USER_SESSION` items, `POST /auth/login`, `POST /auth/logout`, `GET /auth/session`, `requireSession` pre-handler. |
-| `services/api/src/modules/domain/` | Shared domain helpers: DynamoDB key builders (`domain-keys.ts`), API error bodies, allowed currency codes; `domain-data-plugin.ts` registers portfolio (+ versioned config), assets, ledger, valuations, snapshots, performance (depends on `auth-domain`). |
+| `services/api/src/modules/auth/` | Username/password auth: `auth-plugin.ts` (Fastify plugin), DynamoDB `USER_ACCOUNT` / `USER_SESSION` items, `POST /auth/login`, `POST /auth/logout`, `POST /auth/change-password`, `GET /auth/session`, `requireSession` pre-handler. |
+| `services/api/src/modules/domain/` | Shared domain helpers: DynamoDB key builders (`domain-keys.ts`), API error bodies, allowed currency codes; `domain-data-plugin.ts` registers portfolio (+ versioned config), assets, ledger, valuations, snapshots, performance, **AI settings routes** (depends on `auth-domain`). |
+| `services/api/src/config/get-ai-settings-encryption-key.ts` | Derives AES key material from `API_AI_SETTINGS_SECRET` (SHA-256); when unset, `/settings/ai` persistence returns a configuration error. |
+| `services/api/src/modules/ai/` | Per-user AI provider settings (DB-114): `user-ai-settings-repository.ts` (`USER#…` / `USER_SETTINGS#AI`), `ai-settings-cipher.ts` (AES-256-GCM), `resolve-ai-model-id.ts` (model ids from `API_AI_MODEL_*` env), `verify-ai-provider-connection.ts` (OpenAI / Anthropic / Gemini list-models checks), `ai-settings-service.ts`, `register-ai-settings-routes.ts` — `GET/PUT /settings/ai`, `POST /settings/ai/verify`. |
+| `services/api/src/config/get-privacy-pepper.ts` | Pepper for amount-reveal PIN hashing: `API_PRIVACY_SECRET` or fallback `API_AI_SETTINGS_SECRET`. |
+| `services/api/src/modules/privacy/` | `user-privacy-settings-repository.ts` (`USER_SETTINGS#PRIVACY`), `privacy-settings-service.ts` (scrypt hash `pepper:pin`), `register-privacy-settings-routes.ts` — `GET /settings/privacy`, `PUT /settings/privacy/amount-reveal-pin`, `POST /settings/privacy/verify-amount-reveal-pin`. |
 | `services/api/src/modules/portfolio/` | Portfolio: `portfolio-repository.ts`, `portfolio-service.ts`, `register-portfolio-domain-routes.ts` (`GET/PATCH /portfolio`); versioned recommendation config: `portfolio-config-repository.ts`, `portfolio-config-service.ts`, `register-portfolio-config-routes.ts` — `GET/PUT /portfolio/config`, `GET /portfolio/config/versions` (DynamoDB `PORTFOLIO_CFG#V…` + `PORTFOLIO_CFG#ACTIVE` under portfolio-scoped PK). |
 | `services/api/src/modules/assets/` | Assets (STOCK/ETF): `asset-repository.ts`, `asset-service.ts`, `register-assets-routes.ts` — `GET/POST /assets`, `PATCH /assets/:assetId`. |
 | `services/api/src/modules/ledger/` | Ledger + FIFO: `transaction-repository.ts`, `ledger-service.ts`, `fifo-holdings-service.ts`, `lot-link-repository.ts`, `register-ledger-routes.ts` — `GET/POST/PATCH/DELETE /transactions`, `GET /holdings`. Ledger mutations notify `SnapshotInvalidationService` (optional dependency) to set `earliestAffectedDate`. |

@@ -9,6 +9,7 @@ describe('AuthService', () => {
   const userAccountMocks = {
     findByUsername: vi.fn(),
     touchLastLoginAt: vi.fn(),
+    updatePasswordHash: vi.fn(),
   };
   const userSessionMocks = {
     createSession: vi.fn(),
@@ -133,6 +134,52 @@ describe('AuthService', () => {
     const service = new AuthService({ userAccountRepository, userSessionRepository, authConfig });
     const actual = await service.getSession({ sessionId: 'gone', now: new Date('2026-01-01T00:00:00.000Z') });
     expect(actual).toBeUndefined();
+  });
+
+  it('changePassword rejects invalid current password', async () => {
+    userAccountMocks.findByUsername.mockResolvedValue({
+      userId: 'u1',
+      username: 'a',
+      passwordHash: hashPassword('old-right'),
+      isActive: true,
+    });
+    const authConfig = getAuthConfig();
+    const service = new AuthService({ userAccountRepository, userSessionRepository, authConfig });
+    const actual = await service.changePassword({
+      username: 'a',
+      currentPassword: 'wrong',
+      newPassword: 'newpass-9',
+      now: new Date('2026-01-01T00:00:00.000Z'),
+    });
+    expect(actual).toEqual({ outcome: 'invalid_current' });
+    expect(userAccountMocks.updatePasswordHash).not.toHaveBeenCalled();
+  });
+
+  it('changePassword updates hash on success', async () => {
+    userAccountMocks.findByUsername.mockResolvedValue({
+      userId: 'u1',
+      username: 'a',
+      passwordHash: hashPassword('old-right'),
+      isActive: true,
+    });
+    const authConfig = getAuthConfig();
+    const service = new AuthService({ userAccountRepository, userSessionRepository, authConfig });
+    const now = new Date('2026-01-01T00:00:00.000Z');
+    const actual = await service.changePassword({
+      username: 'a',
+      currentPassword: 'old-right',
+      newPassword: 'newpass-9',
+      now,
+    });
+    expect(actual).toEqual({ outcome: 'ok' });
+    expect(userAccountMocks.updatePasswordHash).toHaveBeenCalledTimes(1);
+    const call = userAccountMocks.updatePasswordHash.mock.calls[0]?.[0] as
+      | { readonly username: string; readonly passwordHash: string; readonly updatedAtIso: string }
+      | undefined;
+    expect(call?.username).toBe('a');
+    expect(call?.updatedAtIso).toBe(now.toISOString());
+    expect(typeof call?.passwordHash).toBe('string');
+    expect(call?.passwordHash.length).toBeGreaterThan(10);
   });
 
   it('getSession returns user when session is valid', async () => {

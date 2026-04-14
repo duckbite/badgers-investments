@@ -1,32 +1,51 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import { apiClient } from '$lib/api/api-client-instance';
 
   export let open: boolean = false;
-  export let expectedPin: string = '';
 
   const dispatch = createEventDispatcher<{ success: void; cancel: void }>();
 
   let pinValue: string = '';
   let error: string = '';
+  let submitting: boolean = false;
 
   function reset(): void {
     pinValue = '';
     error = '';
+    submitting = false;
   }
 
   $: if (!open) {
     reset();
   }
 
-  function handleSubmit(event: SubmitEvent): void {
+  async function handleSubmit(event: SubmitEvent): Promise<void> {
     event.preventDefault();
     const trimmed: string = pinValue.trim();
-    if (trimmed !== expectedPin) {
-      error = 'Incorrect PIN. Please try again.';
+    if (trimmed.length === 0) {
+      error = 'Enter your PIN.';
       return;
     }
-    reset();
-    dispatch('success');
+    submitting = true;
+    error = '';
+    try {
+      const r = await apiClient.executeJson<{ readonly ok: boolean }, { readonly pin: string }>({
+        method: 'POST',
+        path: '/settings/privacy/verify-amount-reveal-pin',
+        body: { pin: trimmed },
+      });
+      if (r.ok) {
+        reset();
+        dispatch('success');
+        return;
+      }
+      error = 'Incorrect PIN. Please try again.';
+    } catch (e) {
+      error = e instanceof Error ? e.message : 'Could not verify PIN.';
+    } finally {
+      submitting = false;
+    }
   }
 
   function handleCancel(): void {
@@ -53,18 +72,18 @@
     >
       <h2 id="pin-dialog-title" class="text-lg font-semibold text-gray-900 dark:text-foreground">Enter PIN</h2>
       <p class="mt-1 text-sm text-gray-600 dark:text-muted-foreground">
-        Enter your PIN to show amounts. Configure <code class="rounded bg-muted px-1 py-0.5 text-xs">PUBLIC_AMOUNT_REVEAL_PIN</code> in
-        <code class="rounded bg-muted px-1 py-0.5 text-xs">.env</code> (defaults to prototype <code class="rounded bg-muted px-1 py-0.5 text-xs">1234</code>).
+        Enter the amount-reveal PIN you saved under <strong>Settings → Security</strong>. It is verified on the server.
       </p>
-      <form class="mt-4 space-y-3" on:submit={handleSubmit}>
+      <form class="mt-4 space-y-3" on:submit={(e) => void handleSubmit(e)}>
         <input
           type="password"
           inputmode="numeric"
           autocomplete="one-time-code"
-          maxlength="32"
+          maxlength="64"
           class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-border dark:bg-background dark:text-foreground"
           placeholder="PIN"
           bind:value={pinValue}
+          disabled={submitting}
         />
         {#if error.length > 0}
           <p class="text-sm text-red-600 dark:text-red-400">{error}</p>
@@ -73,15 +92,17 @@
           <button
             type="button"
             class="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium hover:bg-gray-50 dark:border-border dark:bg-card dark:text-foreground dark:hover:bg-accent"
+            disabled={submitting}
             on:click={handleCancel}
           >
             Cancel
           </button>
           <button
             type="submit"
-            class="rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+            class="rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+            disabled={submitting}
           >
-            Unlock
+            {submitting ? 'Checking…' : 'Unlock'}
           </button>
         </div>
       </form>

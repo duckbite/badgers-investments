@@ -16,6 +16,8 @@ export default ts.config(
       globals: {
         ...globals.browser,
         ...globals.node,
+        /** Maps JavaScript API (loaded at runtime when `PUBLIC_GOOGLE_MAPS_API_KEY` is set). */
+        google: 'readonly',
       },
     },
   },

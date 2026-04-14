@@ -2,7 +2,6 @@ import type { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import { isApiProductionEnvironment } from '../config/get-api-node-environment.js';
 import { authDomainPlugin } from '../modules/auth/auth-plugin.js';
-import { aiRoutes } from '../modules/ai/ai-routes.js';
 import { domainDataPlugin } from '../modules/domain/domain-data-plugin.js';
 import { healthRoutes } from '../modules/health/health-routes.js';
 import { jobsRoutes } from '../modules/jobs/jobs-routes.js';
@@ -24,17 +23,22 @@ function parseCorsOriginAllowlist(): readonly string[] {
     .filter((part) => part.length > 0);
 }
 
+/** @fastify/cors defaults to safelisted methods only (`GET,HEAD,POST`); browser REST needs PUT/PATCH/DELETE. */
+const corsAllowedMethods: readonly string[] = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'];
+
 export async function registerModules(input: { readonly app: FastifyInstance }): Promise<void> {
   const allowlist: readonly string[] = parseCorsOriginAllowlist();
   if (allowlist.length > 0) {
     await input.app.register(cors, {
       credentials: true,
       origin: [...allowlist],
+      methods: [...corsAllowedMethods],
     });
   } else if (!isApiProductionEnvironment()) {
     await input.app.register(cors, {
       origin: true,
       credentials: true,
+      methods: [...corsAllowedMethods],
     });
   }
   await input.app.register(loggingModule);
@@ -45,7 +49,6 @@ export async function registerModules(input: { readonly app: FastifyInstance }):
   await input.app.register(domainDataPlugin);
   await input.app.register(recommendationsRoutes);
   await input.app.register(rulesRoutes);
-  await input.app.register(aiRoutes);
   await input.app.register(jobsRoutes);
   await registerOpenapiInteractiveDocumentation({ app: input.app });
 }

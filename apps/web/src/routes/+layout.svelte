@@ -4,10 +4,13 @@
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
   import { get } from 'svelte/store';
+  import { buildPortfolioConfigPutBody, type PortfolioConfigDto } from '$lib/api/build-portfolio-config-put-body';
   import { apiClient } from '$lib/api/api-client-instance';
   import PinRevealDialog from '$lib/components/PinRevealDialog.svelte';
+  import { ALLOWED_CURRENCY_CODES } from '$lib/domain/allowed-currency-codes';
   import ToastHost from '$lib/toast/ToastHost.svelte';
   import { amountPrivacy } from '$lib/privacy/amount-privacy-store';
+  import { toast } from '$lib/toast/toast';
   import { readResolvedThemeFromDocument, toggleTheme, type Theme } from '$lib/theme/theme';
   import {
     BookMarked,
@@ -20,6 +23,7 @@
     LayoutDashboard,
     Lightbulb,
     Moon,
+    Settings,
     Sun,
     TrendingUp,
     User,
@@ -35,6 +39,7 @@
     { href: '/recommendations', label: 'Recommendations', Icon: Lightbulb },
     { href: '/explore', label: 'Explore', Icon: Compass },
     { href: '/library', label: 'Library', Icon: BookMarked },
+    { href: '/settings', label: 'Settings', Icon: Settings },
   ] as const;
 
   function isNavigationItemActive(pathname: string, href: string): boolean {
@@ -47,6 +52,34 @@
   let isLoggingOut: boolean = false;
   let portfolioBaseCurrency: string = 'USD';
   let isPinDialogOpen: boolean = false;
+  let currencyBusy: boolean = false;
+
+  async function applyHeaderCurrency(code: string): Promise<void> {
+    const next: string = code.trim().toUpperCase();
+    if (next === portfolioBaseCurrency || currencyBusy) {
+      return;
+    }
+    currencyBusy = true;
+    try {
+      await apiClient.executeJson<{ readonly baseCurrencyCode: string }, { readonly baseCurrencyCode: string }>({
+        method: 'PATCH',
+        path: '/portfolio',
+        body: { baseCurrencyCode: next },
+      });
+      const cfg = await apiClient.executeJson<PortfolioConfigDto>({ method: 'GET', path: '/portfolio/config' });
+      await apiClient.executeJson<PortfolioConfigDto, ReturnType<typeof buildPortfolioConfigPutBody>>({
+        method: 'PUT',
+        path: '/portfolio/config',
+        body: buildPortfolioConfigPutBody(cfg, { baseCurrencyCode: next }),
+      });
+      portfolioBaseCurrency = next;
+      toast.success('Base currency updated', { description: 'Portfolio and active config version are aligned.' });
+    } catch (e) {
+      toast.error('Could not update currency', { description: e instanceof Error ? e.message : 'Unknown error' });
+    } finally {
+      currencyBusy = false;
+    }
+  }
 
   onMount(() => {
     amountPrivacy.hydrateFromSession();
@@ -109,12 +142,7 @@
 
 <ToastHost />
 
-<PinRevealDialog
-  open={isPinDialogOpen}
-  expectedPin={amountPrivacy.getExpectedPin()}
-  on:success={handlePinSuccess}
-  on:cancel={handlePinCancel}
-/>
+<PinRevealDialog open={isPinDialogOpen} on:success={handlePinSuccess} on:cancel={handlePinCancel} />
 
 {#if $page.url.pathname === '/login'}
   <slot />
@@ -128,12 +156,20 @@
           </a>
 
           <div class="flex flex-wrap items-center gap-3">
-            <div
-              class="flex h-9 w-32 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 dark:border-border dark:bg-card dark:text-foreground"
-              title="Portfolio base currency"
-            >
-              <DollarSign class="h-4 w-4 shrink-0 text-gray-500 dark:text-muted-foreground" />
-              <span>{portfolioBaseCurrency}</span>
+            <div class="relative flex h-9 items-center gap-1">
+              <DollarSign class="pointer-events-none absolute left-2 h-4 w-4 text-gray-500 dark:text-muted-foreground" />
+              <select
+                class="h-9 min-w-[7.5rem] appearance-none rounded-md border border-gray-300 bg-white py-1 pl-8 pr-7 text-sm text-gray-900 dark:border-border dark:bg-card dark:text-foreground"
+                title="Portfolio base currency (aligned with active config)"
+                aria-label="Portfolio base currency"
+                disabled={currencyBusy}
+                value={portfolioBaseCurrency}
+                on:change={(e) => void applyHeaderCurrency((e.currentTarget as HTMLSelectElement).value)}
+              >
+                {#each ALLOWED_CURRENCY_CODES as code (code)}
+                  <option value={code}>{code}</option>
+                {/each}
+              </select>
             </div>
 
             <button
@@ -174,28 +210,6 @@
               <div
                 class="absolute right-0 z-50 mt-1 min-w-56 rounded-md border border-gray-200 bg-white p-1 shadow-lg dark:border-border dark:bg-popover"
               >
-                <button
-                  type="button"
-                  disabled
-                  class="w-full cursor-not-allowed rounded-sm px-2 py-1.5 text-left text-sm text-muted-foreground"
-                >
-                  Profile
-                </button>
-                <button
-                  type="button"
-                  disabled
-                  class="w-full cursor-not-allowed rounded-sm px-2 py-1.5 text-left text-sm text-muted-foreground"
-                >
-                  Risk appetite
-                </button>
-                <button
-                  type="button"
-                  disabled
-                  class="w-full cursor-not-allowed rounded-sm px-2 py-1.5 text-left text-sm text-muted-foreground"
-                >
-                  Preferences
-                </button>
-                <div class="my-1 h-px bg-border" role="separator"></div>
                 <button
                   type="button"
                   class="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"

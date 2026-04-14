@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import type { AuthConfig } from '../../config/get-auth-config.js';
-import { verifyPassword } from './password-hash-service.js';
+import { hashPassword, verifyPassword } from './password-hash-service.js';
 import type { UserAccountRepository } from './user-account-repository.js';
 import type { UserSessionRepository } from './user-session-repository.js';
 
@@ -71,6 +71,32 @@ export class AuthService {
       return;
     }
     await this.userSessionRepository.deleteSession({ sessionId: input.sessionId });
+  }
+
+  public async changePassword(input: {
+    readonly username: string;
+    readonly currentPassword: string;
+    readonly newPassword: string;
+    readonly now: Date;
+  }): Promise<{ readonly outcome: 'ok' } | { readonly outcome: 'invalid_current' }> {
+    const account = await this.userAccountRepository.findByUsername({ username: input.username });
+    if (account === undefined || !account.isActive) {
+      return { outcome: 'invalid_current' };
+    }
+    const currentOk: boolean = verifyPassword({
+      plaintextPassword: input.currentPassword,
+      storedHash: account.passwordHash,
+    });
+    if (!currentOk) {
+      return { outcome: 'invalid_current' };
+    }
+    const nextHash: string = hashPassword(input.newPassword);
+    await this.userAccountRepository.updatePasswordHash({
+      username: input.username,
+      passwordHash: nextHash,
+      updatedAtIso: input.now.toISOString(),
+    });
+    return { outcome: 'ok' };
   }
 
   public async getSession(input: { readonly sessionId: string | undefined; readonly now: Date }): Promise<AuthenticatedUser | undefined> {

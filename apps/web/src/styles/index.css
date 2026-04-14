@@ -1,2 +1,29 @@
 @import './tailwind.css';
 @import './theme.css';
+
+/*
+ * Google Maps PlaceAutocompleteElement (`gmp-place-autocomplete`) defaults to `color-scheme: light dark`,
+ * so it can render a dark control while the rest of the form follows app light mode. Pin scheme + surface * to match native inputs (see Settings profile).
+ * https://developers.google.com/maps/documentation/javascript/places-ui-kit/custom-styling
+ */
+gmp-place-autocomplete.badgers-place-input {
+  width: 100%;
+  display: block;
+  min-height: 2.625rem;
+  box-sizing: border-box;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+html:not(.dark) gmp-place-autocomplete.badgers-place-input {
+  color-scheme: light;
+  background-color: #ffffff;
+  border: 1px solid rgb(209 213 219);
+}
+
+html.dark gmp-place-autocomplete.badgers-place-input {
+  color-scheme: dark;
+  background-color: var(--background);
+  border: 1px solid var(--border);
+}

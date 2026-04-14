@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest, preHandlerHookHandler } from 'fastify';
 import type { AuthConfig } from '../../config/get-auth-config.js';
+import { buildValidationErrorBody } from '../domain/domain-error-bodies.js';
 import { buildAuthRequiredErrorBody, buildInvalidCredentialsErrorBody } from './auth-error-bodies.js';
 import type { AuthService } from './auth-service.js';
 
@@ -51,6 +52,16 @@ const sessionAnonymousSchema = {
   },
 } as const;
 
+const changePasswordBodySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['currentPassword', 'newPassword'],
+  properties: {
+    currentPassword: { type: 'string', minLength: 1, maxLength: 1024 },
+    newPassword: { type: 'string', minLength: 8, maxLength: 1024 },
+  },
+} as const;
+
 const errorResponseSchema = {
   type: 'object',
   additionalProperties: false,
@@ -70,7 +81,7 @@ const errorResponseSchema = {
 } as const;
 
 /**
- * Registers `POST /auth/login`, `POST /auth/logout`, and `GET /auth/session`.
+ * Registers `POST /auth/login`, `POST /auth/logout`, `POST /auth/change-password`, and `GET /auth/session`.
  */
 export function registerAuthRoutes(input: {
   readonly app: FastifyInstance;
@@ -132,6 +143,45 @@ export function registerAuthRoutes(input: {
     });
     return reply.code(204).send();
   });
+  input.app.post(
+    '/auth/change-password',
+    {
+      schema: {
+        body: changePasswordBodySchema,
+        response: {
+          204: { type: 'null' },
+          400: errorResponseSchema,
+          401: errorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const sessionId: string | undefined = request.cookies[input.authConfig.sessionCookieName];
+      const user = await input.authService.getSession({ sessionId, now: new Date() });
+      if (user === undefined) {
+        return reply.code(401).send(buildAuthRequiredErrorBody({ requestId: String(request.id) }));
+      }
+      const body = request.body as { readonly currentPassword: string; readonly newPassword: string };
+      const result = await input.authService.changePassword({
+        username: user.username,
+        currentPassword: body.currentPassword,
+        newPassword: body.newPassword,
+        now: new Date(),
+      });
+      if (result.outcome === 'invalid_current') {
+        return reply
+          .code(400)
+          .send(
+            buildValidationErrorBody({
+              requestId: String(request.id),
+              code: 'AUTH_PASSWORD_CHANGE_REJECTED',
+              message: 'Could not change password.',
+            }),
+          );
+      }
+      return reply.code(204).send();
+    },
+  );
   input.app.get(
     '/auth/session',
     {
