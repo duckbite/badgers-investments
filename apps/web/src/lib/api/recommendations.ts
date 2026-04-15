@@ -13,6 +13,9 @@ export type RecommendationRunSummary = {
   readonly aiProvider: string | null;
   readonly aiModel: string | null;
   readonly portfolioLevelSummary: string;
+  readonly runItemCount: number;
+  readonly runActionableCount: number;
+  readonly runMaxStrengthScore: string | null;
 };
 
 export type RecommendationFindingDto = {
@@ -70,7 +73,7 @@ export async function runRecommendation(input: {
   readonly client: ApiClient;
   /**
    * When false, the server may return an existing completed run if portfolio inputs match.
-   * Default true: always execute a new run (same as checking “reuse” off on the UI).
+   * Default true: always enqueue a fresh run.
    */
   readonly force?: boolean;
 }): Promise<{

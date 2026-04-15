@@ -8,6 +8,7 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "dotenv -e ../../.env -- node dist/index.js",
     "dynamodb:smoke-write": "dotenv -e ../../.env -- tsx src/scripts/dynamodb-smoke-write.ts",
+    "recommendation-queue:process": "dotenv -e ../../.env -- tsx src/scripts/process-recommendation-queue.ts",
     "bootstrap:user": "dotenv -e ../../.env -- tsx src/scripts/put-dev-user.ts",
     "seed:dev-wealth": "dotenv -e ../../.env -- tsx src/scripts/seed-dev-wealth-demo.ts",
     "test": "vitest run",

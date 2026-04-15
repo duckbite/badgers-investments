@@ -32,6 +32,9 @@ export function registerRecommendationsRoutes(input: {
                   'aiProvider',
                   'aiModel',
                   'portfolioLevelSummary',
+                  'runItemCount',
+                  'runActionableCount',
+                  'runMaxStrengthScore',
                 ],
                 properties: {
                   runId: { type: 'string' },
@@ -46,6 +49,9 @@ export function registerRecommendationsRoutes(input: {
                   aiProvider: { anyOf: [{ type: 'string' }, { type: 'null' }] },
                   aiModel: { anyOf: [{ type: 'string' }, { type: 'null' }] },
                   portfolioLevelSummary: { type: 'string' },
+                  runItemCount: { type: 'number' },
+                  runActionableCount: { type: 'number' },
+                  runMaxStrengthScore: { anyOf: [{ type: 'string' }, { type: 'null' }] },
                 },
               },
             },
@@ -175,8 +181,8 @@ export function registerRecommendationsRoutes(input: {
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const userId: string = request.authUser?.userId ?? '';
-      const items = await input.recommendationRunService.listRuns({ userId, now: new Date(), limit: 1 });
-      const run = items[0] ?? null;
+      const items = await input.recommendationRunService.listRuns({ userId, now: new Date(), limit: 40 });
+      const run = items.find((r) => r.runStatus === 'COMPLETED') ?? null;
       return reply.send({ run });
     },
   );

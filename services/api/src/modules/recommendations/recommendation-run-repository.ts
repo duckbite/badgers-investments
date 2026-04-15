@@ -34,6 +34,14 @@ export type RecommendationRunHeaderRecord = {
   readonly aiError: string | null;
   readonly aiOutputJson: string | null;
   readonly portfolioLevelSummary: string;
+  /** Rule findings snapshot for async workers (set while `runStatus` is PROCESSING). */
+  readonly ruleFindingsJson: string | null;
+  /** Number of recommendation lines persisted for this run (0 while processing). */
+  readonly runItemCount: number;
+  /** Items with recommendation type BUY or SELL. */
+  readonly runActionableCount: number;
+  /** Max item strength score for list filtering (null if unknown). */
+  readonly runMaxStrengthScore: string | null;
 };
 
 export type RecommendationFindingRecord = {
@@ -107,6 +115,10 @@ export class RecommendationRunRepository {
           aiError: input.record.aiError,
           aiOutputJson: input.record.aiOutputJson,
           portfolioLevelSummary: input.record.portfolioLevelSummary,
+          ruleFindingsJson: input.record.ruleFindingsJson,
+          runItemCount: input.record.runItemCount,
+          runActionableCount: input.record.runActionableCount,
+          runMaxStrengthScore: input.record.runMaxStrengthScore,
         },
       }),
     );
@@ -332,6 +344,10 @@ function parseRunHeader(input: { readonly item: Record<string, unknown> }): Reco
   const aiOutputJson: unknown = input.item['aiOutputJson'];
   const portfolioLevelSummary: unknown = input.item['portfolioLevelSummary'];
   const completedAtIso: unknown = input.item['completedAtIso'];
+  const ruleFindingsJson: unknown = input.item['ruleFindingsJson'];
+  const runItemCount: unknown = input.item['runItemCount'];
+  const runActionableCount: unknown = input.item['runActionableCount'];
+  const runMaxStrengthScore: unknown = input.item['runMaxStrengthScore'];
   if (
     typeof runId !== 'string' ||
     typeof portfolioId !== 'string' ||
@@ -374,6 +390,10 @@ function parseRunHeader(input: { readonly item: Record<string, unknown> }): Reco
     aiError: typeof aiError === 'string' ? aiError : null,
     aiOutputJson: typeof aiOutputJson === 'string' ? aiOutputJson : null,
     portfolioLevelSummary,
+    ruleFindingsJson: typeof ruleFindingsJson === 'string' ? ruleFindingsJson : null,
+    runItemCount: typeof runItemCount === 'number' ? runItemCount : 0,
+    runActionableCount: typeof runActionableCount === 'number' ? runActionableCount : 0,
+    runMaxStrengthScore: typeof runMaxStrengthScore === 'string' ? runMaxStrengthScore : null,
   };
 }
 
