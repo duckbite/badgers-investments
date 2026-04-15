@@ -213,7 +213,8 @@ jobs:
       S3_WEB_BUCKET: ${{ vars.S3_WEB_BUCKET }}
       CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}
       LAMBDA_API_FUNCTION_NAME: ${{ vars.LAMBDA_API_FUNCTION_NAME }}
-      LAMBDA_WORKER_FUNCTION_NAME: ${{ vars.LAMBDA_WORKER_FUNCTION_NAME }}
+      LAMBDA_DAILY_WORKER_FUNCTION_NAME: ${{ vars.LAMBDA_DAILY_WORKER_FUNCTION_NAME }}
+      LAMBDA_RECOMMENDATION_PROCESSOR_FUNCTION_NAME: ${{ vars.LAMBDA_RECOMMENDATION_PROCESSOR_FUNCTION_NAME }}
       API_DOMAIN: ${{ vars.API_DOMAIN }}
       WEB_DOMAIN: ${{ vars.WEB_DOMAIN }}
       TURBO_TELEMETRY_DISABLED: "1"
@@ -235,7 +236,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for v in AWS_REGION S3_WEB_BUCKET CLOUDFRONT_DISTRIBUTION_ID LAMBDA_API_FUNCTION_NAME LAMBDA_WORKER_FUNCTION_NAME API_DOMAIN WEB_DOMAIN; do
+          for v in AWS_REGION S3_WEB_BUCKET CLOUDFRONT_DISTRIBUTION_ID LAMBDA_API_FUNCTION_NAME LAMBDA_DAILY_WORKER_FUNCTION_NAME LAMBDA_RECOMMENDATION_PROCESSOR_FUNCTION_NAME API_DOMAIN WEB_DOMAIN; do
             eval "val=\${$v:-}"
             if [[ -z "$val" ]]; then
               echo "Missing GitHub Actions variable: $v" >&2
@@ -264,7 +265,8 @@ jobs:
       - name: Build Lambda bundles
         run: |
           pnpm --filter api build:lambda
-          pnpm --filter worker build:lambda
+          pnpm --filter api build:lambda:recommendation-processor
+          pnpm --filter worker build:lambda:all
 
       - name: Package and upload API Lambda
         shell: bash
@@ -275,14 +277,23 @@ jobs:
             --function-name "${LAMBDA_API_FUNCTION_NAME}" \
             --zip-file "fileb://${GITHUB_WORKSPACE}/api-lambda.zip"
 
-      - name: Package and upload worker Lambda
+      - name: Package and upload daily worker Lambda
         shell: bash
         run: |
           set -euo pipefail
-          (cd workers/worker/dist-lambda && zip -qr "$GITHUB_WORKSPACE/worker-lambda.zip" .)
+          (cd workers/worker/dist-lambda/daily && zip -qr "$GITHUB_WORKSPACE/daily-worker-lambda.zip" .)
           aws lambda update-function-code \
-            --function-name "${LAMBDA_WORKER_FUNCTION_NAME}" \
-            --zip-file "fileb://${GITHUB_WORKSPACE}/worker-lambda.zip"
+            --function-name "${LAMBDA_DAILY_WORKER_FUNCTION_NAME}" \
+            --zip-file "fileb://${GITHUB_WORKSPACE}/daily-worker-lambda.zip"
+
+      - name: Package and upload recommendation processor Lambda
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd services/api/dist-lambda-recommendation-processor && zip -qr "$GITHUB_WORKSPACE/recommendation-processor-lambda.zip" .)
+          aws lambda update-function-code \
+            --function-name "${LAMBDA_RECOMMENDATION_PROCESSOR_FUNCTION_NAME}" \
+            --zip-file "fileb://${GITHUB_WORKSPACE}/recommendation-processor-lambda.zip"
 
       - name: Sync web to S3
         shell: bash

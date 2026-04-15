@@ -33,9 +33,19 @@ output "lambda_api_function_name" {
   value       = module.api_lambda.function_name
 }
 
-output "lambda_worker_function_name" {
-  description = "Worker Lambda function name for update-function-code."
-  value       = module.worker_lambda.function_name
+output "lambda_daily_worker_function_name" {
+  description = "Daily worker Lambda function name for update-function-code."
+  value       = module.worker_lambda.daily_worker_function_name
+}
+
+output "lambda_recommendation_processor_function_name" {
+  description = "Recommendation processor Lambda function name for update-function-code."
+  value       = module.worker_lambda.recommendation_processor_function_name
+}
+
+output "recommendation_queue_url" {
+  description = "Recommendation processor SQS queue URL."
+  value       = module.worker_lambda.recommendation_queue_url
 }
 
 output "github_actions_deploy_role_arn" {

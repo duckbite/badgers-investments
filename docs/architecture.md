@@ -54,7 +54,7 @@ This SAD implements the architectural decisions captured in the ADR pack.
 
 ## 4.1 In Scope
 - Svelte frontend + Fastify backend API
-- Serverless AWS deployment (S3 + CloudFront, API Gateway + Lambda, scheduled Lambda worker)
+- Serverless AWS deployment (S3 + CloudFront, API Gateway + Lambda, EventBridge-scheduled daily worker Lambda, SQS-triggered recommendation processor Lambda)
 - EventBridge-triggered worker tasks
 - Amazon DynamoDB (managed NoSQL in prod)
 - AWS SDK for DynamoDB (application repositories; no ORM required)
@@ -85,7 +85,8 @@ This SAD implements the architectural decisions captured in the ADR pack.
 Badgers Investments consists of:
 - a **Svelte frontend** for user interaction,
 - a **Fastify backend API** for domain logic and persistence,
-- a **worker runtime** for scheduled/heavy jobs,
+- a **daily worker runtime** for scheduled jobs,
+- an **event-driven processor runtime** for asynchronous recommendation jobs,
 - **Amazon DynamoDB** for canonical and derived data,
 - AWS-managed services for secrets, scheduling, and logging,
 - a **user-configured Anthropic (Claude) API key** for recommendation synthesis (MVP).
@@ -140,12 +141,18 @@ Responsibilities:
 - Trigger/coordinate rebuilds and jobs
 - Integrate with the user’s configured LLM provider for AI-assisted recommendation synthesis
 
-### Worker (Node.js / shared domain code)
+### Daily Worker (Node.js / shared domain code)
 Responsibilities:
 - Execute scheduled and heavy jobs
 - Process snapshot rebuilds/backfills
 - Run price/FX import jobs (future)
 - Reuse same domain services/use cases as API where possible
+
+### Recommendation Processor (Node.js / shared domain code)
+Responsibilities:
+- Consume recommendation jobs from SQS
+- Complete recommendation runs asynchronously with low-latency event-driven processing
+- Reuse the same recommendation orchestration services as API and scripts
 
 ### Amazon DynamoDB
 Responsibilities:
@@ -156,7 +163,8 @@ Responsibilities:
 - Store lightweight mutation logs
 
 ### AWS Services
-- **EventBridge:** trigger worker jobs on schedule
+- **EventBridge:** trigger daily worker jobs on schedule
+- **SQS + Lambda event source mapping:** trigger recommendation processor jobs on enqueue
 - **Secrets Manager + KMS:** secrets and encryption keys
 - **CloudWatch Logs:** centralised logging for API and worker
 
@@ -480,9 +488,9 @@ If an equivalent run exists:
 - Logs job start/end/status/failures to CloudWatch and `job_run_log` (if implemented)
 
 ## 16.4 Hybrid Execution Policy (Accepted)
-- **Recommendation runs:** synchronous via API (interactive)
+- **Recommendation runs:** API enqueues async jobs and dispatches event-driven processing via SQS
 - **Heavy rebuilds/backfills:** worker
-- **Scheduled tasks:** EventBridge → worker
+- **Scheduled tasks:** EventBridge → daily worker
 
 ---
 
@@ -493,8 +501,10 @@ If an equivalent run exists:
   - Serves Svelte app
 - **Backend API Service (API Gateway HTTP API + Lambda, Fastify)**
   - Fastify REST API
-- **Worker (EventBridge-scheduled Lambda)**
-  - Job execution runtime
+- **Daily Worker (EventBridge-scheduled Lambda)**
+  - Scheduled maintenance/runtime jobs
+- **Recommendation Processor (SQS-triggered Lambda)**
+  - Event-driven async recommendation processing
 - **Amazon DynamoDB**
 - **EventBridge**
 - **Secrets Manager + KMS**
@@ -503,7 +513,7 @@ If an equivalent run exists:
 ## 17.2 Networking (Conceptual)
 - Public access terminates at HTTPS load balancer
 - Frontend and backend accessible over HTTPS
-- Backend and worker access DynamoDB via AWS APIs (IAM-scoped)
+- Backend, daily worker, and recommendation processor access DynamoDB via AWS APIs (IAM-scoped)
 - Configured LLM provider called outbound from API/worker tasks
 
 ## 17.3 Environment Strategy

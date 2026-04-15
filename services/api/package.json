@@ -17,11 +17,13 @@
     "test:integration": "vitest run -c vitest.integration.config.ts",
     "lint": "eslint src",
     "build:lambda": "esbuild src/lambda-handler.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist-lambda/index.cjs",
-    "clean": "rm -rf dist dist-lambda"
+    "build:lambda:recommendation-processor": "esbuild src/lambda-recommendation-processor-handler.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist-lambda-recommendation-processor/index.mjs",
+    "clean": "rm -rf dist dist-lambda dist-lambda-recommendation-processor"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.88.0",
     "@aws-sdk/client-dynamodb": "^3.1027.0",
+    "@aws-sdk/client-sqs": "^3.1030.0",
     "@aws-sdk/lib-dynamodb": "^3.1027.0",
     "@fastify/aws-lambda": "^6.4.0",
     "@fastify/cookie": "^11.0.2",

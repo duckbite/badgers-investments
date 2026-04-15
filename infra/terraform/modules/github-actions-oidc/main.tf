@@ -69,8 +69,16 @@ data "aws_iam_policy_document" "deploy_core" {
     actions = ["lambda:UpdateFunctionCode", "lambda:GetFunction", "lambda:GetFunctionConfiguration"]
     resources = [
       var.lambda_api_function_arn,
-      var.lambda_worker_function_arn,
+      var.lambda_daily_worker_function_arn,
+      var.lambda_recommendation_processor_function_arn,
     ]
+  }
+
+  statement {
+    sid       = "RecommendationQueueRead"
+    effect    = "Allow"
+    actions   = ["sqs:GetQueueAttributes", "sqs:GetQueueUrl"]
+    resources = [var.recommendation_queue_arn]
   }
 }
 
@@ -78,7 +86,7 @@ data "aws_iam_policy_document" "deploy_remote_state_s3" {
   count = trimspace(var.terraform_remote_state_s3_bucket_arn) != "" ? 1 : 0
 
   statement {
-    sid = "TerraformRemoteStateS3"
+    sid    = "TerraformRemoteStateS3"
     effect = "Allow"
     actions = [
       "s3:GetObject",
