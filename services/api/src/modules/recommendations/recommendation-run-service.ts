@@ -5,6 +5,7 @@ import { tryResolveUserAiCredentials } from '../ai/resolve-user-ai-credentials.j
 import type { UserAiSettingsRepository } from '../ai/user-ai-settings-repository.js';
 import type { TransactionRecord } from '../ledger/transaction-repository.js';
 import { TransactionRepository } from '../ledger/transaction-repository.js';
+import type { PortfolioConfigFullDto } from '../portfolio/portfolio-config-service.js';
 import type { PortfolioConfigService } from '../portfolio/portfolio-config-service.js';
 import type { PortfolioService } from '../portfolio/portfolio-service.js';
 import type { PerformanceSnapshotRepository } from '../snapshots/performance-snapshot-repository.js';
@@ -14,9 +15,13 @@ import type { SnapshotRebuildService } from '../snapshots/snapshot-rebuild-servi
 import type { PriceSnapshotRepository } from '../valuations/price-snapshot-repository.js';
 import { parseAndValidateAiRecommendationJson } from './ai-recommendation-output.js';
 import type { AiItemOutput, AiRecommendationOutputValidated } from './ai-recommendation-output.js';
+import type { BaselineRecommendationResult } from './baseline-deterministic-recommendations.js';
 import { buildDeterministicRecommendations } from './baseline-deterministic-recommendations.js';
 import { buildRecommendationAnalyticsPayload } from './build-recommendation-analytics-payload.js';
+import type { RecommendationAnalyticsPayload } from './recommendation-analytics-payload-types.js';
 import { evaluateRecommendationRules } from './evaluate-recommendation-rules.js';
+import { RecommendationJobQueueRepository } from './recommendation-job-queue-repository.js';
+import type { RuleFinding } from './recommendation-rule-types.js';
 import { requestRecommendationLlmJson } from './llm-recommendation-client.js';
 import { AI_PROMPT_VERSION, DEDUPE_ENGINE_VERSION, RULE_SET_VERSION } from './recommendation-engine-constants.js';
 import { ANALYTICS_SCHEMA_VERSION } from './recommendation-engine-constants.js';
@@ -25,7 +30,10 @@ import {
   RecommendationRunRepository,
   ruleFindingsToRecords,
   type RecommendationItemRecord,
+  type RecommendationRunHeaderRecord,
 } from './recommendation-run-repository.js';
+
+const PROCESSING_TIMEOUT_MS: number = 10 * 60 * 1000;
 
 export type RecommendationPreconditionError = {
   readonly code: string;
@@ -47,6 +55,9 @@ export type RecommendationRunSummaryDto = {
   readonly aiProvider: string | null;
   readonly aiModel: string | null;
   readonly portfolioLevelSummary: string;
+  readonly runItemCount: number;
+  readonly runActionableCount: number;
+  readonly runMaxStrengthScore: string | null;
 };
 
 export type RecommendationRunDetailDto = RecommendationRunSummaryDto & {
@@ -100,6 +111,43 @@ function buildDeterministicPortfolioAssumptions(input: {
   return base;
 }
 
+function computeRunAggregateMeta(input: { readonly items: readonly RecommendationItemRecord[] }): {
+  readonly runItemCount: number;
+  readonly runActionableCount: number;
+  readonly runMaxStrengthScore: string | null;
+} {
+  if (input.items.length === 0) {
+    return { runItemCount: 0, runActionableCount: 0, runMaxStrengthScore: null };
+  }
+  let maxStr: number = Number.NEGATIVE_INFINITY;
+  for (const it of input.items) {
+    const n: number = Number.parseFloat(it.strengthScore);
+    if (!Number.isNaN(n) && n > maxStr) {
+      maxStr = n;
+    }
+  }
+  const runActionableCount: number = input.items.filter(
+    (it) => it.recommendationType === 'BUY' || it.recommendationType === 'SELL',
+  ).length;
+  return {
+    runItemCount: input.items.length,
+    runActionableCount,
+    runMaxStrengthScore: maxStr === Number.NEGATIVE_INFINITY ? null : String(maxStr),
+  };
+}
+
+function parseRuleFindingsJson(raw: string | null): readonly RuleFinding[] {
+  if (raw === null || raw.trim().length === 0) {
+    return [];
+  }
+  try {
+    const v: unknown = JSON.parse(raw);
+    return Array.isArray(v) ? (v as RuleFinding[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 function normaliseAiItems(input: { readonly ai: AiRecommendationOutputValidated }): readonly AiItemOutput[] {
   const hasPortfolio: boolean = input.ai.items.some((i) => i.scope_type === 'PORTFOLIO');
   if (hasPortfolio) {
@@ -120,6 +168,15 @@ function normaliseAiItems(input: { readonly ai: AiRecommendationOutputValidated 
   return [head, ...input.ai.items];
 }
 
+type ManualRunContextOk = {
+  readonly portfolioId: string;
+  readonly config: PortfolioConfigFullDto;
+  readonly payload: RecommendationAnalyticsPayload;
+  readonly findings: readonly RuleFinding[];
+  readonly baseline: BaselineRecommendationResult;
+  readonly analyticsHash: string;
+};
+
 export class RecommendationRunService {
   private readonly portfolioService: PortfolioService;
   private readonly portfolioConfigService: PortfolioConfigService;
@@ -131,6 +188,7 @@ export class RecommendationRunService {
   private readonly priceSnapshotRepository: PriceSnapshotRepository;
   private readonly snapshotRebuildService: SnapshotRebuildService;
   private readonly recommendationRunRepository: RecommendationRunRepository;
+  private readonly recommendationJobQueueRepository: RecommendationJobQueueRepository;
   private readonly userAiSettingsRepository: UserAiSettingsRepository;
 
   public constructor(input: {
@@ -144,6 +202,7 @@ export class RecommendationRunService {
     readonly priceSnapshotRepository: PriceSnapshotRepository;
     readonly snapshotRebuildService: SnapshotRebuildService;
     readonly recommendationRunRepository: RecommendationRunRepository;
+    readonly recommendationJobQueueRepository: RecommendationJobQueueRepository;
     readonly userAiSettingsRepository: UserAiSettingsRepository;
   }) {
     this.portfolioService = input.portfolioService;
@@ -156,6 +215,7 @@ export class RecommendationRunService {
     this.priceSnapshotRepository = input.priceSnapshotRepository;
     this.snapshotRebuildService = input.snapshotRebuildService;
     this.recommendationRunRepository = input.recommendationRunRepository;
+    this.recommendationJobQueueRepository = input.recommendationJobQueueRepository;
     this.userAiSettingsRepository = input.userAiSettingsRepository;
   }
 
@@ -167,6 +227,77 @@ export class RecommendationRunService {
   }): Promise<
     | { readonly ok: true; readonly deduped: true; readonly run: RecommendationRunSummaryDto }
     | { readonly ok: true; readonly deduped: false; readonly run: RecommendationRunSummaryDto }
+    | { readonly ok: false; readonly error: RecommendationPreconditionError }
+  > {
+    const loaded = await this.loadManualRunContext({ userId: input.userId, now: input.now });
+    if (!loaded.ok) {
+      return loaded;
+    }
+    const { portfolioId, config, payload, findings, baseline, analyticsHash } = loaded.context;
+    const force: boolean = input.force === true;
+    if (!force) {
+      const existing = await this.recommendationRunRepository.findLatestCompletedWithHash({
+        userId: input.userId,
+        portfolioId,
+        analyticsInputHash: analyticsHash,
+        configVersionId: config.configVersionId,
+        dedupeEngineVersion: DEDUPE_ENGINE_VERSION,
+        scanLimit: 80,
+      });
+      if (existing !== undefined) {
+        return {
+          ok: true,
+          deduped: true,
+          run: toSummaryDto({ record: existing }),
+        };
+      }
+    }
+    const runId: string = randomUUID();
+    const startedAtIso: string = input.now.toISOString();
+    const enqueuedAtIso: string = startedAtIso;
+    const processingHeader: RecommendationRunHeaderRecord = {
+      runId,
+      portfolioId,
+      configVersionId: config.configVersionId,
+      runTriggerType: 'MANUAL',
+      runStatus: 'PROCESSING',
+      startedAtIso,
+      completedAtIso: null,
+      analyticsInputHash: analyticsHash,
+      analyticsSchemaVersion: ANALYTICS_SCHEMA_VERSION,
+      ruleSetVersion: RULE_SET_VERSION,
+      dedupeEngineVersion: DEDUPE_ENGINE_VERSION,
+      promptVersion: AI_PROMPT_VERSION,
+      analyticsPayloadJson: JSON.stringify(payload),
+      baselineJson: JSON.stringify(baseline),
+      synthesisSource: 'DETERMINISTIC',
+      aiProvider: null,
+      aiModel: null,
+      aiStatus: 'SKIPPED',
+      aiError: null,
+      aiOutputJson: null,
+      portfolioLevelSummary: 'Generating portfolio insights…',
+      ruleFindingsJson: JSON.stringify([...findings]),
+      runItemCount: 0,
+      runActionableCount: 0,
+      runMaxStrengthScore: null,
+    };
+    await this.recommendationRunRepository.putRunHeader({ userId: input.userId, record: processingHeader });
+    await this.recommendationJobQueueRepository.enqueue({
+      record: { userId: input.userId, portfolioId, runId, enqueuedAtIso },
+    });
+    const persisted = await this.recommendationRunRepository.getRunById({ userId: input.userId, portfolioId, runId });
+    if (persisted === undefined) {
+      throw new Error('Recommendation run persistence failed.');
+    }
+    return { ok: true, deduped: false, run: toSummaryDto({ record: persisted }) };
+  }
+
+  private async loadManualRunContext(input: {
+    readonly userId: string;
+    readonly now: Date;
+  }): Promise<
+    | { readonly ok: true; readonly context: ManualRunContextOk }
     | { readonly ok: false; readonly error: RecommendationPreconditionError }
   > {
     const portfolioId: string = await this.portfolioService.requirePortfolioIdForUser({ userId: input.userId, now: input.now });
@@ -230,26 +361,152 @@ export class RecommendationRunService {
       configVersionId: config.configVersionId,
       analyticsPayload: payload,
     });
-    const force: boolean = input.force === true;
-    if (!force) {
-      const existing = await this.recommendationRunRepository.findLatestCompletedWithHash({
-        userId: input.userId,
-        portfolioId,
-        analyticsInputHash: analyticsHash,
-        configVersionId: config.configVersionId,
-        dedupeEngineVersion: DEDUPE_ENGINE_VERSION,
-        scanLimit: 80,
+    return {
+      ok: true,
+      context: { portfolioId, config, payload, findings, baseline, analyticsHash },
+    };
+  }
+
+  /**
+   * Worker entry: load a queued job’s snapshot, run AI / deterministic synthesis, persist items, then remove the queue row.
+   */
+  public async completeQueuedRecommendationJob(input: {
+    readonly userId: string;
+    readonly portfolioId: string;
+    readonly runId: string;
+    readonly enqueuedAtIso: string;
+    readonly now: Date;
+  }): Promise<void> {
+    const deleteJob = async (): Promise<void> => {
+      await this.recommendationJobQueueRepository.deleteJob({
+        enqueuedAtIso: input.enqueuedAtIso,
+        runId: input.runId,
       });
-      if (existing !== undefined) {
-        return {
-          ok: true,
-          deduped: true,
-          run: toSummaryDto({ record: existing }),
-        };
-      }
+    };
+    const header = await this.recommendationRunRepository.getRunById({
+      userId: input.userId,
+      portfolioId: input.portfolioId,
+      runId: input.runId,
+    });
+    if (header === undefined) {
+      await deleteJob();
+      return;
     }
-    const runId: string = randomUUID();
-    const startedAtIso: string = input.now.toISOString();
+    if (header.runStatus !== 'PROCESSING') {
+      await deleteJob();
+      return;
+    }
+    let payload: RecommendationAnalyticsPayload;
+    let baseline: BaselineRecommendationResult;
+    try {
+      payload = JSON.parse(header.analyticsPayloadJson) as RecommendationAnalyticsPayload;
+      baseline = JSON.parse(header.baselineJson) as BaselineRecommendationResult;
+    } catch {
+      await this.markRunFailed({
+        userId: input.userId,
+        portfolioId: input.portfolioId,
+        header,
+        message: 'Stored analytics payload is invalid.',
+        now: input.now,
+      });
+      await deleteJob();
+      return;
+    }
+    const findings = parseRuleFindingsJson(header.ruleFindingsJson);
+    try {
+      await this.synthesizeAndPersistCompletedRun({
+        userId: input.userId,
+        portfolioId: input.portfolioId,
+        runId: input.runId,
+        now: input.now,
+        processingHeader: header,
+        payload,
+        findings,
+        baseline,
+      });
+    } catch (err) {
+      const message: string = err instanceof Error ? err.message : 'Recommendation run failed.';
+      await this.markRunFailed({ userId: input.userId, portfolioId: input.portfolioId, header, message, now: input.now });
+    }
+    await deleteJob();
+  }
+
+  public async processRecommendationJobQueue(input: { readonly now: Date; readonly maxJobs: number }): Promise<number> {
+    const jobs = await this.recommendationJobQueueRepository.listOldest({ limit: input.maxJobs });
+    for (const job of jobs) {
+      await this.completeQueuedRecommendationJob({
+        userId: job.userId,
+        portfolioId: job.portfolioId,
+        runId: job.runId,
+        enqueuedAtIso: job.enqueuedAtIso,
+        now: input.now,
+      });
+    }
+    return jobs.length;
+  }
+
+  private async markRunFailed(input: {
+    readonly userId: string;
+    readonly portfolioId: string;
+    readonly header: RecommendationRunHeaderRecord;
+    readonly message: string;
+    readonly now: Date;
+  }): Promise<void> {
+    const failedHeader: RecommendationRunHeaderRecord = {
+      ...input.header,
+      runStatus: 'FAILED',
+      completedAtIso: input.now.toISOString(),
+      portfolioLevelSummary: 'This run could not be completed.',
+      synthesisSource: 'DETERMINISTIC',
+      aiProvider: null,
+      aiModel: null,
+      aiStatus: 'SKIPPED',
+      aiError: input.message,
+      aiOutputJson: null,
+      ruleFindingsJson: null,
+      runItemCount: 0,
+      runActionableCount: 0,
+      runMaxStrengthScore: null,
+    };
+    await this.recommendationRunRepository.putRunHeader({ userId: input.userId, record: failedHeader });
+  }
+
+  private async markRunTimeout(input: {
+    readonly userId: string;
+    readonly portfolioId: string;
+    readonly header: RecommendationRunHeaderRecord;
+    readonly now: Date;
+  }): Promise<void> {
+    const timedOutHeader: RecommendationRunHeaderRecord = {
+      ...input.header,
+      runStatus: 'TIMEOUT',
+      completedAtIso: input.now.toISOString(),
+      portfolioLevelSummary: 'Run timed out after 10 minutes.',
+      synthesisSource: 'DETERMINISTIC',
+      aiProvider: null,
+      aiModel: null,
+      aiStatus: 'SKIPPED',
+      aiError: 'Run timed out after 10 minutes.',
+      aiOutputJson: null,
+      ruleFindingsJson: null,
+      runItemCount: 0,
+      runActionableCount: 0,
+      runMaxStrengthScore: null,
+    };
+    await this.recommendationRunRepository.putRunHeader({ userId: input.userId, record: timedOutHeader });
+    await this.recommendationJobQueueRepository.deleteByRunId({ runId: input.header.runId });
+  }
+
+  private async synthesizeAndPersistCompletedRun(input: {
+    readonly userId: string;
+    readonly portfolioId: string;
+    readonly runId: string;
+    readonly now: Date;
+    readonly processingHeader: RecommendationRunHeaderRecord;
+    readonly payload: RecommendationAnalyticsPayload;
+    readonly findings: readonly RuleFinding[];
+    readonly baseline: BaselineRecommendationResult;
+  }): Promise<void> {
     const credentials = await tryResolveUserAiCredentials({
       userAiSettingsRepository: this.userAiSettingsRepository,
       userId: input.userId,
@@ -261,7 +518,7 @@ export class RecommendationRunService {
     let aiProvider: string | null = null;
     let aiModel: string | null = null;
     let itemsToPersist: RecommendationItemRecord[] = [];
-    let portfolioLevelSummary: string = baseline.portfolio_summary.headline;
+    let portfolioLevelSummary: string = input.baseline.portfolio_summary.headline;
     if (credentials !== undefined) {
       aiProvider = credentials.provider;
       aiModel = credentials.modelId;
@@ -271,18 +528,18 @@ export class RecommendationRunService {
         const raw: string = await requestRecommendationLlmJson({
           apiKey: credentials.apiKey,
           model: credentials.modelId,
-          payload,
-          findings,
-          baseline,
+          payload: input.payload,
+          findings: input.findings,
+          baseline: input.baseline,
         });
-        const validated = parseAndValidateAiRecommendationJson({ rawText: raw, payload });
+        const validated = parseAndValidateAiRecommendationJson({ rawText: raw, payload: input.payload });
         if (!validated.ok) {
           aiError = validated.message;
         } else {
           aiOutputJson = JSON.stringify(validated.value);
           const mergedItems = normaliseAiItems({ ai: validated.value });
           itemsToPersist = mergedItems.map((it, index) => ({
-            runId,
+            runId: input.runId,
             itemId: randomUUID(),
             priorityRank: index,
             scopeType: it.scope_type,
@@ -309,23 +566,23 @@ export class RecommendationRunService {
       const attemptedAi: boolean = credentials !== undefined;
       const deterministicLines: RecommendationItemRecord[] = [];
       deterministicLines.push({
-        runId,
+        runId: input.runId,
         itemId: randomUUID(),
         priorityRank: 0,
         scopeType: 'PORTFOLIO',
         assetId: null,
-        recommendationType: baseline.portfolio_summary.recommendation_type,
-        headline: baseline.portfolio_summary.headline,
-        rationale: baseline.portfolio_summary.rationale,
+        recommendationType: input.baseline.portfolio_summary.recommendation_type,
+        headline: input.baseline.portfolio_summary.headline,
+        rationale: input.baseline.portfolio_summary.rationale,
         assumptions: buildDeterministicPortfolioAssumptions({ attemptedAi, aiStatus, aiError }),
-        strengthScore: String(baseline.portfolio_summary.strength_score),
-        confidenceScore: String(baseline.portfolio_summary.confidence_score),
+        strengthScore: String(input.baseline.portfolio_summary.strength_score),
+        confidenceScore: String(input.baseline.portfolio_summary.confidence_score),
         reasonCodesJson: JSON.stringify([]),
         source: 'DETERMINISTIC',
       });
-      baseline.items.forEach((it, index) => {
+      input.baseline.items.forEach((it, index) => {
         deterministicLines.push({
-          runId,
+          runId: input.runId,
           itemId: randomUUID(),
           priorityRank: index + 1,
           scopeType: it.scope_type,
@@ -341,24 +598,24 @@ export class RecommendationRunService {
         });
       });
       itemsToPersist = deterministicLines;
-      portfolioLevelSummary = baseline.portfolio_summary.headline;
+      portfolioLevelSummary = input.baseline.portfolio_summary.headline;
     }
-    const completedAtIso: string = input.now.toISOString();
-    const header = {
-      runId,
-      portfolioId,
-      configVersionId: config.configVersionId,
-      runTriggerType: 'MANUAL',
+    const agg = computeRunAggregateMeta({ items: itemsToPersist });
+    const completedHeader: RecommendationRunHeaderRecord = {
+      runId: input.runId,
+      portfolioId: input.portfolioId,
+      configVersionId: input.processingHeader.configVersionId,
+      runTriggerType: input.processingHeader.runTriggerType,
       runStatus: 'COMPLETED',
-      startedAtIso,
-      completedAtIso,
-      analyticsInputHash: analyticsHash,
+      startedAtIso: input.processingHeader.startedAtIso,
+      completedAtIso: input.now.toISOString(),
+      analyticsInputHash: input.processingHeader.analyticsInputHash,
       analyticsSchemaVersion: ANALYTICS_SCHEMA_VERSION,
       ruleSetVersion: RULE_SET_VERSION,
       dedupeEngineVersion: DEDUPE_ENGINE_VERSION,
       promptVersion: AI_PROMPT_VERSION,
-      analyticsPayloadJson: JSON.stringify(payload),
-      baselineJson: JSON.stringify(baseline),
+      analyticsPayloadJson: input.processingHeader.analyticsPayloadJson,
+      baselineJson: input.processingHeader.baselineJson,
       synthesisSource,
       aiProvider,
       aiModel,
@@ -366,24 +623,24 @@ export class RecommendationRunService {
       aiError,
       aiOutputJson,
       portfolioLevelSummary,
+      ruleFindingsJson: null,
+      runItemCount: agg.runItemCount,
+      runActionableCount: agg.runActionableCount,
+      runMaxStrengthScore: agg.runMaxStrengthScore,
     };
-    await this.recommendationRunRepository.putRunHeader({ userId: input.userId, record: header });
-    const findingRecords = ruleFindingsToRecords({ runId, findings });
+    const findingRecords = ruleFindingsToRecords({ runId: input.runId, findings: input.findings });
     for (const fr of findingRecords) {
-      await this.recommendationRunRepository.putFinding({ userId: input.userId, portfolioId, record: fr });
+      await this.recommendationRunRepository.putFinding({ userId: input.userId, portfolioId: input.portfolioId, record: fr });
     }
     for (const item of itemsToPersist) {
-      await this.recommendationRunRepository.putItem({ userId: input.userId, portfolioId, record: item });
+      await this.recommendationRunRepository.putItem({ userId: input.userId, portfolioId: input.portfolioId, record: item });
     }
-    const persisted = await this.recommendationRunRepository.getRunById({ userId: input.userId, portfolioId, runId });
-    if (persisted === undefined) {
-      throw new Error('Recommendation run persistence failed.');
-    }
-    return { ok: true, deduped: false, run: toSummaryDto({ record: persisted }) };
+    await this.recommendationRunRepository.putRunHeader({ userId: input.userId, record: completedHeader });
   }
 
   public async listRuns(input: { readonly userId: string; readonly now: Date; readonly limit: number }): Promise<readonly RecommendationRunSummaryDto[]> {
     const portfolioId: string = await this.portfolioService.requirePortfolioIdForUser({ userId: input.userId, now: input.now });
+    await this.timeoutStaleProcessingRuns({ userId: input.userId, portfolioId, now: input.now });
     const rows = await this.recommendationRunRepository.listRecentRuns({
       userId: input.userId,
       portfolioId,
@@ -398,6 +655,7 @@ export class RecommendationRunService {
     readonly runId: string;
   }): Promise<RecommendationRunDetailDto | undefined> {
     const portfolioId: string = await this.portfolioService.requirePortfolioIdForUser({ userId: input.userId, now: input.now });
+    await this.timeoutStaleProcessingRuns({ userId: input.userId, portfolioId, now: input.now });
     const header = await this.recommendationRunRepository.getRunById({
       userId: input.userId,
       portfolioId,
@@ -443,24 +701,146 @@ export class RecommendationRunService {
       })),
     };
   }
+
+  public async cancelAllRunningRuns(input: {
+    readonly userId: string;
+    readonly now: Date;
+  }): Promise<{ readonly cancelledCount: number }> {
+    const portfolioId: string = await this.portfolioService.requirePortfolioIdForUser({ userId: input.userId, now: input.now });
+    const rows: readonly RecommendationRunHeaderRecord[] = await this.recommendationRunRepository.listRecentRuns({
+      userId: input.userId,
+      portfolioId,
+      limit: 200,
+    });
+    const processingRuns: readonly RecommendationRunHeaderRecord[] = rows.filter((row) => row.runStatus === 'PROCESSING');
+    for (const row of processingRuns) {
+      await this.markRunFailed({
+        userId: input.userId,
+        portfolioId,
+        header: row,
+        message: 'Cancelled by user.',
+        now: input.now,
+      });
+      await this.recommendationJobQueueRepository.deleteByRunId({ runId: row.runId });
+    }
+    return { cancelledCount: processingRuns.length };
+  }
+
+  public async cancelRunById(input: {
+    readonly userId: string;
+    readonly runId: string;
+    readonly now: Date;
+  }): Promise<{ readonly cancelled: boolean }> {
+    const portfolioId: string = await this.portfolioService.requirePortfolioIdForUser({ userId: input.userId, now: input.now });
+    const row: RecommendationRunHeaderRecord | undefined = await this.recommendationRunRepository.getRunById({
+      userId: input.userId,
+      portfolioId,
+      runId: input.runId,
+    });
+    if (row === undefined || row.runStatus !== 'PROCESSING') {
+      return { cancelled: false };
+    }
+    await this.markRunFailed({
+      userId: input.userId,
+      portfolioId,
+      header: row,
+      message: 'Cancelled by user.',
+      now: input.now,
+    });
+    await this.recommendationJobQueueRepository.deleteByRunId({ runId: row.runId });
+    return { cancelled: true };
+  }
+
+  public async deleteTimedOutRuns(input: {
+    readonly userId: string;
+    readonly now: Date;
+  }): Promise<{ readonly deletedCount: number }> {
+    const portfolioId: string = await this.portfolioService.requirePortfolioIdForUser({ userId: input.userId, now: input.now });
+    const rows: readonly RecommendationRunHeaderRecord[] = await this.recommendationRunRepository.listRecentRuns({
+      userId: input.userId,
+      portfolioId,
+      limit: 200,
+    });
+    const timedOutRows: readonly RecommendationRunHeaderRecord[] = rows.filter((row) => row.runStatus === 'TIMEOUT');
+    for (const row of timedOutRows) {
+      await this.recommendationRunRepository.deleteRunArtifacts({
+        userId: input.userId,
+        portfolioId,
+        runId: row.runId,
+      });
+      await this.recommendationRunRepository.deleteRunHeader({
+        userId: input.userId,
+        portfolioId,
+        startedAtIso: row.startedAtIso,
+        runId: row.runId,
+      });
+      await this.recommendationJobQueueRepository.deleteByRunId({ runId: row.runId });
+    }
+    return { deletedCount: timedOutRows.length };
+  }
+
+  public async deleteRunById(input: {
+    readonly userId: string;
+    readonly runId: string;
+    readonly now: Date;
+  }): Promise<{ readonly deleted: boolean }> {
+    const portfolioId: string = await this.portfolioService.requirePortfolioIdForUser({ userId: input.userId, now: input.now });
+    const row: RecommendationRunHeaderRecord | undefined = await this.recommendationRunRepository.getRunById({
+      userId: input.userId,
+      portfolioId,
+      runId: input.runId,
+    });
+    if (row === undefined || row.runStatus === 'PROCESSING') {
+      return { deleted: false };
+    }
+    await this.recommendationRunRepository.deleteRunArtifacts({
+      userId: input.userId,
+      portfolioId,
+      runId: row.runId,
+    });
+    await this.recommendationRunRepository.deleteRunHeader({
+      userId: input.userId,
+      portfolioId,
+      startedAtIso: row.startedAtIso,
+      runId: row.runId,
+    });
+    await this.recommendationJobQueueRepository.deleteByRunId({ runId: row.runId });
+    return { deleted: true };
+  }
+
+  private async timeoutStaleProcessingRuns(input: {
+    readonly userId: string;
+    readonly portfolioId: string;
+    readonly now: Date;
+  }): Promise<void> {
+    const rows: readonly RecommendationRunHeaderRecord[] = await this.recommendationRunRepository.listRecentRuns({
+      userId: input.userId,
+      portfolioId: input.portfolioId,
+      limit: 200,
+    });
+    for (const row of rows) {
+      if (row.runStatus !== 'PROCESSING') {
+        continue;
+      }
+      const startedAtMs: number = Date.parse(row.startedAtIso);
+      if (Number.isNaN(startedAtMs)) {
+        continue;
+      }
+      const elapsedMs: number = input.now.getTime() - startedAtMs;
+      if (elapsedMs < PROCESSING_TIMEOUT_MS) {
+        continue;
+      }
+      await this.markRunTimeout({
+        userId: input.userId,
+        portfolioId: input.portfolioId,
+        header: row,
+        now: input.now,
+      });
+    }
+  }
 }
 
-function toSummaryDto(input: {
-  readonly record: {
-    readonly runId: string;
-    readonly portfolioId: string;
-    readonly runStatus: string;
-    readonly startedAtIso: string;
-    readonly completedAtIso: string | null;
-    readonly analyticsInputHash: string;
-    readonly synthesisSource: 'AI' | 'DETERMINISTIC';
-    readonly aiStatus: 'OK' | 'FAILED' | 'SKIPPED';
-    readonly aiError: string | null;
-    readonly aiProvider: string | null;
-    readonly aiModel: string | null;
-    readonly portfolioLevelSummary: string;
-  };
-}): RecommendationRunSummaryDto {
+function toSummaryDto(input: { readonly record: RecommendationRunHeaderRecord }): RecommendationRunSummaryDto {
   return {
     runId: input.record.runId,
     portfolioId: input.record.portfolioId,
@@ -474,6 +854,9 @@ function toSummaryDto(input: {
     aiProvider: input.record.aiProvider,
     aiModel: input.record.aiModel,
     portfolioLevelSummary: input.record.portfolioLevelSummary,
+    runItemCount: input.record.runItemCount,
+    runActionableCount: input.record.runActionableCount,
+    runMaxStrengthScore: input.record.runMaxStrengthScore,
   };
 }
 

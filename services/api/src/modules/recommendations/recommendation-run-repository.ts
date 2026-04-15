@@ -1,5 +1,5 @@
 import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
-import { PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { DeleteCommand, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import {
   buildPortfolioScopedPartitionKey,
   buildRecommendationFindingSortKey,
@@ -34,6 +34,14 @@ export type RecommendationRunHeaderRecord = {
   readonly aiError: string | null;
   readonly aiOutputJson: string | null;
   readonly portfolioLevelSummary: string;
+  /** Rule findings snapshot for async workers (set while `runStatus` is PROCESSING). */
+  readonly ruleFindingsJson: string | null;
+  /** Number of recommendation lines persisted for this run (0 while processing). */
+  readonly runItemCount: number;
+  /** Items with recommendation type BUY or SELL. */
+  readonly runActionableCount: number;
+  /** Max item strength score for list filtering (null if unknown). */
+  readonly runMaxStrengthScore: string | null;
 };
 
 export type RecommendationFindingRecord = {
@@ -107,6 +115,10 @@ export class RecommendationRunRepository {
           aiError: input.record.aiError,
           aiOutputJson: input.record.aiOutputJson,
           portfolioLevelSummary: input.record.portfolioLevelSummary,
+          ruleFindingsJson: input.record.ruleFindingsJson,
+          runItemCount: input.record.runItemCount,
+          runActionableCount: input.record.runActionableCount,
+          runMaxStrengthScore: input.record.runMaxStrengthScore,
         },
       }),
     );
@@ -304,6 +316,67 @@ export class RecommendationRunRepository {
     } while (startKey !== undefined);
     return collected.sort((a, b) => a.priorityRank - b.priorityRank);
   }
+
+  public async deleteRunHeader(input: {
+    readonly userId: string;
+    readonly portfolioId: string;
+    readonly startedAtIso: string;
+    readonly runId: string;
+  }): Promise<void> {
+    await this.documentClient.send(
+      new DeleteCommand({
+        TableName: this.tableName,
+        Key: {
+          [PARTITION_KEY]: buildPortfolioScopedPartitionKey({ userId: input.userId, portfolioId: input.portfolioId }),
+          [SORT_KEY]: buildRecommendationRunSortKey({
+            startedAtIso: input.startedAtIso,
+            runId: input.runId,
+          }),
+        },
+      }),
+    );
+  }
+
+  public async deleteRunArtifacts(input: { readonly userId: string; readonly portfolioId: string; readonly runId: string }): Promise<void> {
+    const findings: readonly RecommendationFindingRecord[] = await this.listFindingsForRun({
+      userId: input.userId,
+      portfolioId: input.portfolioId,
+      runId: input.runId,
+    });
+    for (const finding of findings) {
+      await this.documentClient.send(
+        new DeleteCommand({
+          TableName: this.tableName,
+          Key: {
+            [PARTITION_KEY]: buildPortfolioScopedPartitionKey({ userId: input.userId, portfolioId: input.portfolioId }),
+            [SORT_KEY]: buildRecommendationFindingSortKey({
+              runId: input.runId,
+              findingId: finding.findingId,
+            }),
+          },
+        }),
+      );
+    }
+    const items: readonly RecommendationItemRecord[] = await this.listItemsForRun({
+      userId: input.userId,
+      portfolioId: input.portfolioId,
+      runId: input.runId,
+    });
+    for (const item of items) {
+      await this.documentClient.send(
+        new DeleteCommand({
+          TableName: this.tableName,
+          Key: {
+            [PARTITION_KEY]: buildPortfolioScopedPartitionKey({ userId: input.userId, portfolioId: input.portfolioId }),
+            [SORT_KEY]: buildRecommendationItemSortKey({
+              runId: input.runId,
+              itemId: item.itemId,
+            }),
+          },
+        }),
+      );
+    }
+  }
 }
 
 function parseRunHeader(input: { readonly item: Record<string, unknown> }): RecommendationRunHeaderRecord | undefined {
@@ -332,6 +405,10 @@ function parseRunHeader(input: { readonly item: Record<string, unknown> }): Reco
   const aiOutputJson: unknown = input.item['aiOutputJson'];
   const portfolioLevelSummary: unknown = input.item['portfolioLevelSummary'];
   const completedAtIso: unknown = input.item['completedAtIso'];
+  const ruleFindingsJson: unknown = input.item['ruleFindingsJson'];
+  const runItemCount: unknown = input.item['runItemCount'];
+  const runActionableCount: unknown = input.item['runActionableCount'];
+  const runMaxStrengthScore: unknown = input.item['runMaxStrengthScore'];
   if (
     typeof runId !== 'string' ||
     typeof portfolioId !== 'string' ||
@@ -374,6 +451,10 @@ function parseRunHeader(input: { readonly item: Record<string, unknown> }): Reco
     aiError: typeof aiError === 'string' ? aiError : null,
     aiOutputJson: typeof aiOutputJson === 'string' ? aiOutputJson : null,
     portfolioLevelSummary,
+    ruleFindingsJson: typeof ruleFindingsJson === 'string' ? ruleFindingsJson : null,
+    runItemCount: typeof runItemCount === 'number' ? runItemCount : 0,
+    runActionableCount: typeof runActionableCount === 'number' ? runActionableCount : 0,
+    runMaxStrengthScore: typeof runMaxStrengthScore === 'string' ? runMaxStrengthScore : null,
   };
 }
 

@@ -102,3 +102,12 @@ export function buildRecommendationItemSortKey(input: { readonly runId: string; 
 export function buildRecommendationRunSortKeyPrefix(): string {
   return REC_RUN_PREFIX;
 }
+
+/** Global queue partition for async recommendation jobs (MVP: Query by PK). */
+export const RECOMMENDATION_JOB_QUEUE_PARTITION_KEY: string = 'RECOMMENDATION_JOB_QUEUE';
+
+const REC_JOB_PREFIX: string = 'REC_JOB#';
+
+export function buildRecommendationJobQueueSortKey(input: { readonly enqueuedAtIso: string; readonly runId: string }): string {
+  return `${REC_JOB_PREFIX}${input.enqueuedAtIso}#${input.runId}`;
+}

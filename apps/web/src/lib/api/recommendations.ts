@@ -13,6 +13,9 @@ export type RecommendationRunSummary = {
   readonly aiProvider: string | null;
   readonly aiModel: string | null;
   readonly portfolioLevelSummary: string;
+  readonly runItemCount: number;
+  readonly runActionableCount: number;
+  readonly runMaxStrengthScore: string | null;
 };
 
 export type RecommendationFindingDto = {
@@ -70,7 +73,7 @@ export async function runRecommendation(input: {
   readonly client: ApiClient;
   /**
    * When false, the server may return an existing completed run if portfolio inputs match.
-   * Default true: always execute a new run (same as checking “reuse” off on the UI).
+   * Default true: always enqueue a fresh run.
    */
   readonly force?: boolean;
 }): Promise<{
@@ -90,4 +93,42 @@ export async function getRecommendationRunDetail(input: {
   readonly runId: string;
 }): Promise<RecommendationRunDetail> {
   return input.client.executeJson({ method: 'GET', path: `/recommendations/runs/${input.runId}` });
+}
+
+export async function cancelAllRunningRecommendationRuns(input: {
+  readonly client: ApiClient;
+}): Promise<{ readonly cancelledCount: number }> {
+  return input.client.executeJson({
+    method: 'POST',
+    path: '/recommendations/runs/cancel-all-processing',
+  });
+}
+
+export async function deleteTimedOutRecommendationRuns(input: {
+  readonly client: ApiClient;
+}): Promise<{ readonly deletedCount: number }> {
+  return input.client.executeJson({
+    method: 'DELETE',
+    path: '/recommendations/runs/timeouts',
+  });
+}
+
+export async function cancelRecommendationRun(input: {
+  readonly client: ApiClient;
+  readonly runId: string;
+}): Promise<{ readonly cancelled: boolean }> {
+  return input.client.executeJson({
+    method: 'POST',
+    path: `/recommendations/runs/${input.runId}/cancel`,
+  });
+}
+
+export async function deleteRecommendationRun(input: {
+  readonly client: ApiClient;
+  readonly runId: string;
+}): Promise<{ readonly deleted: boolean }> {
+  return input.client.executeJson({
+    method: 'DELETE',
+    path: `/recommendations/runs/${input.runId}`,
+  });
 }
