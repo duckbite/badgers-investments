@@ -118,6 +118,124 @@ export function registerRecommendationsRoutes(input: {
       return reply.send({ items });
     },
   );
+  input.app.post(
+    '/recommendations/runs/cancel-all-processing',
+    {
+      preHandler: input.app.requireSession,
+      schema: {
+        response: {
+          200: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['cancelledCount'],
+            properties: {
+              cancelledCount: { type: 'number' },
+            },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const userId: string = request.authUser?.userId ?? '';
+      const result = await input.recommendationRunService.cancelAllRunningRuns({ userId, now: new Date() });
+      return reply.send(result);
+    },
+  );
+  input.app.post(
+    '/recommendations/runs/:id/cancel',
+    {
+      preHandler: input.app.requireSession,
+      schema: {
+        params: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['id'],
+          properties: {
+            id: { type: 'string' },
+          },
+        },
+        response: {
+          200: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['cancelled'],
+            properties: {
+              cancelled: { type: 'boolean' },
+            },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const userId: string = request.authUser?.userId ?? '';
+      const params = request.params as { readonly id: string };
+      const result = await input.recommendationRunService.cancelRunById({
+        userId,
+        runId: params.id,
+        now: new Date(),
+      });
+      return reply.send(result);
+    },
+  );
+  input.app.delete(
+    '/recommendations/runs/timeouts',
+    {
+      preHandler: input.app.requireSession,
+      schema: {
+        response: {
+          200: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['deletedCount'],
+            properties: {
+              deletedCount: { type: 'number' },
+            },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const userId: string = request.authUser?.userId ?? '';
+      const result = await input.recommendationRunService.deleteTimedOutRuns({ userId, now: new Date() });
+      return reply.send(result);
+    },
+  );
+  input.app.delete(
+    '/recommendations/runs/:id',
+    {
+      preHandler: input.app.requireSession,
+      schema: {
+        params: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['id'],
+          properties: {
+            id: { type: 'string' },
+          },
+        },
+        response: {
+          200: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['deleted'],
+            properties: {
+              deleted: { type: 'boolean' },
+            },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const userId: string = request.authUser?.userId ?? '';
+      const params = request.params as { readonly id: string };
+      const result = await input.recommendationRunService.deleteRunById({
+        userId,
+        runId: params.id,
+        now: new Date(),
+      });
+      return reply.send(result);
+    },
+  );
   input.app.get(
     '/recommendations/runs/:id',
     {

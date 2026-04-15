@@ -80,6 +80,14 @@ export class RecommendationJobQueueRepository {
       }),
     );
   }
+
+  public async deleteByRunId(input: { readonly runId: string }): Promise<void> {
+    const jobs: readonly RecommendationQueuedJobRecord[] = await this.listOldest({ limit: 500 });
+    const matchingJobs: readonly RecommendationQueuedJobRecord[] = jobs.filter((job) => job.runId === input.runId);
+    for (const job of matchingJobs) {
+      await this.deleteJob({ enqueuedAtIso: job.enqueuedAtIso, runId: job.runId });
+    }
+  }
 }
 
 function parseJob(input: { readonly item: Record<string, unknown> }): RecommendationQueuedJobRecord | undefined {

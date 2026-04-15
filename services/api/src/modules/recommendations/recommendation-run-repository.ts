@@ -1,5 +1,5 @@
 import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
-import { PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { DeleteCommand, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import {
   buildPortfolioScopedPartitionKey,
   buildRecommendationFindingSortKey,
@@ -315,6 +315,67 @@ export class RecommendationRunRepository {
       startKey = response.LastEvaluatedKey;
     } while (startKey !== undefined);
     return collected.sort((a, b) => a.priorityRank - b.priorityRank);
+  }
+
+  public async deleteRunHeader(input: {
+    readonly userId: string;
+    readonly portfolioId: string;
+    readonly startedAtIso: string;
+    readonly runId: string;
+  }): Promise<void> {
+    await this.documentClient.send(
+      new DeleteCommand({
+        TableName: this.tableName,
+        Key: {
+          [PARTITION_KEY]: buildPortfolioScopedPartitionKey({ userId: input.userId, portfolioId: input.portfolioId }),
+          [SORT_KEY]: buildRecommendationRunSortKey({
+            startedAtIso: input.startedAtIso,
+            runId: input.runId,
+          }),
+        },
+      }),
+    );
+  }
+
+  public async deleteRunArtifacts(input: { readonly userId: string; readonly portfolioId: string; readonly runId: string }): Promise<void> {
+    const findings: readonly RecommendationFindingRecord[] = await this.listFindingsForRun({
+      userId: input.userId,
+      portfolioId: input.portfolioId,
+      runId: input.runId,
+    });
+    for (const finding of findings) {
+      await this.documentClient.send(
+        new DeleteCommand({
+          TableName: this.tableName,
+          Key: {
+            [PARTITION_KEY]: buildPortfolioScopedPartitionKey({ userId: input.userId, portfolioId: input.portfolioId }),
+            [SORT_KEY]: buildRecommendationFindingSortKey({
+              runId: input.runId,
+              findingId: finding.findingId,
+            }),
+          },
+        }),
+      );
+    }
+    const items: readonly RecommendationItemRecord[] = await this.listItemsForRun({
+      userId: input.userId,
+      portfolioId: input.portfolioId,
+      runId: input.runId,
+    });
+    for (const item of items) {
+      await this.documentClient.send(
+        new DeleteCommand({
+          TableName: this.tableName,
+          Key: {
+            [PARTITION_KEY]: buildPortfolioScopedPartitionKey({ userId: input.userId, portfolioId: input.portfolioId }),
+            [SORT_KEY]: buildRecommendationItemSortKey({
+              runId: input.runId,
+              itemId: item.itemId,
+            }),
+          },
+        }),
+      );
+    }
   }
 }
 

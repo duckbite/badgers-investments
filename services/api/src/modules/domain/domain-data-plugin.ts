@@ -105,6 +105,7 @@ const domainDataPluginImpl: FastifyPluginAsync = async (app): Promise<void> => {
   const aiSettingsService = new AiSettingsService({ userAiSettingsRepository });
   registerAiSettingsRoutes({ app, aiSettingsService });
   const recommendationRunService = instantiateRecommendationRunService({ documentClient, tableName });
+  app.decorate('recommendationRunService', recommendationRunService);
   registerRecommendationsRoutes({ app, recommendationRunService });
   const userPrivacySettingsRepository = new UserPrivacySettingsRepository({ documentClient, tableName });
   const privacySettingsService = new PrivacySettingsService({ userPrivacySettingsRepository });

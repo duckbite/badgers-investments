@@ -33,6 +33,8 @@ import {
   type RecommendationRunHeaderRecord,
 } from './recommendation-run-repository.js';
 
+const PROCESSING_TIMEOUT_MS: number = 10 * 60 * 1000;
+
 export type RecommendationPreconditionError = {
   readonly code: string;
   readonly message: string;
@@ -469,6 +471,32 @@ export class RecommendationRunService {
     await this.recommendationRunRepository.putRunHeader({ userId: input.userId, record: failedHeader });
   }
 
+  private async markRunTimeout(input: {
+    readonly userId: string;
+    readonly portfolioId: string;
+    readonly header: RecommendationRunHeaderRecord;
+    readonly now: Date;
+  }): Promise<void> {
+    const timedOutHeader: RecommendationRunHeaderRecord = {
+      ...input.header,
+      runStatus: 'TIMEOUT',
+      completedAtIso: input.now.toISOString(),
+      portfolioLevelSummary: 'Run timed out after 10 minutes.',
+      synthesisSource: 'DETERMINISTIC',
+      aiProvider: null,
+      aiModel: null,
+      aiStatus: 'SKIPPED',
+      aiError: 'Run timed out after 10 minutes.',
+      aiOutputJson: null,
+      ruleFindingsJson: null,
+      runItemCount: 0,
+      runActionableCount: 0,
+      runMaxStrengthScore: null,
+    };
+    await this.recommendationRunRepository.putRunHeader({ userId: input.userId, record: timedOutHeader });
+    await this.recommendationJobQueueRepository.deleteByRunId({ runId: input.header.runId });
+  }
+
   private async synthesizeAndPersistCompletedRun(input: {
     readonly userId: string;
     readonly portfolioId: string;
@@ -612,6 +640,7 @@ export class RecommendationRunService {
 
   public async listRuns(input: { readonly userId: string; readonly now: Date; readonly limit: number }): Promise<readonly RecommendationRunSummaryDto[]> {
     const portfolioId: string = await this.portfolioService.requirePortfolioIdForUser({ userId: input.userId, now: input.now });
+    await this.timeoutStaleProcessingRuns({ userId: input.userId, portfolioId, now: input.now });
     const rows = await this.recommendationRunRepository.listRecentRuns({
       userId: input.userId,
       portfolioId,
@@ -626,6 +655,7 @@ export class RecommendationRunService {
     readonly runId: string;
   }): Promise<RecommendationRunDetailDto | undefined> {
     const portfolioId: string = await this.portfolioService.requirePortfolioIdForUser({ userId: input.userId, now: input.now });
+    await this.timeoutStaleProcessingRuns({ userId: input.userId, portfolioId, now: input.now });
     const header = await this.recommendationRunRepository.getRunById({
       userId: input.userId,
       portfolioId,
@@ -670,6 +700,143 @@ export class RecommendationRunService {
         source: it.source,
       })),
     };
+  }
+
+  public async cancelAllRunningRuns(input: {
+    readonly userId: string;
+    readonly now: Date;
+  }): Promise<{ readonly cancelledCount: number }> {
+    const portfolioId: string = await this.portfolioService.requirePortfolioIdForUser({ userId: input.userId, now: input.now });
+    const rows: readonly RecommendationRunHeaderRecord[] = await this.recommendationRunRepository.listRecentRuns({
+      userId: input.userId,
+      portfolioId,
+      limit: 200,
+    });
+    const processingRuns: readonly RecommendationRunHeaderRecord[] = rows.filter((row) => row.runStatus === 'PROCESSING');
+    for (const row of processingRuns) {
+      await this.markRunFailed({
+        userId: input.userId,
+        portfolioId,
+        header: row,
+        message: 'Cancelled by user.',
+        now: input.now,
+      });
+      await this.recommendationJobQueueRepository.deleteByRunId({ runId: row.runId });
+    }
+    return { cancelledCount: processingRuns.length };
+  }
+
+  public async cancelRunById(input: {
+    readonly userId: string;
+    readonly runId: string;
+    readonly now: Date;
+  }): Promise<{ readonly cancelled: boolean }> {
+    const portfolioId: string = await this.portfolioService.requirePortfolioIdForUser({ userId: input.userId, now: input.now });
+    const row: RecommendationRunHeaderRecord | undefined = await this.recommendationRunRepository.getRunById({
+      userId: input.userId,
+      portfolioId,
+      runId: input.runId,
+    });
+    if (row === undefined || row.runStatus !== 'PROCESSING') {
+      return { cancelled: false };
+    }
+    await this.markRunFailed({
+      userId: input.userId,
+      portfolioId,
+      header: row,
+      message: 'Cancelled by user.',
+      now: input.now,
+    });
+    await this.recommendationJobQueueRepository.deleteByRunId({ runId: row.runId });
+    return { cancelled: true };
+  }
+
+  public async deleteTimedOutRuns(input: {
+    readonly userId: string;
+    readonly now: Date;
+  }): Promise<{ readonly deletedCount: number }> {
+    const portfolioId: string = await this.portfolioService.requirePortfolioIdForUser({ userId: input.userId, now: input.now });
+    const rows: readonly RecommendationRunHeaderRecord[] = await this.recommendationRunRepository.listRecentRuns({
+      userId: input.userId,
+      portfolioId,
+      limit: 200,
+    });
+    const timedOutRows: readonly RecommendationRunHeaderRecord[] = rows.filter((row) => row.runStatus === 'TIMEOUT');
+    for (const row of timedOutRows) {
+      await this.recommendationRunRepository.deleteRunArtifacts({
+        userId: input.userId,
+        portfolioId,
+        runId: row.runId,
+      });
+      await this.recommendationRunRepository.deleteRunHeader({
+        userId: input.userId,
+        portfolioId,
+        startedAtIso: row.startedAtIso,
+        runId: row.runId,
+      });
+      await this.recommendationJobQueueRepository.deleteByRunId({ runId: row.runId });
+    }
+    return { deletedCount: timedOutRows.length };
+  }
+
+  public async deleteRunById(input: {
+    readonly userId: string;
+    readonly runId: string;
+    readonly now: Date;
+  }): Promise<{ readonly deleted: boolean }> {
+    const portfolioId: string = await this.portfolioService.requirePortfolioIdForUser({ userId: input.userId, now: input.now });
+    const row: RecommendationRunHeaderRecord | undefined = await this.recommendationRunRepository.getRunById({
+      userId: input.userId,
+      portfolioId,
+      runId: input.runId,
+    });
+    if (row === undefined || row.runStatus === 'PROCESSING') {
+      return { deleted: false };
+    }
+    await this.recommendationRunRepository.deleteRunArtifacts({
+      userId: input.userId,
+      portfolioId,
+      runId: row.runId,
+    });
+    await this.recommendationRunRepository.deleteRunHeader({
+      userId: input.userId,
+      portfolioId,
+      startedAtIso: row.startedAtIso,
+      runId: row.runId,
+    });
+    await this.recommendationJobQueueRepository.deleteByRunId({ runId: row.runId });
+    return { deleted: true };
+  }
+
+  private async timeoutStaleProcessingRuns(input: {
+    readonly userId: string;
+    readonly portfolioId: string;
+    readonly now: Date;
+  }): Promise<void> {
+    const rows: readonly RecommendationRunHeaderRecord[] = await this.recommendationRunRepository.listRecentRuns({
+      userId: input.userId,
+      portfolioId: input.portfolioId,
+      limit: 200,
+    });
+    for (const row of rows) {
+      if (row.runStatus !== 'PROCESSING') {
+        continue;
+      }
+      const startedAtMs: number = Date.parse(row.startedAtIso);
+      if (Number.isNaN(startedAtMs)) {
+        continue;
+      }
+      const elapsedMs: number = input.now.getTime() - startedAtMs;
+      if (elapsedMs < PROCESSING_TIMEOUT_MS) {
+        continue;
+      }
+      await this.markRunTimeout({
+        userId: input.userId,
+        portfolioId: input.portfolioId,
+        header: row,
+        now: input.now,
+      });
+    }
   }
 }
 

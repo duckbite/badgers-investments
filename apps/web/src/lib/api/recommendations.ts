@@ -94,3 +94,41 @@ export async function getRecommendationRunDetail(input: {
 }): Promise<RecommendationRunDetail> {
   return input.client.executeJson({ method: 'GET', path: `/recommendations/runs/${input.runId}` });
 }
+
+export async function cancelAllRunningRecommendationRuns(input: {
+  readonly client: ApiClient;
+}): Promise<{ readonly cancelledCount: number }> {
+  return input.client.executeJson({
+    method: 'POST',
+    path: '/recommendations/runs/cancel-all-processing',
+  });
+}
+
+export async function deleteTimedOutRecommendationRuns(input: {
+  readonly client: ApiClient;
+}): Promise<{ readonly deletedCount: number }> {
+  return input.client.executeJson({
+    method: 'DELETE',
+    path: '/recommendations/runs/timeouts',
+  });
+}
+
+export async function cancelRecommendationRun(input: {
+  readonly client: ApiClient;
+  readonly runId: string;
+}): Promise<{ readonly cancelled: boolean }> {
+  return input.client.executeJson({
+    method: 'POST',
+    path: `/recommendations/runs/${input.runId}/cancel`,
+  });
+}
+
+export async function deleteRecommendationRun(input: {
+  readonly client: ApiClient;
+  readonly runId: string;
+}): Promise<{ readonly deleted: boolean }> {
+  return input.client.executeJson({
+    method: 'DELETE',
+    path: `/recommendations/runs/${input.runId}`,
+  });
+}

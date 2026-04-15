@@ -6,20 +6,30 @@
   import { onDestroy, onMount } from 'svelte';
   import { apiClient } from '$lib/api/api-client-instance';
   import {
+    cancelRecommendationRun,
+    deleteRecommendationRun,
     listRecommendationRuns,
     runRecommendation,
     type RecommendationRunSummary,
   } from '$lib/api/recommendations';
+  import {
+    createRecommendationRunsFeed,
+    type RealtimeConnectionStatus,
+    type RealtimeRecommendationRunEvent,
+  } from '$lib/realtime/recommendation-runs-feed';
   import { toast } from '$lib/toast/toast';
 
   let items: readonly RecommendationRunSummary[] = [];
   let isLoading: boolean = true;
   let isRunning: boolean = false;
+  let openRunMenuId: string | null = null;
+  let actionRunId: string | null = null;
 
   type QuickFilterId =
     | 'processing'
     | 'completed'
     | 'failed'
+    | 'timeout'
     | 'priority_high'
     | 'priority_medium'
     | 'priority_low'
@@ -31,6 +41,7 @@
     { id: 'processing', label: 'Processing' },
     { id: 'completed', label: 'Completed' },
     { id: 'failed', label: 'Failed' },
+    { id: 'timeout', label: 'Timeout' },
     { id: 'priority_high', label: 'High priority' },
     { id: 'priority_medium', label: 'Medium priority' },
     { id: 'priority_low', label: 'Low priority' },
@@ -42,7 +53,9 @@
   /** When empty, all runs are shown. Otherwise a run is shown if it matches any selected filter (OR). */
   let activeQuickFilters: QuickFilterId[] = [];
 
-  let pollTimer: ReturnType<typeof setInterval> | undefined;
+  let realtimeConnectionStatus: RealtimeConnectionStatus = 'idle';
+  let closeRealtimeFeed: (() => void) | undefined;
+  const runEventUpdatedAtByRunId: Map<string, number> = new Map<string, number>();
 
   function strengthTier(score: string | null): 'high' | 'medium' | 'low' | null {
     if (score === null) {
@@ -68,6 +81,9 @@
     if (run.runStatus === 'FAILED') {
       return 'Failed';
     }
+    if (run.runStatus === 'TIMEOUT') {
+      return 'Timeout';
+    }
     if (run.runStatus === 'COMPLETED') {
       return 'Completed';
     }
@@ -80,6 +96,9 @@
     }
     if (run.runStatus === 'FAILED') {
       return 'This run did not complete. Open for details or generate a new insight.';
+    }
+    if (run.runStatus === 'TIMEOUT') {
+      return 'This run timed out after 10 minutes and was stopped automatically.';
     }
     if (run.runItemCount === 0) {
       return 'Open to view rule findings and recommendation lines for this snapshot.';
@@ -99,6 +118,8 @@
         return run.runStatus === 'COMPLETED';
       case 'failed':
         return run.runStatus === 'FAILED';
+      case 'timeout':
+        return run.runStatus === 'TIMEOUT';
       case 'priority_high':
         return run.runStatus === 'COMPLETED' && strengthTier(run.runMaxStrengthScore) === 'high';
       case 'priority_medium':
@@ -116,11 +137,11 @@
     }
   }
 
-  function matchesQuickFilters(run: RecommendationRunSummary): boolean {
-    if (activeQuickFilters.length === 0) {
+  function matchesQuickFilters(run: RecommendationRunSummary, selectedFilters: readonly QuickFilterId[]): boolean {
+    if (selectedFilters.length === 0) {
       return true;
     }
-    for (const id of activeQuickFilters) {
+    for (const id of selectedFilters) {
       if (quickFilterMatches(run, id)) {
         return true;
       }
@@ -140,7 +161,7 @@
     activeQuickFilters = [];
   }
 
-  $: filteredItems = items.filter(matchesQuickFilters);
+  $: filteredItems = items.filter((run) => matchesQuickFilters(run, activeQuickFilters));
 
   async function load(): Promise<void> {
     isLoading = true;
@@ -153,29 +174,50 @@
     }
   }
 
-  function startPolling(): void {
-    if (pollTimer !== undefined) {
+  function upsertRunFromEvent(event: RealtimeRecommendationRunEvent): void {
+    const eventTimestamp: number = Date.parse(event.occurredAt);
+    const safeTimestamp: number = Number.isNaN(eventTimestamp) ? Date.now() : eventTimestamp;
+    const previousTimestamp: number = runEventUpdatedAtByRunId.get(event.runId) ?? 0;
+    if (safeTimestamp < previousTimestamp) {
       return;
     }
-    pollTimer = setInterval(() => {
-      void load();
-    }, 3200);
+    runEventUpdatedAtByRunId.set(event.runId, safeTimestamp);
+    if (event.summary !== undefined) {
+      const summary = event.summary as RecommendationRunSummary;
+      const nextById: Map<string, RecommendationRunSummary> = new Map(items.map((run) => [run.runId, run]));
+      nextById.set(summary.runId, summary);
+      items = Array.from(nextById.values()).sort((left, right) => right.startedAt.localeCompare(left.startedAt));
+      return;
+    }
+    const existing: RecommendationRunSummary | undefined = items.find((run) => run.runId === event.runId);
+    if (existing === undefined) {
+      return;
+    }
+    const nextSummary: RecommendationRunSummary = { ...existing, runStatus: event.status };
+    items = items.map((run) => (run.runId === event.runId ? nextSummary : run));
   }
 
-  function stopPolling(): void {
-    if (pollTimer !== undefined) {
-      clearInterval(pollTimer);
-      pollTimer = undefined;
+  function connectionStatusLabel(status: RealtimeConnectionStatus): string {
+    if (status === 'connected') {
+      return 'Live';
     }
+    if (status === 'connecting' || status === 'reconnecting') {
+      return 'Reconnecting';
+    }
+    if (status === 'degraded') {
+      return 'Degraded';
+    }
+    return 'Offline';
   }
 
-  $: {
-    const anyProcessing = items.some((r) => r.runStatus === 'PROCESSING');
-    if (anyProcessing) {
-      startPolling();
-    } else {
-      stopPolling();
+  function connectionStatusClass(status: RealtimeConnectionStatus): string {
+    if (status === 'connected') {
+      return 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100';
     }
+    if (status === 'degraded') {
+      return 'bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-100';
+    }
+    return 'bg-gray-100 text-gray-800 dark:bg-muted dark:text-muted-foreground';
   }
 
   async function onGenerateInsights(): Promise<void> {
@@ -194,24 +236,87 @@
     }
   }
 
+  function isRunActionPending(runId: string): boolean {
+    return actionRunId === runId;
+  }
+
+  async function onCancelRun(runId: string): Promise<void> {
+    actionRunId = runId;
+    try {
+      const result = await cancelRecommendationRun({ client: apiClient, runId });
+      if (!result.cancelled) {
+        toast.error('Run is no longer running.');
+      } else {
+        toast.success('Run cancelled.');
+      }
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to cancel run');
+    } finally {
+      actionRunId = null;
+      openRunMenuId = null;
+    }
+  }
+
+  async function onDeleteRun(runId: string): Promise<void> {
+    actionRunId = runId;
+    try {
+      const result = await deleteRecommendationRun({ client: apiClient, runId });
+      if (!result.deleted) {
+        toast.error('Cannot delete a running run.');
+      } else {
+        toast.success('Run deleted.');
+      }
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete run');
+    } finally {
+      actionRunId = null;
+      openRunMenuId = null;
+    }
+  }
+
   onMount(() => {
     void load();
+    const baseUrlRaw: string | undefined = import.meta.env.PUBLIC_API_BASE_URL;
+    const apiBaseUrl: string = baseUrlRaw !== undefined && baseUrlRaw.length > 0 ? baseUrlRaw : window.location.origin;
+    const feed = createRecommendationRunsFeed({
+      apiBaseUrl,
+      onRecommendationEvent: (event) => {
+        upsertRunFromEvent(event);
+      },
+      onConnectionStatus: (status) => {
+        realtimeConnectionStatus = status;
+      },
+      onReconnect: async () => {
+        await load();
+      },
+    });
+    closeRealtimeFeed = feed.close;
   });
 
   onDestroy(() => {
-    stopPolling();
+    if (closeRealtimeFeed !== undefined) {
+      closeRealtimeFeed();
+      closeRealtimeFeed = undefined;
+    }
   });
 </script>
 
 <section class="space-y-6">
   <header class="flex flex-wrap items-start justify-between gap-4">
     <div class="space-y-1">
-      <h1 class="text-2xl font-semibold text-gray-900 dark:text-foreground">Recommendations</h1>
+      <div class="flex flex-wrap items-center gap-2">
+        <h1 class="text-2xl font-semibold text-gray-900 dark:text-foreground">Recommendations</h1>
+        <span class="rounded-full px-2 py-0.5 text-xs font-medium {connectionStatusClass(realtimeConnectionStatus)}">
+          {connectionStatusLabel(realtimeConnectionStatus)}
+        </span>
+      </div>
       <p class="text-sm text-gray-600 dark:text-muted-foreground">
-        AI-powered and rule-based suggestions. New runs process in the background like analyses in Explore.
+        AI-powered and rule-based suggestions. Run updates stream over WebSocket without periodic refresh loops.
       </p>
     </div>
-    <div class="flex shrink-0 items-center sm:items-start">
+    <div class="flex shrink-0 items-center gap-2 sm:items-start">
       <button
         type="button"
         class="inline-flex items-center justify-center gap-2 rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60 dark:bg-emerald-600 dark:hover:bg-emerald-500"
@@ -280,17 +385,59 @@
     <ul class="space-y-3">
       {#each filteredItems as run (run.runId)}
         <li>
-          <a
-            href="/recommendations/{run.runId}"
-            class="block rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md dark:border-border dark:bg-card"
-          >
+          <div class="relative rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md dark:border-border dark:bg-card">
+            <div class="absolute right-4 top-4">
+              <div class="relative">
+                <button
+                  type="button"
+                  class="inline-flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-border dark:bg-card dark:text-foreground dark:hover:bg-muted/50"
+                  aria-label="Run actions"
+                  aria-haspopup="menu"
+                  aria-expanded={openRunMenuId === run.runId}
+                  disabled={isRunActionPending(run.runId)}
+                  on:click={() => {
+                    openRunMenuId = openRunMenuId === run.runId ? null : run.runId;
+                  }}
+                >
+                  &#8942;
+                </button>
+                {#if openRunMenuId === run.runId}
+                  <div
+                    class="absolute right-0 z-20 mt-2 min-w-[160px] rounded-md border border-gray-200 bg-white p-1 shadow-lg dark:border-border dark:bg-card"
+                    role="menu"
+                  >
+                    {#if run.runStatus === 'PROCESSING'}
+                      <button
+                        type="button"
+                        class="flex w-full items-center justify-between rounded px-3 py-2 text-left text-sm text-gray-800 hover:bg-gray-50 disabled:opacity-60 dark:text-foreground dark:hover:bg-muted/50"
+                        role="menuitem"
+                        disabled={isRunActionPending(run.runId)}
+                        on:click={() => void onCancelRun(run.runId)}
+                      >
+                        {isRunActionPending(run.runId) ? 'Cancelling…' : 'Cancel run'}
+                      </button>
+                    {:else}
+                      <button
+                        type="button"
+                        class="flex w-full items-center justify-between rounded px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50 disabled:opacity-60 dark:text-red-300 dark:hover:bg-red-950/30"
+                        role="menuitem"
+                        disabled={isRunActionPending(run.runId)}
+                        on:click={() => void onDeleteRun(run.runId)}
+                      >
+                        {isRunActionPending(run.runId) ? 'Deleting…' : 'Delete'}
+                      </button>
+                    {/if}
+                  </div>
+                {/if}
+              </div>
+            </div>
             <div class="flex flex-wrap items-start gap-3">
               <div class="mt-0.5 shrink-0" aria-hidden="true">
                 {#if run.runStatus === 'PROCESSING'}
                   <span
                     class="inline-block h-5 w-5 animate-spin rounded-full border-2 border-gray-200 border-t-emerald-600 dark:border-muted dark:border-t-emerald-400"
                   ></span>
-                {:else if run.runStatus === 'FAILED'}
+                {:else if run.runStatus === 'FAILED' || run.runStatus === 'TIMEOUT'}
                   <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-200"
                     >!</span
                   >
@@ -301,12 +448,12 @@
                   >
                 {/if}
               </div>
-              <div class="min-w-0 flex-1 space-y-2">
+              <div class="min-w-0 flex-1 space-y-2 pr-10">
                 <div class="flex flex-wrap items-center gap-2">
                   <span
                     class="rounded-full px-2 py-0.5 text-xs font-medium {run.runStatus === 'PROCESSING'
                       ? 'bg-blue-100 text-blue-900 dark:bg-blue-950/50 dark:text-blue-100'
-                      : run.runStatus === 'FAILED'
+                      : run.runStatus === 'FAILED' || run.runStatus === 'TIMEOUT'
                         ? 'bg-red-100 text-red-900 dark:bg-red-950/50 dark:text-red-100'
                         : 'bg-green-100 text-green-900 dark:bg-green-950/40 dark:text-green-100'}"
                   >
@@ -328,9 +475,9 @@
                     {/if}
                   {/if}
                 </div>
-                <h2 class="text-base font-semibold text-gray-900 dark:text-foreground">
+                <a href="/recommendations/{run.runId}" class="text-base font-semibold text-gray-900 hover:underline dark:text-foreground">
                   {run.portfolioLevelSummary}
-                </h2>
+                </a>
                 <p class="text-sm leading-relaxed text-gray-600 dark:text-muted-foreground">
                   {runCardDescription(run)}
                 </p>
@@ -342,7 +489,7 @@
                 </p>
               </div>
             </div>
-          </a>
+          </div>
         </li>
       {/each}
     </ul>

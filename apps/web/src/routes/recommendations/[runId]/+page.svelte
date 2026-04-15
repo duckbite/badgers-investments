@@ -5,13 +5,18 @@
 <script lang="ts">
   import { afterNavigate } from '$app/navigation';
   import { page } from '$app/stores';
-  import { onDestroy } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import { apiClient } from '$lib/api/api-client-instance';
   import {
     getRecommendationRunDetail,
     type RecommendationItemDto,
     type RecommendationRunDetail,
   } from '$lib/api/recommendations';
+  import {
+    createRecommendationRunsFeed,
+    type RealtimeConnectionStatus,
+    type RealtimeRecommendationRunEvent,
+  } from '$lib/realtime/recommendation-runs-feed';
   import { toast } from '$lib/toast/toast';
 
   let detail: RecommendationRunDetail | undefined;
@@ -25,7 +30,9 @@
   let filterSource: SourceFilter = 'all';
   let filterAction: ActionFilter = 'all';
 
-  let pollTimer: ReturnType<typeof setInterval> | undefined;
+  let realtimeConnectionStatus: RealtimeConnectionStatus = 'idle';
+  let closeRealtimeFeed: (() => void) | undefined;
+  const runEventUpdatedAtByRunId: Map<string, number> = new Map<string, number>();
 
   function strengthTierFromScores(strength: string, confidence: string): 'high' | 'medium' | 'low' | null {
     const n: number = Number.parseFloat(strength);
@@ -97,30 +104,64 @@
     }
   }
 
-  function startPolling(runId: string): void {
-    if (pollTimer !== undefined) {
+  function connectionStatusLabel(status: RealtimeConnectionStatus): string {
+    if (status === 'connected') {
+      return 'Live';
+    }
+    if (status === 'connecting' || status === 'reconnecting') {
+      return 'Reconnecting';
+    }
+    if (status === 'degraded') {
+      return 'Degraded';
+    }
+    return 'Offline';
+  }
+
+  function connectionStatusClass(status: RealtimeConnectionStatus): string {
+    if (status === 'connected') {
+      return 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100';
+    }
+    if (status === 'degraded') {
+      return 'bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-100';
+    }
+    return 'bg-gray-100 text-gray-800 dark:bg-muted dark:text-muted-foreground';
+  }
+
+  function applyRunEvent(event: RealtimeRecommendationRunEvent): void {
+    const runId: string = $page.params.runId ?? '';
+    if (event.runId !== runId) {
       return;
     }
-    pollTimer = setInterval(() => {
-      void loadRun({ runId });
-    }, 3200);
+    const eventTimestamp: number = Date.parse(event.occurredAt);
+    const safeTimestamp: number = Number.isNaN(eventTimestamp) ? Date.now() : eventTimestamp;
+    const previousTimestamp: number = runEventUpdatedAtByRunId.get(event.runId) ?? 0;
+    if (safeTimestamp < previousTimestamp) {
+      return;
+    }
+    runEventUpdatedAtByRunId.set(event.runId, safeTimestamp);
+    void loadRun({ runId });
   }
 
-  function stopPolling(): void {
-    if (pollTimer !== undefined) {
-      clearInterval(pollTimer);
-      pollTimer = undefined;
-    }
-  }
-
-  $: {
-    const runId = $page.params.runId ?? '';
-    if (detail?.runStatus === 'PROCESSING' && runId.length > 0) {
-      startPolling(runId);
-    } else {
-      stopPolling();
-    }
-  }
+  onMount(() => {
+    const baseUrlRaw: string | undefined = import.meta.env.PUBLIC_API_BASE_URL;
+    const apiBaseUrl: string = baseUrlRaw !== undefined && baseUrlRaw.length > 0 ? baseUrlRaw : window.location.origin;
+    const feed = createRecommendationRunsFeed({
+      apiBaseUrl,
+      onRecommendationEvent: (event) => {
+        applyRunEvent(event);
+      },
+      onConnectionStatus: (status) => {
+        realtimeConnectionStatus = status;
+      },
+      onReconnect: async () => {
+        const runId: string = $page.params.runId ?? '';
+        if (runId.length > 0) {
+          await loadRun({ runId });
+        }
+      },
+    });
+    closeRealtimeFeed = feed.close;
+  });
 
   afterNavigate(() => {
     const runId: string = $page.params.runId ?? '';
@@ -128,7 +169,10 @@
   });
 
   onDestroy(() => {
-    stopPolling();
+    if (closeRealtimeFeed !== undefined) {
+      closeRealtimeFeed();
+      closeRealtimeFeed = undefined;
+    }
   });
 </script>
 
@@ -149,10 +193,13 @@
   {:else}
     <header class="space-y-2">
       <div class="flex flex-wrap items-center gap-2">
+        <span class="rounded-full px-2 py-0.5 text-xs font-medium {connectionStatusClass(realtimeConnectionStatus)}">
+          {connectionStatusLabel(realtimeConnectionStatus)}
+        </span>
         <span
           class="rounded-full px-2 py-0.5 text-xs font-medium {detail.runStatus === 'PROCESSING'
             ? 'bg-blue-100 text-blue-900 dark:bg-blue-950/50 dark:text-blue-100'
-            : detail.runStatus === 'FAILED'
+            : detail.runStatus === 'FAILED' || detail.runStatus === 'TIMEOUT'
               ? 'bg-red-100 text-red-900 dark:bg-red-950/50 dark:text-red-100'
               : 'bg-green-100 text-green-900 dark:bg-green-950/40 dark:text-green-100'}"
         >
@@ -160,6 +207,8 @@
             ? 'Processing'
             : detail.runStatus === 'FAILED'
               ? 'Failed'
+              : detail.runStatus === 'TIMEOUT'
+                ? 'Timeout'
               : 'Completed'}
         </span>
         {#if detail.runStatus === 'COMPLETED'}
@@ -171,7 +220,7 @@
       <h1 class="text-2xl font-semibold text-gray-900 dark:text-foreground">{detail.portfolioLevelSummary}</h1>
       {#if detail.runStatus === 'PROCESSING'}
         <p class="text-sm leading-relaxed text-gray-600 dark:text-muted-foreground">
-          We are generating recommendations from your snapshot and rules. This page refreshes automatically. Run the worker with
+          We are generating recommendations from your snapshot and rules. Status updates stream over WebSocket. Run the worker with
           <code class="rounded bg-gray-100 px-1 dark:bg-muted">pnpm --filter api recommendation-queue:process</code>
           if nothing completes.
         </p>
@@ -197,12 +246,12 @@
       {/if}
     </header>
 
-    {#if detail.runStatus === 'FAILED'}
+    {#if detail.runStatus === 'FAILED' || detail.runStatus === 'TIMEOUT'}
       <div
         class="rounded-lg border border-red-200 bg-red-50/90 p-3 text-sm text-red-950 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-100"
         role="alert"
       >
-        <strong class="font-medium">This run did not complete.</strong>
+        <strong class="font-medium">{detail.runStatus === 'TIMEOUT' ? 'This run timed out.' : 'This run did not complete.'}</strong>
         {#if detail.aiError}
           <span class="mt-1 block">{detail.aiError}</span>
         {:else}
