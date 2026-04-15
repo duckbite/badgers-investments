@@ -187,7 +187,8 @@ Production runs on **AWS** (serverless-oriented):
 
 - **S3 + CloudFront** for the static SPA (`adapter-static`)
 - **API Gateway (HTTP API) + AWS Lambda (Node.js 20)** for the Fastify API (`@fastify/aws-lambda`)
-- **EventBridge + Lambda** for scheduled worker jobs
+- **EventBridge + Lambda** for scheduled daily jobs
+- **SQS + Lambda event source mapping** for event-driven recommendation processing
 - **Amazon DynamoDB** for application data (`dynamodb_table_name` in Terraform; table must already exist)
 - **Secrets Manager** for app secrets (cookie signing, AI settings / privacy peppers); **CloudWatch Logs** for Lambdas
 
@@ -231,7 +232,7 @@ cp infra/terraform/envs/prod/terraform.tfvars.example infra/terraform/envs/prod/
 pnpm prod:up
 ```
 
-This runs **`terraform apply`** for the serverless prod stack: **Route53 hosted zone** for `dns_zone_name`, ACM validation + **A/AAAA alias records** for `web_domain` and `api_domain`, static site, API Lambda + HTTP API + custom domain, worker Lambda + schedule, Secrets Manager, GitHub OIDC deploy role. It does **not** deploy application code; use GitHub Actions or `tools/prod/deploy-prod.sh` after Terraform outputs exist.
+This runs **`terraform apply`** for the serverless prod stack: **Route53 hosted zone** for `dns_zone_name`, ACM validation + **A/AAAA alias records** for `web_domain` and `api_domain`, static site, API Lambda + HTTP API + custom domain, daily worker Lambda + schedule, recommendation processor Lambda + SQS/DLQ/event source mapping, Secrets Manager, GitHub OIDC deploy role. It does **not** deploy application code; use GitHub Actions or `tools/prod/deploy-prod.sh` after Terraform outputs exist.
 
 4) **DNS delegation:** after the first successful apply, run `terraform output route53_name_servers` (from `infra/terraform/envs/prod`) and set those **NS records** at your domain registrar for the apex (`dns_zone_name`). Until delegation matches Route53, public DNS for `web_domain` / `api_domain` may not resolve.
 
@@ -283,7 +284,8 @@ pnpm smoke:prod
 - `S3_WEB_BUCKET` — output `web_s3_bucket_id`
 - `CLOUDFRONT_DISTRIBUTION_ID` — output `cloudfront_distribution_id`
 - `LAMBDA_API_FUNCTION_NAME` — output `lambda_api_function_name`
-- `LAMBDA_WORKER_FUNCTION_NAME` — output `lambda_worker_function_name`
+- `LAMBDA_DAILY_WORKER_FUNCTION_NAME` — output `lambda_daily_worker_function_name`
+- `LAMBDA_RECOMMENDATION_PROCESSOR_FUNCTION_NAME` — output `lambda_recommendation_processor_function_name`
 
 #### Rollback
 

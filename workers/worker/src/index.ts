@@ -1,15 +1,10 @@
 /**
- * Badgers Investments worker entry.
- * Processes queued recommendation runs (same Dynamo + env as the API).
+ * Badgers Investments daily worker entry.
+ * Reserved for scheduled maintenance jobs.
  */
-import { execSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
 
 async function main(): Promise<void> {
-  const workerPackageDir: string = path.resolve(fileURLToPath(new URL('.', import.meta.url)), '..');
-  const repoRoot: string = path.resolve(workerPackageDir, '..', '..');
-  execSync('pnpm --filter api recommendation-queue:process', { stdio: 'inherit', cwd: repoRoot });
+  console.log('Daily worker started. No scheduled jobs are configured yet.');
 }
 
 main().catch((err) => {

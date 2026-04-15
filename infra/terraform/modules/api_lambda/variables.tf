@@ -81,3 +81,9 @@ variable "api_ai_model_anthropic" {
   description = "Claude model id for the API (API_AI_MODEL_ANTHROPIC); MVP uses Anthropic only."
   default     = "claude-opus-4-6"
 }
+
+variable "recommendation_processor_queue_url" {
+  type        = string
+  description = "SQS queue URL for event-driven recommendation processor dispatch. Empty disables SQS dispatch."
+  default     = ""
+}

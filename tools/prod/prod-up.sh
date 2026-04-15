@@ -18,4 +18,4 @@ terraform -chdir="${PROD_DIR}" init -upgrade -reconfigure -backend-config="${PRO
 terraform -chdir="${PROD_DIR}" apply
 
 echo "Next: set GitHub Actions variables from terraform output (web_s3_bucket_id, cloudfront_distribution_id,"
-echo "lambda_api_function_name, lambda_worker_function_name, API_DOMAIN, WEB_DOMAIN, AWS_REGION) and run deploy workflow or tools/prod/deploy-prod.sh"
+echo "lambda_api_function_name, lambda_daily_worker_function_name, lambda_recommendation_processor_function_name, API_DOMAIN, WEB_DOMAIN, AWS_REGION) and run deploy workflow or tools/prod/deploy-prod.sh"

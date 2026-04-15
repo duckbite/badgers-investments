@@ -88,6 +88,12 @@ variable "github_actions_grant_terraform_apply" {
   default     = false
 }
 
+variable "recommendation_alarm_actions" {
+  type        = list(string)
+  description = "Optional list of SNS topic ARNs for recommendation queue/DLQ CloudWatch alarms."
+  default     = []
+}
+
 variable "api_node_env" {
   type        = string
   description = "API Lambda runtime mode (sets API_NODE_ENV and NODE_ENV on the function). Default production; override per stack (e.g. staging tfvars) if a deployed API should not use production gating."

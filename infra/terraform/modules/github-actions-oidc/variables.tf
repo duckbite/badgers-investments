@@ -34,9 +34,19 @@ variable "lambda_api_function_arn" {
   description = "API Lambda function ARN (UpdateFunctionCode)."
 }
 
-variable "lambda_worker_function_arn" {
+variable "lambda_daily_worker_function_arn" {
   type        = string
-  description = "Worker Lambda function ARN (UpdateFunctionCode)."
+  description = "Daily worker Lambda function ARN (UpdateFunctionCode)."
+}
+
+variable "lambda_recommendation_processor_function_arn" {
+  type        = string
+  description = "Recommendation processor Lambda function ARN (UpdateFunctionCode)."
+}
+
+variable "recommendation_queue_arn" {
+  type        = string
+  description = "Recommendation queue ARN (read-only queue health checks in deploy pipeline)."
 }
 
 variable "tags" {

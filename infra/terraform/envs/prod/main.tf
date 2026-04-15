@@ -52,28 +52,34 @@ module "static_site" {
 }
 
 module "api_lambda" {
-  source                 = "../../modules/api_lambda"
-  name_prefix            = "${var.project_name}-${var.environment}"
-  tags                   = local.tags
-  aws_region             = var.aws_region
-  api_domain             = var.api_domain
-  api_node_env           = var.api_node_env
-  api_ai_model_anthropic = var.api_ai_model_anthropic
-  cors_allow_origin      = "https://${var.web_domain}"
-  route53_zone_id        = module.public_dns_zone.zone_id
-  manage_dns_records     = true
-  dynamodb_table_name    = module.app_dynamodb.table_name
-  dynamodb_table_arn     = module.app_dynamodb.table_arn
-  secrets_arn            = module.secrets.app_secret_arn
-  cookie_secret          = module.secrets.cookie_secret
-  api_ai_settings_secret = module.secrets.api_ai_settings_secret
-  api_privacy_secret     = module.secrets.api_privacy_secret
+  source                             = "../../modules/api_lambda"
+  name_prefix                        = "${var.project_name}-${var.environment}"
+  tags                               = local.tags
+  aws_region                         = var.aws_region
+  api_domain                         = var.api_domain
+  api_node_env                       = var.api_node_env
+  api_ai_model_anthropic             = var.api_ai_model_anthropic
+  cors_allow_origin                  = "https://${var.web_domain}"
+  route53_zone_id                    = module.public_dns_zone.zone_id
+  manage_dns_records                 = true
+  dynamodb_table_name                = module.app_dynamodb.table_name
+  dynamodb_table_arn                 = module.app_dynamodb.table_arn
+  secrets_arn                        = module.secrets.app_secret_arn
+  cookie_secret                      = module.secrets.cookie_secret
+  api_ai_settings_secret             = module.secrets.api_ai_settings_secret
+  api_privacy_secret                 = module.secrets.api_privacy_secret
+  recommendation_processor_queue_url = module.worker_lambda.recommendation_queue_url
 }
 
 module "worker_lambda" {
-  source      = "../../modules/worker_lambda"
-  name_prefix = "${var.project_name}-${var.environment}"
-  tags        = local.tags
+  source                 = "../../modules/worker_lambda"
+  name_prefix            = "${var.project_name}-${var.environment}"
+  aws_region             = var.aws_region
+  dynamodb_table_name    = module.app_dynamodb.table_name
+  dynamodb_table_arn     = module.app_dynamodb.table_arn
+  api_ai_settings_secret = module.secrets.api_ai_settings_secret
+  alarm_actions          = var.recommendation_alarm_actions
+  tags                   = local.tags
 }
 
 module "github_actions_oidc" {
@@ -86,7 +92,9 @@ module "github_actions_oidc" {
   web_s3_bucket_arn                              = module.static_site.bucket_arn
   cloudfront_distribution_arn                    = module.static_site.cloudfront_distribution_arn
   lambda_api_function_arn                        = module.api_lambda.function_arn
-  lambda_worker_function_arn                     = module.worker_lambda.function_arn
+  lambda_daily_worker_function_arn               = module.worker_lambda.daily_worker_function_arn
+  lambda_recommendation_processor_function_arn   = module.worker_lambda.recommendation_processor_function_arn
+  recommendation_queue_arn                       = module.worker_lambda.recommendation_queue_arn
   grant_terraform_apply_permissions              = var.github_actions_grant_terraform_apply
   terraform_remote_state_s3_bucket_arn           = local.terraform_remote_state_s3_bucket_arn
   terraform_remote_state_lock_dynamodb_table_arn = local.terraform_remote_state_lock_dynamodb_table_arn

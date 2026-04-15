@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 import type { AssetRepository } from '../assets/asset-repository.js';
 import type { AssetRecord } from '../assets/asset-repository.js';
 import { tryResolveUserAiCredentials } from '../ai/resolve-user-ai-credentials.js';
@@ -34,6 +35,7 @@ import {
 } from './recommendation-run-repository.js';
 
 const PROCESSING_TIMEOUT_MS: number = 10 * 60 * 1000;
+const sqsClient: SQSClient = new SQSClient({});
 
 export type RecommendationPreconditionError = {
   readonly code: string;
@@ -191,6 +193,8 @@ export class RecommendationRunService {
   private readonly recommendationJobQueueRepository: RecommendationJobQueueRepository;
   private readonly userAiSettingsRepository: UserAiSettingsRepository;
 
+  private readonly recommendationProcessorQueueUrl: string | null;
+
   public constructor(input: {
     readonly portfolioService: PortfolioService;
     readonly portfolioConfigService: PortfolioConfigService;
@@ -217,6 +221,8 @@ export class RecommendationRunService {
     this.recommendationRunRepository = input.recommendationRunRepository;
     this.recommendationJobQueueRepository = input.recommendationJobQueueRepository;
     this.userAiSettingsRepository = input.userAiSettingsRepository;
+    const queueUrl: string = process.env['RECOMMENDATION_PROCESSOR_QUEUE_URL'] ?? '';
+    this.recommendationProcessorQueueUrl = queueUrl.trim().length > 0 ? queueUrl.trim() : null;
   }
 
   public async executeManualRun(input: {
@@ -286,11 +292,49 @@ export class RecommendationRunService {
     await this.recommendationJobQueueRepository.enqueue({
       record: { userId: input.userId, portfolioId, runId, enqueuedAtIso },
     });
+    await this.dispatchRecommendationProcessorJob({
+      userId: input.userId,
+      portfolioId,
+      runId,
+      enqueuedAtIso,
+    });
     const persisted = await this.recommendationRunRepository.getRunById({ userId: input.userId, portfolioId, runId });
     if (persisted === undefined) {
       throw new Error('Recommendation run persistence failed.');
     }
     return { ok: true, deduped: false, run: toSummaryDto({ record: persisted }) };
+  }
+
+  private async dispatchRecommendationProcessorJob(input: {
+    readonly userId: string;
+    readonly portfolioId: string;
+    readonly runId: string;
+    readonly enqueuedAtIso: string;
+  }): Promise<void> {
+    if (this.recommendationProcessorQueueUrl === null) {
+      return;
+    }
+    try {
+      await sqsClient.send(
+        new SendMessageCommand({
+          QueueUrl: this.recommendationProcessorQueueUrl,
+          MessageBody: JSON.stringify({
+            userId: input.userId,
+            portfolioId: input.portfolioId,
+            runId: input.runId,
+            enqueuedAtIso: input.enqueuedAtIso,
+          }),
+        }),
+      );
+    } catch (error) {
+      const message: string = error instanceof Error ? error.message : 'Unknown SQS dispatch error.';
+      // Keep Dynamo queue as rollback path if SQS dispatch is unavailable.
+      console.warn('Recommendation processor SQS dispatch failed', {
+        runId: input.runId,
+        queueUrl: this.recommendationProcessorQueueUrl,
+        message,
+      });
+    }
   }
 
   private async loadManualRunContext(input: {

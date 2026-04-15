@@ -23,3 +23,6 @@ github_actions_grant_terraform_apply = false
 
 # Optional: Claude model id on the Lambda (API_AI_MODEL_ANTHROPIC).
 # api_ai_model_anthropic = "claude-opus-4-6"
+
+# Optional: SNS topic ARNs for recommendation queue alarms.
+# recommendation_alarm_actions = ["arn:aws:sns:eu-west-1:123456789012:badgers-prod-alerts"]
