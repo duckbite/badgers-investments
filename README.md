@@ -163,6 +163,12 @@ Then open the frontend URL (`http://localhost:<WEB_PORT>` from `.env`, default p
 
 Ensure AWS credentials allow `dynamodb:DescribeTable` (and other actions your routes need) before expecting `GET /ready` to succeed.
 
+When running recommendations in local fallback mode (without SQS processor wiring), run the queue drainer in a second terminal:
+
+```bash
+pnpm --filter api recommendation-queue:watch
+```
+
 ---
 
 ## Testing

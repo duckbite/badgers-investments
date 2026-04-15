@@ -94,7 +94,7 @@ Human- and machine-readable folder layout for Badgers Investments monorepo.
 | `services/api/src/modules/ai/resolve-user-ai-credentials.ts` | Decrypts `USER_SETTINGS#AI` for server-side recommendation LLM calls. |
 | `services/api/src/modules/health/dynamo-db-health-service.ts` | Readiness: `DescribeTable` on the configured table. |
 | `services/api/src/scripts/dynamodb-smoke-write.ts` | Dev CLI: put+delete smoke item; run via `pnpm dynamodb:smoke-write` from repo root. |
-| `services/api/src/scripts/process-recommendation-queue.ts` | Drains queued recommendation jobs (`pnpm --filter api recommendation-queue:process`); same `.env` / Dynamo as API. |
+| `services/api/src/scripts/process-recommendation-queue.ts` | Drains queued recommendation jobs (`pnpm --filter api recommendation-queue:process`); use `pnpm --filter api recommendation-queue:watch` for continuous local draining in fallback mode. |
 | `services/api/src/scripts/put-dev-user.ts` | CLI: upsert `user_account` in the table from `API_DYNAMODB_TABLE_NAME` using `BOOTSTRAP_USERNAME` / `BOOTSTRAP_PASSWORD`; preserves `userId` when updating; run via `pnpm bootstrap:user`. |
 | `services/api/src/scripts/seed-dev-wealth-demo.ts` | CLI: **destructive** demo seed for the bootstrap user’s portfolio — wipes portfolio-scoped items except `PORTFOLIO_CFG*`, creates ~10 US equities/ETFs (tech, energy, healthcare, biotech, real estate, indices), ~2 years of BUY/SELL/DIVIDEND, weekly manual prices, FIFO lot links, and runs a full snapshot rebuild. Requires existing `user_account`; run `pnpm seed:dev-wealth` from repo root (uses root `.env`). |
 
