@@ -36,6 +36,11 @@ import { registerPrivacySettingsRoutes } from '../privacy/register-privacy-setti
 import { UserPrivacySettingsRepository } from '../privacy/user-privacy-settings-repository.js';
 import { instantiateRecommendationRunService } from '../recommendations/instantiate-recommendation-run-service.js';
 import { registerRecommendationsRoutes } from '../recommendations/register-recommendations-routes.js';
+import { AnalysisRunRepository } from '../analysis/analysis-run-repository.js';
+import { AnalysisRunService } from '../analysis/analysis-run-service.js';
+import { registerAnalysisRoutes } from '../analysis/register-analysis-routes.js';
+import { getAnalysisReportStorageConfig } from '../../config/get-analysis-report-storage-config.js';
+import { S3Client } from '@aws-sdk/client-s3';
 
 const domainDataPluginImpl: FastifyPluginAsync = async (app): Promise<void> => {
   const dynamoDbConfig = getDynamoDbConfig();
@@ -107,6 +112,17 @@ const domainDataPluginImpl: FastifyPluginAsync = async (app): Promise<void> => {
   const recommendationRunService = instantiateRecommendationRunService({ documentClient, tableName });
   app.decorate('recommendationRunService', recommendationRunService);
   registerRecommendationsRoutes({ app, recommendationRunService });
+  const analysisStorage = getAnalysisReportStorageConfig();
+  const analysisS3Client = analysisStorage.bucketName !== null ? new S3Client({ region: analysisStorage.awsRegion }) : undefined;
+  const analysisRunRepository = new AnalysisRunRepository({ documentClient, tableName });
+  const analysisRunService = new AnalysisRunService({
+    analysisRunRepository,
+    portfolioService,
+    userAiSettingsRepository,
+    reportStorage: { bucketName: analysisStorage.bucketName, s3Client: analysisS3Client },
+  });
+  app.decorate('analysisRunService', analysisRunService);
+  registerAnalysisRoutes({ app, analysisRunService });
   const userPrivacySettingsRepository = new UserPrivacySettingsRepository({ documentClient, tableName });
   const privacySettingsService = new PrivacySettingsService({ userPrivacySettingsRepository });
   registerPrivacySettingsRoutes({ app, privacySettingsService });

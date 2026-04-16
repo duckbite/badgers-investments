@@ -107,7 +107,25 @@ export function buildRecommendationRunSortKeyPrefix(): string {
 export const RECOMMENDATION_JOB_QUEUE_PARTITION_KEY: string = 'RECOMMENDATION_JOB_QUEUE';
 
 const REC_JOB_PREFIX: string = 'REC_JOB#';
+const ANALYSIS_RUN_PREFIX: string = 'ANALYSIS_RUN#';
+const ANALYSIS_REPORT_PREFIX: string = 'ANALYSIS_REPORT#';
 
 export function buildRecommendationJobQueueSortKey(input: { readonly enqueuedAtIso: string; readonly runId: string }): string {
   return `${REC_JOB_PREFIX}${input.enqueuedAtIso}#${input.runId}`;
+}
+
+export function buildAnalysisRunSortKey(input: { readonly createdAtIso: string; readonly runId: string }): string {
+  return `${ANALYSIS_RUN_PREFIX}${input.createdAtIso}#${input.runId}`;
+}
+
+export function buildAnalysisRunSortKeyPrefix(): string {
+  return ANALYSIS_RUN_PREFIX;
+}
+
+export function buildAnalysisReportSortKey(input: { readonly createdAtIso: string; readonly reportId: string }): string {
+  return `${ANALYSIS_REPORT_PREFIX}${input.createdAtIso}#${input.reportId}`;
+}
+
+export function buildAnalysisReportSortKeyPrefix(): string {
+  return ANALYSIS_REPORT_PREFIX;
 }
