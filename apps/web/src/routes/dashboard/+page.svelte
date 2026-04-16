@@ -9,6 +9,7 @@
   import { toast } from '$lib/toast/toast';
   import PortfolioCharts from '$lib/components/PortfolioCharts.svelte';
   import PnlMoneyWithArrow from '$lib/components/PnlMoneyWithArrow.svelte';
+  import WarningIndicator from '$lib/components/WarningIndicator.svelte';
   import { amountPrivacy } from '$lib/privacy/amount-privacy-store';
   import { formatMaskedMoney } from '$lib/privacy/format-amount';
   import { formatInstrumentDisplayLabel } from '$lib/formatting/instrument-display-label';
@@ -51,6 +52,10 @@
     readonly updatedAt: string | null;
   };
 
+  type PortfolioConfigDto = {
+    readonly concentrationLimits: unknown;
+  };
+
   type TwrRow = {
     readonly periodDate: string;
     readonly valuationEndAmount: string;
@@ -65,6 +70,7 @@
   let twrRows: readonly TwrRow[] = [];
   let isLoading: boolean = true;
   let latestRec: RecommendationRunSummary | null = null;
+  let maxSingleAssetPct: number = 100;
 
   $: assetById = new Map(assets.map((a) => [a.assetId, a] as const));
   $: masked = $amountPrivacy;
@@ -85,6 +91,29 @@
     .filter((p) => Number.isFinite(p.mv) && p.mv > 0)
     .sort((a, b) => b.mv - a.mv)
     .slice(0, 5);
+
+  function readMaxSingleAssetPct(input: unknown): number {
+    if (input === null || typeof input !== 'object' || Array.isArray(input)) {
+      return 100;
+    }
+    const raw: unknown = (input as Record<string, unknown>)['maxSingleAssetPct'];
+    if (typeof raw !== 'string') {
+      return 100;
+    }
+    const parsed: number = Number(raw);
+    if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+      return 100;
+    }
+    return parsed;
+  }
+
+  function exceedsMaxSingleAsset(input: { readonly allocationPct: string | null; readonly maxSingleAssetPct: number }): boolean {
+    if (input.allocationPct === null) {
+      return false;
+    }
+    const allocationPct: number = Number(input.allocationPct);
+    return Number.isFinite(allocationPct) && allocationPct > input.maxSingleAssetPct;
+  }
 
   $: sectorAlloc = (() => {
     const map: Map<string, number> = new Map();
@@ -117,7 +146,7 @@
   async function load(): Promise<void> {
     isLoading = true;
     try {
-      const [pf, snap, ast, twr] = await Promise.all([
+      const [pf, snap, ast, twr, config] = await Promise.all([
         apiClient.executeJson<PortfolioDto>({ method: 'GET', path: '/portfolio' }),
         apiClient.executeJson<{
           readonly snapshotDate: string | null;
@@ -130,6 +159,7 @@
           query: { active: 'all' },
         }),
         apiClient.executeJson<{ readonly items: readonly TwrRow[] }>({ method: 'GET', path: '/performance/twr' }),
+        apiClient.executeJson<PortfolioConfigDto>({ method: 'GET', path: '/portfolio/config' }),
       ]);
       portfolio = pf;
       snapshotDate = snap.snapshotDate;
@@ -137,6 +167,7 @@
       positions = snap.positions;
       assets = ast.items;
       twrRows = twr.items;
+      maxSingleAssetPct = readMaxSingleAssetPct(config.concentrationLimits);
       try {
         snapshotStatus = await apiClient.executeJson<SnapshotStatus>({ method: 'GET', path: '/snapshots/status' });
       } catch {
@@ -237,6 +268,14 @@
                 {formatMaskedMoney({ masked, decimalString: row.marketValueAmount, currencyCode: base })}
                 {#if row.allocationPct}
                   <span class="text-gray-500"> · {formatPortfolioAllocationPercent(row.allocationPct)}</span>
+                  {#if exceedsMaxSingleAsset({ allocationPct: row.allocationPct, maxSingleAssetPct })}
+                    <span class="ml-1 inline-flex align-middle">
+                      <WarningIndicator
+                        message={`Exceeds max single asset threshold (${formatNumberAsPercent2(maxSingleAssetPct)}).`}
+                        ariaLabel="Concentration warning details"
+                      />
+                    </span>
+                  {/if}
                 {/if}
               </span>
             </li>

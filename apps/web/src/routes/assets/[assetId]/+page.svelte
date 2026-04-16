@@ -13,6 +13,7 @@
   import { formatInstrumentDisplayLabel } from '$lib/formatting/instrument-display-label';
   import { formatMatchedLotRealisedPnlPercent } from '$lib/formatting/matched-lot-realised-pnl-percent';
   import PnlMoneyWithArrow from '$lib/components/PnlMoneyWithArrow.svelte';
+  import WarningIndicator from '$lib/components/WarningIndicator.svelte';
 
   type AssetDto = {
     readonly assetId: string;
@@ -70,6 +71,10 @@
     readonly baseCurrencyCode: string;
   };
 
+  type PortfolioConfigDto = {
+    readonly concentrationLimits: unknown;
+  };
+
   let portfolio: PortfolioDto | undefined;
   let asset: AssetDto | undefined;
   let position: PositionRow | undefined;
@@ -77,6 +82,7 @@
   let lotLinks: readonly LotLink[] = [];
   let prices: readonly PriceRow[] = [];
   let isLoading: boolean = true;
+  let maxSingleAssetPct: number = 100;
 
   $: assetId = $page.params.assetId ?? '';
   $: masked = $amountPrivacy;
@@ -91,13 +97,36 @@
   $: txIdSet = new Set(transactions.map((t) => t.transactionId));
   $: assetLotLinks = lotLinks.filter((l) => txIdSet.has(l.buyTransactionId) || txIdSet.has(l.sellTransactionId));
 
+  function readMaxSingleAssetPct(input: unknown): number {
+    if (input === null || typeof input !== 'object' || Array.isArray(input)) {
+      return 100;
+    }
+    const raw: unknown = (input as Record<string, unknown>)['maxSingleAssetPct'];
+    if (typeof raw !== 'string') {
+      return 100;
+    }
+    const parsed: number = Number(raw);
+    if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+      return 100;
+    }
+    return parsed;
+  }
+
+  function exceedsMaxSingleAsset(input: { readonly allocationPct: string | null; readonly maxSingleAssetPct: number }): boolean {
+    if (input.allocationPct === null) {
+      return false;
+    }
+    const allocationPct: number = Number(input.allocationPct);
+    return Number.isFinite(allocationPct) && allocationPct > input.maxSingleAssetPct;
+  }
+
   async function load(): Promise<void> {
     if (assetId.length === 0) {
       return;
     }
     isLoading = true;
     try {
-      const [pf, snap, astItems, txs, holdings, priceItems] = await Promise.all([
+      const [pf, snap, astItems, txs, holdings, priceItems, config] = await Promise.all([
         apiClient.executeJson<PortfolioDto>({ method: 'GET', path: '/portfolio' }),
         apiClient.executeJson<{ readonly positions: readonly PositionRow[] }>({ method: 'GET', path: '/snapshots/latest' }),
         apiClient.executeJson<{ readonly items: readonly AssetDto[] }>({
@@ -116,6 +145,7 @@
           path: '/prices',
           query: { assetId, limit: 120 },
         }),
+        apiClient.executeJson<PortfolioConfigDto>({ method: 'GET', path: '/portfolio/config' }),
       ]);
       portfolio = pf;
       asset = astItems.items.find((a) => a.assetId === assetId);
@@ -123,6 +153,7 @@
       transactions = txs.items;
       lotLinks = holdings.lotLinks;
       prices = priceItems.items;
+      maxSingleAssetPct = readMaxSingleAssetPct(config.concentrationLimits);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to load asset');
     } finally {
@@ -190,6 +221,18 @@
           <div class="text-xs font-medium uppercase text-gray-500 dark:text-muted-foreground">Realised P/L (snap)</div>
           <div class="mt-1 text-lg font-semibold text-gray-900 dark:text-foreground">
             <PnlMoneyWithArrow masked={masked} decimalString={position.realisedPnlCumulativeAmount} currencyCode={base} />
+          </div>
+        </div>
+        <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-border dark:bg-card">
+          <div class="text-xs font-medium uppercase text-gray-500 dark:text-muted-foreground">Allocation</div>
+          <div class="mt-1 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-foreground">
+            <span>{position.allocationPct === null ? '—' : `${position.allocationPct}%`}</span>
+            {#if exceedsMaxSingleAsset({ allocationPct: position.allocationPct, maxSingleAssetPct })}
+              <WarningIndicator
+                message={`Above max single asset threshold (${maxSingleAssetPct}%).`}
+                ariaLabel="Concentration warning details"
+              />
+            {/if}
           </div>
         </div>
       </div>

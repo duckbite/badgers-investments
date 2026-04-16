@@ -11,6 +11,7 @@
   import { formatInstrumentDisplayLabel } from '$lib/formatting/instrument-display-label';
   import { formatPortfolioAllocationPercent } from '$lib/formatting/percent-display';
   import PnlMoneyWithArrow from '$lib/components/PnlMoneyWithArrow.svelte';
+  import WarningIndicator from '$lib/components/WarningIndicator.svelte';
 
   type AssetDto = {
     readonly assetId: string;
@@ -36,11 +37,16 @@
     readonly baseCurrencyCode: string;
   };
 
+  type PortfolioConfigDto = {
+    readonly concentrationLimits: unknown;
+  };
+
   let portfolio: PortfolioDto | undefined;
   let positions: readonly PositionRow[] = [];
   let assets: readonly AssetDto[] = [];
   let activeFilter: 'active' | 'archived' | 'all' = 'active';
   let isLoading: boolean = true;
+  let maxSingleAssetPct: number = 100;
 
   $: masked = $amountPrivacy;
   $: assetById = new Map(assets.map((a) => [a.assetId, a] as const));
@@ -55,10 +61,33 @@
   });
   $: positionByAsset = new Map(positions.map((p) => [p.assetId, p] as const));
 
+  function readMaxSingleAssetPct(input: unknown): number {
+    if (input === null || typeof input !== 'object' || Array.isArray(input)) {
+      return 100;
+    }
+    const raw: unknown = (input as Record<string, unknown>)['maxSingleAssetPct'];
+    if (typeof raw !== 'string') {
+      return 100;
+    }
+    const parsed: number = Number(raw);
+    if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+      return 100;
+    }
+    return parsed;
+  }
+
+  function exceedsMaxSingleAsset(input: { readonly allocationPct: string | null; readonly maxSingleAssetPct: number }): boolean {
+    if (input.allocationPct === null) {
+      return false;
+    }
+    const allocationPct: number = Number(input.allocationPct);
+    return Number.isFinite(allocationPct) && allocationPct > input.maxSingleAssetPct;
+  }
+
   async function load(): Promise<void> {
     isLoading = true;
     try {
-      const [pf, snap, ast] = await Promise.all([
+      const [pf, snap, ast, config] = await Promise.all([
         apiClient.executeJson<PortfolioDto>({ method: 'GET', path: '/portfolio' }),
         apiClient.executeJson<{ readonly positions: readonly PositionRow[] }>({ method: 'GET', path: '/snapshots/latest' }),
         apiClient.executeJson<{ readonly items: readonly AssetDto[] }>({
@@ -66,10 +95,12 @@
           path: '/assets',
           query: { active: 'all' },
         }),
+        apiClient.executeJson<PortfolioConfigDto>({ method: 'GET', path: '/portfolio/config' }),
       ]);
       portfolio = pf;
       positions = snap.positions;
       assets = ast.items;
+      maxSingleAssetPct = readMaxSingleAssetPct(config.concentrationLimits);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to load holdings');
     } finally {
@@ -169,7 +200,17 @@
                 <td class="px-3 py-2 text-gray-700 dark:text-muted-foreground">
                   <PnlMoneyWithArrow masked={masked} decimalString={pos.unrealisedPnlAmount} currencyCode={base} />
                 </td>
-                <td class="px-3 py-2 text-gray-600 dark:text-muted-foreground">{formatPortfolioAllocationPercent(pos.allocationPct)}</td>
+                <td class="px-3 py-2 text-gray-600 dark:text-muted-foreground">
+                  <div class="flex items-center gap-1.5">
+                    <span>{formatPortfolioAllocationPercent(pos.allocationPct)}</span>
+                    {#if exceedsMaxSingleAsset({ allocationPct: pos.allocationPct, maxSingleAssetPct })}
+                      <WarningIndicator
+                        message={`Above max single asset threshold (${maxSingleAssetPct}%).`}
+                        ariaLabel="Concentration warning details"
+                      />
+                    {/if}
+                  </div>
+                </td>
               </tr>
             {/if}
           {/each}
