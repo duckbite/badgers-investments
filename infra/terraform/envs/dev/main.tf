@@ -12,3 +12,9 @@ module "app_dynamodb" {
   tags                           = local.tags
   point_in_time_recovery_enabled = var.app_dynamodb_pitr_enabled
 }
+
+module "analysis_reports_bucket" {
+  source      = "../../modules/analysis_reports_bucket"
+  name_prefix = "${var.project_name}-${var.environment}"
+  tags        = merge(local.tags, { Purpose = "analysis-reports" })
+}

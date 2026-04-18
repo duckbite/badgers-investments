@@ -23,6 +23,16 @@ output "web_s3_bucket_id" {
   value       = module.static_site.bucket_id
 }
 
+output "analysis_reports_bucket_id" {
+  description = "S3 bucket name for production analysis report bundles (API Lambda API_REPORTS_BUCKET_NAME)."
+  value       = module.analysis_reports_bucket.bucket_id
+}
+
+output "analysis_reports_bucket_arn" {
+  description = "S3 bucket ARN for production analysis reports."
+  value       = module.analysis_reports_bucket.bucket_arn
+}
+
 output "cloudfront_distribution_id" {
   description = "CloudFront distribution ID for cache invalidation."
   value       = module.static_site.cloudfront_distribution_id
