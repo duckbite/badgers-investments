@@ -24,9 +24,9 @@
   } from 'lucide-svelte';
 
   type PortfolioBuilderForm = {
-    age: string;
-    income: string;
-    savings: string;
+    age: string | number;
+    income: string | number;
+    savings: string | number;
     goals: string;
     riskTolerance: 'conservative' | 'moderate' | 'aggressive';
   };
@@ -185,20 +185,20 @@
   }
 
   async function submitPortfolioBuilder(): Promise<void> {
-    if (
-      portfolioBuilderForm.age.trim().length === 0 ||
-      portfolioBuilderForm.income.trim().length === 0 ||
-      portfolioBuilderForm.savings.trim().length === 0 ||
-      portfolioBuilderForm.goals.trim().length === 0
-    ) {
+    // `type="number"` inputs bind as number once edited; coerce so `.trim()` is safe.
+    const ageRaw = String(portfolioBuilderForm.age ?? '').trim();
+    const incomeRaw = String(portfolioBuilderForm.income ?? '').trim();
+    const savingsRaw = String(portfolioBuilderForm.savings ?? '').trim();
+    const goalsRaw = String(portfolioBuilderForm.goals ?? '').trim();
+    if (ageRaw.length === 0 || incomeRaw.length === 0 || savingsRaw.length === 0) {
       toast.error('Please complete all required fields.');
       return;
     }
     await submitAnalysis('portfolio-builder', {
-      age: Number.parseInt(portfolioBuilderForm.age, 10),
-      income: Number.parseFloat(portfolioBuilderForm.income),
-      savings: Number.parseFloat(portfolioBuilderForm.savings),
-      goals: portfolioBuilderForm.goals.trim(),
+      age: Number.parseInt(ageRaw, 10),
+      income: Number.parseFloat(incomeRaw),
+      savings: Number.parseFloat(savingsRaw),
+      goals: goalsRaw,
       riskTolerance: portfolioBuilderForm.riskTolerance,
     });
   }
@@ -449,8 +449,8 @@
             <input id="pb-savings" type="number" min="0" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-border dark:bg-background" bind:value={portfolioBuilderForm.savings} required />
           </div>
           <div class="space-y-1">
-            <label class="text-sm font-medium text-gray-800 dark:text-foreground" for="pb-goals">Investment Goals</label>
-            <textarea id="pb-goals" class="min-h-[84px] w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-border dark:bg-background" bind:value={portfolioBuilderForm.goals} required></textarea>
+            <label class="text-sm font-medium text-gray-800 dark:text-foreground" for="pb-goals">Investment goals (optional)</label>
+            <textarea id="pb-goals" class="min-h-[84px] w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-border dark:bg-background" bind:value={portfolioBuilderForm.goals} placeholder="e.g. growth, retirement"></textarea>
           </div>
           <div class="space-y-1">
             <label class="text-sm font-medium text-gray-800 dark:text-foreground" for="pb-risk">Risk Tolerance</label>

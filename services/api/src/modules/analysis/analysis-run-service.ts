@@ -20,6 +20,13 @@ type TechnicalAnalysisInput = {
   readonly symbol: string;
   readonly includePosition: boolean;
 };
+type PortfolioBuilderInput = {
+  readonly age: number;
+  readonly income: number;
+  readonly savings: number;
+  readonly goals: string;
+  readonly riskTolerance: 'conservative' | 'moderate' | 'aggressive';
+};
 
 export class AnalysisRunService {
   private readonly analysisRunRepository: AnalysisRunRepository;
@@ -193,7 +200,7 @@ export class AnalysisRunService {
     readonly createdAtIso: string;
     readonly parameters: Record<string, unknown>;
   }): Promise<string> {
-    if (input.type !== 'technical-analysis') {
+    if (input.type !== 'technical-analysis' && input.type !== 'portfolio-builder') {
       return buildMarkdownReport({
         type: input.type,
         summary: input.summary,
@@ -202,7 +209,14 @@ export class AnalysisRunService {
         parameters: input.parameters,
       });
     }
-    const technicalInput: TechnicalAnalysisInput = parseTechnicalAnalysisInput({ parameters: input.parameters });
+    const prompt: string =
+      input.type === 'technical-analysis'
+        ? buildTechnicalAnalysisPrompt({
+            input: parseTechnicalAnalysisInput({ parameters: input.parameters }),
+          })
+        : buildPortfolioBuilderPrompt({
+            input: parsePortfolioBuilderInput({ parameters: input.parameters }),
+          });
     const userCredentials = await tryResolveUserAiCredentials({
       userAiSettingsRepository: this.userAiSettingsRepository,
       userId: input.userId,
@@ -210,7 +224,6 @@ export class AnalysisRunService {
     if (userCredentials === undefined) {
       throw new Error('AI credentials are not configured. Please set your Anthropic API key in Settings.');
     }
-    const prompt: string = buildTechnicalAnalysisPrompt({ input: technicalInput });
     const systemPrompt: string =
       'You are a senior quantitative trader writing actionable markdown investment reports. Return markdown only.';
     const reportMarkdown: string = await requestAnthropicRecommendationJson({
@@ -220,7 +233,10 @@ export class AnalysisRunService {
       user: prompt,
     });
     if (reportMarkdown.trim().length === 0) {
-      throw new Error('AI response was empty for technical analysis.');
+      if (input.type === 'technical-analysis') {
+        throw new Error('AI response was empty for technical analysis.');
+      }
+      throw new Error('AI response was empty for portfolio builder.');
     }
     return reportMarkdown.trim();
   }
@@ -279,6 +295,25 @@ function parseTechnicalAnalysisInput(input: { readonly parameters: Record<string
   };
 }
 
+function parsePortfolioBuilderInput(input: { readonly parameters: Record<string, unknown> }): PortfolioBuilderInput {
+  const age: number = parseRequiredNumber({ value: input.parameters['age'], label: 'Age' });
+  const income: number = parseRequiredNumber({ value: input.parameters['income'], label: 'Annual income' });
+  const savings: number = parseRequiredNumber({ value: input.parameters['savings'], label: 'Available savings' });
+  const goals: string = typeof input.parameters['goals'] === 'string' ? input.parameters['goals'].trim() : '';
+  const riskToleranceRaw: string =
+    typeof input.parameters['riskTolerance'] === 'string' ? input.parameters['riskTolerance'].trim().toLowerCase() : '';
+  if (riskToleranceRaw !== 'conservative' && riskToleranceRaw !== 'moderate' && riskToleranceRaw !== 'aggressive') {
+    throw new Error('Risk tolerance must be one of: conservative, moderate, aggressive.');
+  }
+  return {
+    age,
+    income,
+    savings,
+    goals,
+    riskTolerance: riskToleranceRaw,
+  };
+}
+
 function buildTechnicalAnalysisPrompt(input: { readonly input: TechnicalAnalysisInput }): string {
   const positionClause: string = input.input.includePosition
     ? `Current position context: Include current holdings context for ${input.input.symbol} if available.`
@@ -300,16 +335,49 @@ Analyze:
 * Risk-to-reward ratio for the current setup
 * Confidence rating: strong buy, buy, neutral, sell, strong sell
 
-Format as a technical analysis report card with a clear trade plan summary. Store as Markdown + sidecar assets. e.g.
-
-/badgers-investments-reports-dev
-  technical-analysis-${input.input.symbol}-[timestamp].md
-  technical-analysis-${input.input.symbol}-[timestamp]/
-    graph1.png
-    graph2.png
+Format as a technical analysis report card with a clear trade plan summary. Store as Markdown document.
 
 The stock to analyze: ${input.input.symbol}
 ${positionClause}`;
+}
+
+function buildPortfolioBuilderPrompt(input: { readonly input: PortfolioBuilderInput }): string {
+  const goalsSection: string =
+    input.input.goals.length > 0 ? input.input.goals : 'Not provided. Infer sensible goals from risk tolerance.';
+  return `You are a senior portfolio strategist at Badgers Finance managing multi-asset portfolios worth $500M+ for institutional clients.
+
+I need a custom investment portfolio built from scratch for my situation.
+
+Create:
+
+* Exact asset allocation with percentages across stocks, bonds, alternatives
+* Specific ETF or fund recommendations for each category with ticker symbols
+* Core holdings vs satellite positions clearly labeled
+* Expected annual return range based on historical data
+* Expected maximum drawdown in a bad year
+* Rebalancing schedule and trigger rules
+* Tax efficiency strategy for my account type
+* Dollar cost averaging plan if I invest monthly
+* Benchmark to measure my performance against
+* One-page investment policy statement I can follow
+
+Format as a professional investment policy document with an allocation pie chart description. Store as Markdown document.
+
+My details:
+- Age: ${input.input.age}
+- Annual income (USD): ${input.input.income}
+- Available savings (USD): ${input.input.savings}
+- Investment goals: ${goalsSection}
+- Risk tolerance: ${input.input.riskTolerance}
+- Account type: Not provided
+`;
+}
+
+function parseRequiredNumber(input: { readonly value: unknown; readonly label: string }): number {
+  if (typeof input.value !== 'number' || Number.isNaN(input.value) || !Number.isFinite(input.value)) {
+    throw new Error(`${input.label} is required and must be a valid number.`);
+  }
+  return input.value;
 }
 
 function summarizeReport(input: { readonly fallback: string; readonly markdownBody: string }): string {
