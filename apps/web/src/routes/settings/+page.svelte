@@ -76,6 +76,7 @@
   let selectedSectors: string[] = [];
   let esgPriority: string = 'MEDIUM';
   let marketsFocus: string = '';
+  let maxSingleAssetPctStr: string = '100';
 
   let aiKeyInput: string = '';
   let aiSettings: AiSettingsDto | undefined;
@@ -181,6 +182,25 @@
     return out;
   }
 
+  function parseConcentrationLimits(input: unknown): Record<string, string> {
+    if (input === null || typeof input !== 'object' || Array.isArray(input)) {
+      return {};
+    }
+    const out: Record<string, string> = {};
+    for (const [key, value] of Object.entries(input)) {
+      if (typeof value === 'string') {
+        out[key] = value;
+      }
+    }
+    return out;
+  }
+
+  function readMaxSingleAssetPct(input: unknown): string {
+    const limits = parseConcentrationLimits(input);
+    const raw: string | undefined = limits['maxSingleAssetPct'];
+    return raw === undefined ? '100' : raw;
+  }
+
   async function loadAll(): Promise<void> {
     loading = true;
     try {
@@ -195,6 +215,7 @@
       const prefs = parsePrefs(c.preferences);
       readProfile(prefs, c.baseCurrencyCode);
       readInvestmentPrefs(prefs);
+      maxSingleAssetPctStr = readMaxSingleAssetPct(c.concentrationLimits);
       profileHydrationKey += 1;
       aiSettings = ai;
       aiKeyInput = '';
@@ -266,12 +287,27 @@
         toast.error('Risk score must be blank or an integer 1–100.');
         return;
       }
+      const maxSingleAssetTrimmed: string = maxSingleAssetPctStr.trim();
+      if (maxSingleAssetTrimmed.length > 0) {
+        const parsedMaxSingleAssetPct: number = Number(maxSingleAssetTrimmed);
+        if (!Number.isFinite(parsedMaxSingleAssetPct) || parsedMaxSingleAssetPct < 0 || parsedMaxSingleAssetPct > 100) {
+          toast.error('Max single asset must be blank or a number between 0 and 100.');
+          return;
+        }
+      }
+      const nextConcentrationLimits: Record<string, string> = parseConcentrationLimits(cfg.concentrationLimits);
+      if (maxSingleAssetTrimmed.length === 0) {
+        delete nextConcentrationLimits['maxSingleAssetPct'];
+      } else {
+        nextConcentrationLimits['maxSingleAssetPct'] = maxSingleAssetTrimmed;
+      }
       await apiClient.executeJson<PortfolioConfigDto, ReturnType<typeof buildPortfolioConfigPutBody>>({
         method: 'PUT',
         path: '/portfolio/config',
         body: buildPortfolioConfigPutBody(cfg, {
           riskProfileType,
           riskScore,
+          concentrationLimits: nextConcentrationLimits,
           preferences: nextPrefs,
         }),
       });
@@ -580,6 +616,21 @@
                   bind:value={marketsFocus}
                 ></textarea>
               </label>
+              <div>
+                <label class="block" for="max-single-asset-input">
+                  <span class="mb-1 block text-xs font-medium uppercase tracking-wide text-muted-foreground">Max single asset % (optional)</span>
+                </label>
+                <input
+                  id="max-single-asset-input"
+                  class="w-full max-w-xs rounded-lg border border-gray-300 px-3 py-2.5 text-sm dark:border-border dark:bg-background"
+                  bind:value={maxSingleAssetPctStr}
+                  inputmode="decimal"
+                  placeholder="100"
+                />
+                <p class="mt-2 max-w-xl text-xs leading-relaxed text-muted-foreground">
+                  Leave blank to use the default of 100%. Assets above this allocation threshold are highlighted with a concentration warning in allocation views.
+                </p>
+              </div>
             </div>
             <button
               type="button"
