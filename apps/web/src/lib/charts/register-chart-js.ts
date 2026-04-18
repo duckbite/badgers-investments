@@ -1,7 +1,10 @@
 import {
   ArcElement,
+  BarController,
+  BarElement,
   CategoryScale,
   Chart,
+  Filler,
   Legend,
   LinearScale,
   LineController,
@@ -28,6 +31,9 @@ export function registerChartJs(): void {
     LinearScale,
     Legend,
     Tooltip,
+    Filler,
+    BarController,
+    BarElement,
   );
 }
 

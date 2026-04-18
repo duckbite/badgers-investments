@@ -10,10 +10,15 @@
     type ChartThemePalette,
   } from '$lib/charts/chart-theme';
 
+  export let title: string = '';
+  export let description: string = '';
   export let labels: readonly string[] = [];
   export let values: readonly number[] = [];
   export let datasetLabel: string = '';
-  export let yTickCurrency: string | undefined = undefined;
+  export let currencyCode: string = 'USD';
+  export let emptyMessage: string = 'No series yet.';
+  /** When false, line uses primary token with area fill (portfolio growth). */
+  export let usePrimaryStroke: boolean = true;
 
   let canvas: HTMLCanvasElement | undefined;
   let chart: Chart<'line', number[], string> | undefined;
@@ -34,7 +39,7 @@
       return;
     }
     const palette: ChartThemePalette = readChartThemePalette();
-    const stroke: string = palette.chartColors[1] ?? palette.primary;
+    const stroke: string = usePrimaryStroke ? palette.primary : palette.chartColors[1] ?? palette.primary;
     chart = new Chart(ctx, {
       type: 'line',
       data: {
@@ -46,8 +51,8 @@
             borderColor: stroke,
             backgroundColor: colorWithAlpha(stroke, 0.12),
             fill: true,
-            tension: 0.2,
-            pointRadius: 2,
+            tension: 0.25,
+            pointRadius: 0,
           },
         ],
       },
@@ -57,23 +62,21 @@
         scales: {
           x: {
             grid: buildCartesianGridStyle(palette),
-            ticks: { ...buildTickStyle(palette), autoSkip: true, maxTicksLimit: 10 },
+            ticks: { ...buildTickStyle(palette), autoSkip: true, maxTicksLimit: 8 },
           },
           y: {
             grid: buildCartesianGridStyle(palette),
-            ticks: yTickCurrency
-              ? {
-                  color: palette.mutedForeground,
-                  callback(value) {
-                    const n: number = typeof value === 'number' ? value : Number(value);
-                    return new Intl.NumberFormat('en-US', {
-                      style: 'currency',
-                      currency: yTickCurrency,
-                      maximumFractionDigits: 4,
-                    }).format(n);
-                  },
-                }
-              : { color: palette.mutedForeground },
+            ticks: {
+              color: palette.mutedForeground,
+              callback(value) {
+                const n: number = typeof value === 'number' ? value : Number(value);
+                return new Intl.NumberFormat('en-US', {
+                  style: 'currency',
+                  currency: currencyCode,
+                  maximumFractionDigits: 0,
+                }).format(n);
+              },
+            },
           },
         },
         plugins: {
@@ -84,10 +87,7 @@
               label(context) {
                 const raw: unknown = context.raw;
                 const value: number = typeof raw === 'number' ? raw : Number(raw);
-                if (yTickCurrency === undefined) {
-                  return String(value);
-                }
-                return new Intl.NumberFormat('en-US', { style: 'currency', currency: yTickCurrency }).format(value);
+                return new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode }).format(value);
               },
             },
           },
@@ -105,11 +105,23 @@
   });
 
   $: if (isChartClientReady) {
-    void [labels, values, datasetLabel, yTickCurrency, canvas];
+    void [labels, values, datasetLabel, currencyCode, usePrimaryStroke, canvas];
     rebuild();
   }
 </script>
 
-<div class="relative h-56 w-full">
-  <canvas bind:this={canvas} class="max-h-56"></canvas>
+<div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-border dark:bg-card">
+  {#if title.length > 0}
+    <h3 class="text-base font-semibold text-gray-900 dark:text-foreground">{title}</h3>
+  {/if}
+  {#if description.length > 0}
+    <p class="mt-1 text-sm text-gray-600 dark:text-muted-foreground">{description}</p>
+  {/if}
+  {#if labels.length === 0}
+    <p class="mt-3 text-sm text-gray-600 dark:text-muted-foreground">{emptyMessage}</p>
+  {:else}
+    <div class="relative mt-3 h-72">
+      <canvas bind:this={canvas} class="max-h-72"></canvas>
+    </div>
+  {/if}
 </div>

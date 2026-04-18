@@ -14,6 +14,8 @@ export type PriceSnapshotRecord = {
   readonly priceTimestampIso: string;
   readonly priceDate: string;
   readonly providerKey: string | undefined;
+  readonly dataQuality: string | undefined;
+  readonly rawPayloadHash: string | undefined;
   readonly createdAtIso: string;
 };
 
@@ -36,6 +38,8 @@ export class PriceSnapshotRepository {
     readonly priceTimestampIso: string;
     readonly priceDate: string;
     readonly providerKey: string | undefined;
+    readonly dataQuality: string | undefined;
+    readonly rawPayloadHash: string | undefined;
     readonly createdAtIso: string;
   }): Promise<void> {
     await this.documentClient.send(
@@ -57,6 +61,8 @@ export class PriceSnapshotRepository {
           priceTimestamp: input.priceTimestampIso,
           priceDate: input.priceDate,
           providerKey: input.providerKey,
+          dataQuality: input.dataQuality,
+          rawPayloadHash: input.rawPayloadHash,
           createdAt: input.createdAtIso,
         },
       }),
@@ -125,6 +131,8 @@ function parsePriceSnapshotRecord(input: { readonly item: Record<string, unknown
   const priceTimestamp: unknown = input.item['priceTimestamp'];
   const priceDate: unknown = input.item['priceDate'];
   const providerKey: unknown = input.item['providerKey'];
+  const dataQuality: unknown = input.item['dataQuality'];
+  const rawPayloadHash: unknown = input.item['rawPayloadHash'];
   const createdAt: unknown = input.item['createdAt'];
   if (
     typeof priceSnapshotId !== 'string' ||
@@ -147,6 +155,8 @@ function parsePriceSnapshotRecord(input: { readonly item: Record<string, unknown
     priceTimestampIso: priceTimestamp,
     priceDate,
     providerKey: typeof providerKey === 'string' ? providerKey : undefined,
+    dataQuality: typeof dataQuality === 'string' ? dataQuality : undefined,
+    rawPayloadHash: typeof rawPayloadHash === 'string' ? rawPayloadHash : undefined,
     createdAtIso: createdAt,
   };
 }

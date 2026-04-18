@@ -28,6 +28,8 @@ import { SnapshotStateRepository } from '../snapshots/snapshot-state-repository.
 import { PriceSnapshotRepository } from '../valuations/price-snapshot-repository.js';
 import { PriceSnapshotService } from '../valuations/price-snapshot-service.js';
 import { registerValuationsRoutes } from '../valuations/register-valuations-routes.js';
+import { MarketPriceJobStateRepository } from '../market-prices/market-price-job-state-repository.js';
+import { registerMarketPriceRoutes } from '../market-prices/register-market-price-routes.js';
 import { AiSettingsService } from '../ai/ai-settings-service.js';
 import { registerAiSettingsRoutes } from '../ai/register-ai-settings-routes.js';
 import { UserAiSettingsRepository } from '../ai/user-ai-settings-repository.js';
@@ -75,6 +77,7 @@ const domainDataPluginImpl: FastifyPluginAsync = async (app): Promise<void> => {
     portfolioService,
     snapshotInvalidation: snapshotInvalidationService,
   });
+  const marketPriceJobStateRepository = new MarketPriceJobStateRepository({ documentClient, tableName });
   const positionSnapshotRepository = new PositionSnapshotRepository({ documentClient, tableName });
   const portfolioSnapshotRepository = new PortfolioSnapshotRepository({ documentClient, tableName });
   const performanceSnapshotRepository = new PerformanceSnapshotRepository({ documentClient, tableName });
@@ -97,6 +100,7 @@ const domainDataPluginImpl: FastifyPluginAsync = async (app): Promise<void> => {
   registerAssetsRoutes({ app, assetService });
   registerLedgerRoutes({ app, ledgerService });
   registerValuationsRoutes({ app, priceSnapshotService });
+  registerMarketPriceRoutes({ app, marketPriceJobStateRepository, portfolioService });
   registerSnapshotsRoutes({
     app,
     snapshotRebuildService,

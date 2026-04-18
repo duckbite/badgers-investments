@@ -29,6 +29,7 @@ const assetDtoSchema = {
     isin: { type: 'string' },
     exchangeCode: { type: 'string' },
     sector: { type: 'string' },
+    primaryPriceProviderKey: { type: 'string' },
     isActive: { type: 'boolean' },
     archivedAt: { type: 'string' },
     createdAt: { type: 'string' },
@@ -50,6 +51,9 @@ const createBodySchema = {
     isin: { type: 'string', maxLength: 32 },
     exchangeCode: { type: 'string', maxLength: 32 },
     sector: { type: 'string', maxLength: 128 },
+    primaryPriceProviderKey: {
+      anyOf: [{ type: 'string', enum: ['YAHOO_FINANCE', 'CRYPTO_AGGREGATE'] }, { type: 'null' }],
+    },
   },
 } as const;
 
@@ -64,6 +68,9 @@ const patchBodySchema = {
     isin: { type: 'string', maxLength: 32 },
     exchangeCode: { type: 'string', maxLength: 32 },
     sector: { type: 'string', maxLength: 128 },
+    primaryPriceProviderKey: {
+      anyOf: [{ type: 'string', enum: ['YAHOO_FINANCE', 'CRYPTO_AGGREGATE'] }, { type: 'null' }],
+    },
     archived: { type: 'boolean' },
   },
 } as const;
@@ -135,6 +142,7 @@ export function registerAssetsRoutes(input: { readonly app: FastifyInstance; rea
         readonly isin?: string;
         readonly exchangeCode?: string;
         readonly sector?: string;
+        readonly primaryPriceProviderKey?: 'YAHOO_FINANCE' | 'CRYPTO_AGGREGATE' | null;
       } = request.body as {
         readonly assetType: 'STOCK' | 'ETF';
         readonly name: string;
@@ -145,6 +153,7 @@ export function registerAssetsRoutes(input: { readonly app: FastifyInstance; rea
         readonly isin?: string;
         readonly exchangeCode?: string;
         readonly sector?: string;
+        readonly primaryPriceProviderKey?: 'YAHOO_FINANCE' | 'CRYPTO_AGGREGATE' | null;
       };
       try {
         const created: AssetDto = await input.assetService.create({
@@ -158,6 +167,7 @@ export function registerAssetsRoutes(input: { readonly app: FastifyInstance; rea
           isin: body.isin,
           exchangeCode: body.exchangeCode,
           sector: body.sector,
+          primaryPriceProviderKey: body.primaryPriceProviderKey,
           now: new Date(),
         });
         return reply.code(201).send(created);
@@ -194,6 +204,7 @@ export function registerAssetsRoutes(input: { readonly app: FastifyInstance; rea
         readonly isin?: string;
         readonly exchangeCode?: string;
         readonly sector?: string;
+        readonly primaryPriceProviderKey?: 'YAHOO_FINANCE' | 'CRYPTO_AGGREGATE' | null;
         readonly archived?: boolean;
       } = request.body as {
         readonly name?: string;
@@ -203,6 +214,7 @@ export function registerAssetsRoutes(input: { readonly app: FastifyInstance; rea
         readonly isin?: string;
         readonly exchangeCode?: string;
         readonly sector?: string;
+        readonly primaryPriceProviderKey?: 'YAHOO_FINANCE' | 'CRYPTO_AGGREGATE' | null;
         readonly archived?: boolean;
       };
       try {
@@ -216,6 +228,7 @@ export function registerAssetsRoutes(input: { readonly app: FastifyInstance; rea
           isin: body.isin,
           exchangeCode: body.exchangeCode,
           sector: body.sector,
+          primaryPriceProviderKey: body.primaryPriceProviderKey,
           archived: body.archived,
           now: new Date(),
         });

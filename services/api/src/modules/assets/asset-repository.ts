@@ -19,6 +19,8 @@ export type AssetRecord = {
   readonly isin: string | undefined;
   readonly exchangeCode: string | undefined;
   readonly sector: string | undefined;
+  /** When set, automatic market quotes are expected from this provider key; manual UI pricing is disabled. */
+  readonly primaryPriceProviderKey: string | undefined;
   readonly isActive: boolean;
   readonly archivedAtIso: string | undefined;
   readonly createdAtIso: string;
@@ -92,6 +94,7 @@ export class AssetRepository {
     readonly isin: string | undefined;
     readonly exchangeCode: string | undefined;
     readonly sector: string | undefined;
+    readonly primaryPriceProviderKey: string | undefined;
     readonly createdAtIso: string;
   }): Promise<void> {
     await this.documentClient.send(
@@ -112,6 +115,7 @@ export class AssetRepository {
           isin: input.isin,
           exchangeCode: input.exchangeCode,
           sector: input.sector,
+          primaryPriceProviderKey: input.primaryPriceProviderKey,
           isActive: true,
           archivedAt: undefined,
           createdAt: input.createdAtIso,
@@ -133,6 +137,7 @@ export class AssetRepository {
     readonly isin: string | undefined;
     readonly exchangeCode: string | undefined;
     readonly sector: string | undefined;
+    readonly primaryPriceProviderKey: string | null | undefined;
     readonly isActive: boolean | undefined;
     readonly archivedAtIso: string | undefined;
     readonly updatedAtIso: string;
@@ -175,6 +180,11 @@ export class AssetRepository {
       values[':sector'] = input.sector;
       expressions.push('#sector = :sector');
     }
+    if (input.primaryPriceProviderKey !== undefined) {
+      names['#primaryPriceProviderKey'] = 'primaryPriceProviderKey';
+      values[':primaryPriceProviderKey'] = input.primaryPriceProviderKey;
+      expressions.push('#primaryPriceProviderKey = :primaryPriceProviderKey');
+    }
     if (input.isActive !== undefined) {
       names['#isActive'] = 'isActive';
       values[':isActive'] = input.isActive;
@@ -212,6 +222,7 @@ function parseAssetRecord(input: { readonly item: Record<string, unknown> }): As
   const isin: unknown = input.item['isin'];
   const exchangeCode: unknown = input.item['exchangeCode'];
   const sector: unknown = input.item['sector'];
+  const primaryPriceProviderKey: unknown = input.item['primaryPriceProviderKey'];
   const isActive: unknown = input.item['isActive'];
   const archivedAt: unknown = input.item['archivedAt'];
   const createdAt: unknown = input.item['createdAt'];
@@ -242,6 +253,7 @@ function parseAssetRecord(input: { readonly item: Record<string, unknown> }): As
     isin: typeof isin === 'string' ? isin : undefined,
     exchangeCode: typeof exchangeCode === 'string' ? exchangeCode : undefined,
     sector: typeof sector === 'string' ? sector : undefined,
+    primaryPriceProviderKey: typeof primaryPriceProviderKey === 'string' ? primaryPriceProviderKey : undefined,
     isActive: active,
     archivedAtIso: typeof archivedAt === 'string' ? archivedAt : undefined,
     createdAtIso: createdAt,

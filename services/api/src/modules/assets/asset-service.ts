@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { Decimal } from 'decimal.js';
 import { isAllowedCurrencyCode, normalizeCurrencyCode } from '../domain/currency-codes.js';
 import type { PortfolioService } from '../portfolio/portfolio-service.js';
+import { isAllowedPrimaryPriceProviderKey } from '../market-prices/price-provider-keys.js';
 import type { AssetRecord, AssetRepository, AssetType } from './asset-repository.js';
 
 export type AssetDto = {
@@ -16,6 +17,7 @@ export type AssetDto = {
   readonly isin: string | undefined;
   readonly exchangeCode: string | undefined;
   readonly sector: string | undefined;
+  readonly primaryPriceProviderKey: string | undefined;
   readonly isActive: boolean;
   readonly archivedAt: string | undefined;
   readonly createdAt: string;
@@ -65,6 +67,7 @@ export class AssetService {
     readonly isin: string | undefined;
     readonly exchangeCode: string | undefined;
     readonly sector: string | undefined;
+    readonly primaryPriceProviderKey: string | null | undefined;
     readonly now: Date;
   }): Promise<AssetDto> {
     validateOwnershipPct({ raw: input.ownershipPct });
@@ -72,6 +75,9 @@ export class AssetService {
     if (!isAllowedCurrencyCode({ raw: currency })) {
       throw new AssetValidationError({ code: 'ASSET_CURRENCY_INVALID', message: 'Currency is not allowed.' });
     }
+    const primaryPriceProviderKey: string | undefined = resolvePrimaryPriceProviderKeyForCreate({
+      requested: input.primaryPriceProviderKey,
+    });
     const portfolioId: string = await this.portfolioService.requirePortfolioIdForUser({ userId: input.userId, now: input.now });
     const assetId: string = randomUUID();
     const createdAtIso: string = input.now.toISOString();
@@ -89,6 +95,7 @@ export class AssetService {
       isin: input.isin,
       exchangeCode: input.exchangeCode,
       sector: input.sector,
+      primaryPriceProviderKey,
       createdAtIso,
     });
     const created: AssetRecord | undefined = await this.assetRepository.getById({
@@ -112,6 +119,7 @@ export class AssetService {
     readonly isin: string | undefined;
     readonly exchangeCode: string | undefined;
     readonly sector: string | undefined;
+    readonly primaryPriceProviderKey: string | null | undefined;
     readonly archived: boolean | undefined;
     readonly now: Date;
   }): Promise<AssetDto | undefined> {
@@ -126,6 +134,11 @@ export class AssetService {
     }
     if (input.ownershipPct !== undefined) {
       validateOwnershipPct({ raw: input.ownershipPct });
+    }
+    if (input.primaryPriceProviderKey !== undefined && input.primaryPriceProviderKey !== null) {
+      if (!isAllowedPrimaryPriceProviderKey({ raw: input.primaryPriceProviderKey })) {
+        throw new AssetValidationError({ code: 'ASSET_PRICE_PROVIDER_INVALID', message: 'primaryPriceProviderKey is not supported.' });
+      }
     }
     const updatedAtIso: string = input.now.toISOString();
     const ownership: string | undefined =
@@ -150,6 +163,7 @@ export class AssetService {
       isin: input.isin,
       exchangeCode: input.exchangeCode,
       sector: input.sector,
+      primaryPriceProviderKey: input.primaryPriceProviderKey,
       isActive,
       archivedAtIso,
       updatedAtIso,
@@ -187,6 +201,22 @@ function validateOwnershipPct(input: { readonly raw: string }): void {
   }
 }
 
+/**
+ * New assets start without a provider; the daily job sets `YAHOO_FINANCE` after a successful Yahoo quote.
+ */
+function resolvePrimaryPriceProviderKeyForCreate(input: { readonly requested: string | null | undefined }): string | undefined {
+  if (input.requested === null || input.requested === undefined) {
+    return undefined;
+  }
+  if (input.requested.length === 0) {
+    return undefined;
+  }
+  if (!isAllowedPrimaryPriceProviderKey({ raw: input.requested })) {
+    throw new AssetValidationError({ code: 'ASSET_PRICE_PROVIDER_INVALID', message: 'primaryPriceProviderKey is not supported.' });
+  }
+  return input.requested;
+}
+
 function toDto(input: { readonly record: AssetRecord }): AssetDto {
   return {
     assetId: input.record.assetId,
@@ -200,6 +230,7 @@ function toDto(input: { readonly record: AssetRecord }): AssetDto {
     isin: input.record.isin,
     exchangeCode: input.record.exchangeCode,
     sector: input.record.sector,
+    primaryPriceProviderKey: input.record.primaryPriceProviderKey,
     isActive: input.record.isActive,
     archivedAt: input.record.archivedAtIso,
     createdAt: input.record.createdAtIso,
