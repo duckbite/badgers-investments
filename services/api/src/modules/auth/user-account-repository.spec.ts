@@ -1,5 +1,5 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, GetCommand, ScanCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { mockClient } from 'aws-sdk-client-mock';
 import { describe, expect, it } from 'vitest';
 import { UserAccountRepository } from './user-account-repository.js';
@@ -51,5 +51,38 @@ describe('UserAccountRepository', () => {
     const repo = createRepository();
     await repo.touchLastLoginAt({ username: 'admin', atIso: '2026-01-01T00:00:00.000Z' });
     expect(ddbMock.commandCalls(UpdateCommand).length).toBe(1);
+  });
+
+  it('lists active user ids and follows scan pagination', async () => {
+    ddbMock.reset();
+    ddbMock
+      .on(ScanCommand)
+      .resolvesOnce({
+        Items: [
+          {
+            PK: 'USER_ACCOUNT#alice',
+            SK: 'META',
+            entityType: 'USER_ACCOUNT',
+            userId: 'user-a',
+            isActive: true,
+          },
+        ],
+        LastEvaluatedKey: { PK: 'USER_ACCOUNT#alice', SK: 'META' },
+      })
+      .resolvesOnce({
+        Items: [
+          {
+            PK: 'USER_ACCOUNT#bob',
+            SK: 'META',
+            entityType: 'USER_ACCOUNT',
+            userId: 'user-b',
+            isActive: true,
+          },
+        ],
+      });
+    const repo = createRepository();
+    const ids = await repo.listAllActiveUserIds();
+    expect(ids).toEqual(['user-a', 'user-b']);
+    expect(ddbMock.commandCalls(ScanCommand).length).toBe(2);
   });
 });

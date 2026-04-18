@@ -11,6 +11,7 @@
 
   type AssetDto = {
     readonly assetId: string;
+    readonly name: string;
     readonly symbol: string;
     readonly currencyCode: string;
     readonly isActive: boolean;
@@ -353,7 +354,8 @@
         <thead class="border-b border-gray-200 bg-gray-50 dark:border-border dark:bg-muted/40">
           <tr>
             <th class="px-3 py-2 font-medium">Date</th>
-            <th class="px-3 py-2 font-medium">Asset</th>
+            <th class="px-3 py-2 font-medium">Asset name</th>
+            <th class="px-3 py-2 font-medium">Symbol</th>
             <th class="px-3 py-2 font-medium">Type</th>
             <th class="px-3 py-2 font-medium">Qty</th>
             <th class="px-3 py-2 font-medium">Unit</th>
@@ -367,6 +369,7 @@
             {@const ast = assetById.get(row.assetId)}
             <tr class="border-b border-gray-100 dark:border-border {!row.isDeleted ? '' : 'opacity-50'}">
               <td class="px-3 py-2 text-gray-800 dark:text-foreground">{row.tradeDate}</td>
+              <td class="px-3 py-2 text-gray-800 dark:text-foreground">{ast?.name ?? '—'}</td>
               <td class="px-3 py-2">
                 <a class="text-emerald-700 hover:underline dark:text-emerald-400" href={`/assets/${row.assetId}`}>
                   {ast?.symbol ?? row.assetId}
@@ -444,7 +447,7 @@
             disabled={modal.kind === 'edit'}
           >
             {#each assets as a (a.assetId)}
-              <option value={a.assetId}>{a.symbol} · {a.currencyCode}{a.isActive ? '' : ' (archived)'}</option>
+              <option value={a.assetId}>{a.name} ({a.symbol}) · {a.currencyCode}{a.isActive ? '' : ' (archived)'}</option>
             {/each}
           </select>
         </label>

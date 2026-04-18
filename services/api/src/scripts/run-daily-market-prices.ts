@@ -1,8 +1,4 @@
-/**
- * Badgers Investments daily worker entry (EventBridge / local cron).
- */
-
-import { executeDailyMarketPriceJob } from 'api/jobs/daily-market-prices';
+import { executeDailyMarketPriceJob } from '../jobs/daily-market-prices.js';
 
 async function main(): Promise<void> {
   const result = await executeDailyMarketPriceJob({ now: new Date() });
@@ -20,7 +16,7 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err) => {
+main().catch((err: unknown) => {
   console.error(err);
   process.exit(1);
 });

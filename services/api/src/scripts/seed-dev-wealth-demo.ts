@@ -313,6 +313,8 @@ async function seedWeeklyPrices(input: {
         priceTimestampIso: ts,
         priceDate: cursor,
         providerKey: 'SEED_DEV_WEALTH',
+        dataQuality: undefined,
+        rawPayloadHash: undefined,
         createdAtIso: input.nowIso,
       });
       count += 1;
@@ -360,6 +362,7 @@ async function main(): Promise<void> {
       isin: undefined,
       exchangeCode: 'SEED',
       sector: asset.sector,
+      primaryPriceProviderKey: undefined,
       createdAtIso: nowIso,
     });
   }

@@ -14,6 +14,7 @@
     readonly name: string;
     readonly symbol: string;
     readonly currencyCode: string;
+    readonly primaryPriceProviderKey: string | undefined;
   };
 
   type PriceSnapshotDto = {
@@ -24,7 +25,18 @@
     readonly priceTimestamp: string;
     readonly priceDate: string;
     readonly providerKey: string | undefined;
+    readonly dataQuality: string | undefined;
+    readonly rawPayloadHash: string | undefined;
     readonly createdAt: string;
+  };
+
+  type MarketPriceStatusDto = {
+    readonly lastRunStartedAt: string | null;
+    readonly lastRunFinishedAt: string | null;
+    readonly lastRunOk: boolean | null;
+    readonly lastRunErrorMessage: string | null;
+    readonly symbolsProcessed: number | null;
+    readonly lastProviderKey: string | null;
   };
 
   let assets: readonly AssetDto[] = [];
@@ -34,8 +46,20 @@
   let isLoading: boolean = true;
   let isSaving: boolean = false;
   let isRebuilding: boolean = false;
+  let isRunningMarketJob: boolean = false;
+  let marketStatus: MarketPriceStatusDto | null | undefined = undefined;
+
+  type MarketPriceRunResultDto = {
+    readonly usersProcessed: number;
+    readonly snapshotsWritten: number;
+    readonly errors: readonly string[];
+    readonly userIdsConfigured: number;
+    readonly userIdSource: 'env' | 'scan';
+  };
 
   $: masked = $amountPrivacy;
+
+  $: manualAssets = assets.filter((a) => a.primaryPriceProviderKey === undefined || a.primaryPriceProviderKey === '');
 
   async function loadAssets(): Promise<void> {
     const response = await apiClient.executeJson<{ readonly items: readonly AssetDto[] }>({
@@ -44,8 +68,11 @@
       query: { active: 'active' },
     });
     assets = response.items;
-    if (selectedAssetId.length === 0 && assets.length > 0) {
-      selectedAssetId = assets[0]?.assetId ?? '';
+    const manual: readonly AssetDto[] = assets.filter(
+      (a) => a.primaryPriceProviderKey === undefined || a.primaryPriceProviderKey === '',
+    );
+    if (selectedAssetId.length === 0 || !manual.some((a) => a.assetId === selectedAssetId)) {
+      selectedAssetId = manual[0]?.assetId ?? '';
     }
   }
 
@@ -66,11 +93,23 @@
     latestByAssetId = next;
   }
 
+  async function loadMarketStatus(): Promise<void> {
+    try {
+      marketStatus = await apiClient.executeJson<MarketPriceStatusDto | null>({
+        method: 'GET',
+        path: '/market-prices/status',
+      });
+    } catch {
+      marketStatus = null;
+    }
+  }
+
   async function refreshAll(): Promise<void> {
     isLoading = true;
     try {
       await loadAssets();
       await loadLatestPrices();
+      await loadMarketStatus();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to load prices');
     } finally {
@@ -135,13 +174,37 @@
       isRebuilding = false;
     }
   }
+
+  async function runMarketPriceJob(): Promise<void> {
+    isRunningMarketJob = true;
+    try {
+      const result = await apiClient.executeJson<MarketPriceRunResultDto, Record<string, never>>({
+        method: 'POST',
+        path: '/market-prices/run',
+        body: {},
+      });
+      if (result.errors.length > 0) {
+        toast.error(`Market price job finished with errors: ${result.errors.join('; ')}`);
+      } else {
+        toast.success(
+          `Market prices updated (${result.snapshotsWritten} snapshot(s), ${result.usersProcessed} user portfolio(s), source=${result.userIdSource})`,
+        );
+      }
+      await refreshAll();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Market price job failed');
+    } finally {
+      isRunningMarketJob = false;
+    }
+  }
 </script>
 
 <section class="space-y-6">
   <header class="space-y-1">
     <h1 class="text-2xl font-semibold text-gray-900 dark:text-foreground">Prices</h1>
     <p class="text-sm text-gray-600 dark:text-muted-foreground">
-      Manual price snapshots per asset. Rebuild derived snapshots after large backfills.
+      Manual prices apply only to assets without automatic market pricing. Provider-backed assets are updated by the daily job.
+      Rebuild derived snapshots after large backfills.
     </p>
   </header>
 
@@ -156,6 +219,15 @@
     </button>
     <button
       type="button"
+      class="rounded-md border border-sky-700 bg-sky-600 px-3 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-60"
+      disabled={isRunningMarketJob}
+      on:click={() => void runMarketPriceJob()}
+      title="Runs the same Yahoo batch job as the daily worker (all configured user portfolios)."
+    >
+      {isRunningMarketJob ? 'Updating market prices…' : 'Run market price job'}
+    </button>
+    <button
+      type="button"
       class="rounded-md border border-emerald-700 bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
       disabled={isRebuilding}
       on:click={() => void rebuildSnapshots()}
@@ -164,16 +236,48 @@
     </button>
   </div>
 
+  {#if marketStatus !== undefined && marketStatus !== null}
+    <div
+      class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 dark:border-border dark:bg-muted/40 dark:text-foreground"
+    >
+      <span class="font-medium">Last market price job:</span>
+      {#if marketStatus.lastRunFinishedAt}
+        {marketStatus.lastRunFinishedAt}
+        {#if marketStatus.lastRunOk === true}
+          <span class="text-emerald-700 dark:text-emerald-400"> · ok</span>
+        {:else if marketStatus.lastRunOk === false}
+          <span class="text-amber-800 dark:text-amber-300"> · failed</span>
+        {/if}
+        {#if marketStatus.symbolsProcessed != null}
+          <span class="text-slate-600 dark:text-muted-foreground"> · {marketStatus.symbolsProcessed} Yahoo quote(s)</span>
+        {/if}
+        {#if marketStatus.lastRunOk === false && marketStatus.lastRunErrorMessage}
+          <p class="mt-2 whitespace-pre-wrap break-words font-mono text-xs text-amber-900 dark:text-amber-200">
+            {marketStatus.lastRunErrorMessage}
+          </p>
+        {/if}
+      {:else}
+        <span class="text-slate-600 dark:text-muted-foreground">No run recorded yet — use Run market price job above or the scheduled worker.</span>
+      {/if}
+    </div>
+  {/if}
+
   <div class="grid gap-6 lg:grid-cols-2">
     <div class="space-y-3 rounded-xl border border-gray-200 bg-white p-4 dark:border-border dark:bg-card">
-      <h2 class="text-lg font-semibold text-gray-900 dark:text-foreground">Add price</h2>
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-foreground">Add manual price</h2>
+      {#if manualAssets.length === 0}
+        <p class="text-sm text-gray-600 dark:text-muted-foreground">
+          All active assets use automatic market pricing. Clear the provider on an asset (PATCH) to enable manual entry for that
+          symbol.
+        </p>
+      {:else}
       <label class="block space-y-1">
         <span class="text-sm text-gray-600 dark:text-muted-foreground">Asset</span>
         <select
           class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-border dark:bg-background dark:text-foreground"
           bind:value={selectedAssetId}
         >
-          {#each assets as asset (asset.assetId)}
+          {#each manualAssets as asset (asset.assetId)}
             <option value={asset.assetId}>{asset.symbol} — {asset.name}</option>
           {/each}
         </select>
@@ -199,6 +303,7 @@
       >
         {isSaving ? 'Saving…' : 'Save price snapshot'}
       </button>
+      {/if}
     </div>
 
     <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-border dark:bg-card">
@@ -219,6 +324,9 @@
                 <span class="text-gray-800 dark:text-foreground">
                   {formatMaskedMoney({ masked, decimalString: latest.price, currencyCode: latest.currencyCode })}
                   <span class="text-gray-500 dark:text-muted-foreground">({latest.priceDate})</span>
+                  {#if latest.providerKey}
+                    <span class="ml-1 text-xs text-gray-500 dark:text-muted-foreground">· {latest.providerKey}</span>
+                  {/if}
                 </span>
               {/if}
             </li>

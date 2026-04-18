@@ -17,6 +17,8 @@ export type PriceSnapshotDto = {
   readonly priceTimestamp: string;
   readonly priceDate: string;
   readonly providerKey: string | undefined;
+  readonly dataQuality: string | undefined;
+  readonly rawPayloadHash: string | undefined;
   readonly createdAt: string;
 };
 
@@ -81,6 +83,12 @@ export class PriceSnapshotService {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(priceDate)) {
       throw new PriceSnapshotValidationError({ code: 'PRICE_DATE_INVALID', message: 'priceDate must be YYYY-MM-DD when provided.' });
     }
+    if (asset.primaryPriceProviderKey !== undefined && asset.primaryPriceProviderKey.length > 0) {
+      throw new PriceSnapshotValidationError({
+        code: 'PRICE_MANUAL_NOT_ALLOWED',
+        message: 'Manual prices are disabled while automatic market pricing is configured for this asset.',
+      });
+    }
     const priceSnapshotId: string = randomUUID();
     const createdAtIso: string = input.now.toISOString();
     await this.priceSnapshotRepository.create({
@@ -93,6 +101,8 @@ export class PriceSnapshotService {
       priceTimestampIso,
       priceDate,
       providerKey: 'MANUAL',
+      dataQuality: undefined,
+      rawPayloadHash: undefined,
       createdAtIso,
     });
     if (this.snapshotInvalidation !== undefined) {
@@ -111,6 +121,8 @@ export class PriceSnapshotService {
       priceTimestamp: priceTimestampIso,
       priceDate,
       providerKey: 'MANUAL',
+      dataQuality: undefined,
+      rawPayloadHash: undefined,
       createdAt: createdAtIso,
     };
   }
@@ -173,6 +185,8 @@ function toDto(input: { readonly record: PriceSnapshotRecord }): PriceSnapshotDt
     priceTimestamp: input.record.priceTimestampIso,
     priceDate: input.record.priceDate,
     providerKey: input.record.providerKey,
+    dataQuality: input.record.dataQuality,
+    rawPayloadHash: input.record.rawPayloadHash,
     createdAt: input.record.createdAtIso,
   };
 }

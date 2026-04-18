@@ -14,6 +14,8 @@ const priceSnapshotDtoSchema = {
     priceTimestamp: { type: 'string' },
     priceDate: { type: 'string' },
     providerKey: { type: 'string' },
+    dataQuality: { type: 'string' },
+    rawPayloadHash: { type: 'string' },
     createdAt: { type: 'string' },
   },
 } as const;

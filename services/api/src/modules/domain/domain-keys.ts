@@ -74,6 +74,9 @@ export function buildPortfolioConfigVersionSortKeyPrefix(): string {
 
 export const SNAPSHOT_STATE_SORT_KEY: string = 'SNAPSHOT_STATE';
 
+/** Last daily market-price job outcome for a portfolio (portfolio-scoped PK). */
+export const MARKET_PRICE_JOB_STATE_SORT_KEY: string = 'OPS#MARKET_PRICE';
+
 /** Per-user AI provider credentials for recommendation runs (encrypted at rest). */
 export const USER_SETTINGS_AI_SORT_KEY: string = 'USER_SETTINGS#AI';
 
