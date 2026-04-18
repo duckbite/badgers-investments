@@ -90,9 +90,11 @@ Badgers Investments consists of:
 - **Amazon DynamoDB** for canonical and derived data,
 - AWS-managed services for secrets, scheduling, and logging,
 - a **user-configured Anthropic (Claude) API key** for recommendation synthesis (MVP).
+- **Yahoo Finance** (via a server-side adapter) — primary source for **listed equity/ETF** market quotes when automatic price refresh is enabled (see **ADR-014** and §9.4).
 
 ## 5.2 External Dependencies (MVP)
 - **Anthropic Messages API** — recommendation synthesis (API key in Settings; model id from server env; see `ai` module)
+- **Yahoo Finance** — market prices for stocks/ETFs through an application adapter (batch/daily ingestion; rate-limited; not a substitute for a commercial real-time feed — see **ADR-014**)
 - **AWS EventBridge** — scheduled job triggers
 - **AWS Secrets Manager + KMS** — secret management
 - **CloudWatch Logs** — application logs
@@ -194,7 +196,7 @@ Responsibilities:
 6. **valuations**
    - manual valuations
    - manual FX entries
-   - price records (manual/provider-ready)
+   - price records (manual/**Yahoo Finance** provider path for listed instruments per **ADR-014**)
 7. **snapshots**
    - position/portfolio/performance snapshot generation
    - invalidation/rebuild orchestration (`earliest_affected_date`)
@@ -258,6 +260,15 @@ Canonical data is authoritative. Derived data can be invalidated and rebuilt.
 - Store and compute monetary values, quantities, rates, and returns using **decimal-safe representations** (e.g. arbitrary-precision types or normalised decimal strings in DynamoDB attributes — never IEEE-754 `number` as the source of truth).
 - Avoid JavaScript floating-point (`number`) for financial calculations in domain logic.
 - Apply rounding only at display/output boundaries, not during core calculations unless explicitly required.
+
+## 9.4 Market price data (Yahoo Finance)
+
+**Decision:** See **ADR-014** (primary market price provider: Yahoo Finance).
+
+- **Role:** When automatic pricing is enabled, the worker/API ingests **daily (or batch)** quotes for **stocks and ETFs** through a **Yahoo Finance adapter** and writes `price_snapshot` rows with clear provenance (`providerKey` / metadata), same invalidation rules as manual prices.
+- **Abstraction:** Additional asset classes (e.g. crypto) remain **pluggable** via the same provider interface; they may use a different upstream source in a later iteration.
+- **Operations:** Respect conservative **rate limits**, backoff, and idempotent writes; no intraday streaming requirement for MVP.
+- **Compliance / risk:** Yahoo’s terms and unofficial access patterns can change; the adapter boundary exists so ingestion can be swapped or augmented without rewriting snapshot logic.
 
 ---
 
@@ -348,6 +359,37 @@ All API errors should return a consistent envelope, e.g.:
 - `message`
 - `details` (optional, sanitised)
 - `requestId`
+
+## 11.5 Analysis reports and AI-generated artifacts (target architecture)
+
+**Decision:** See **ADR-013** (Analysis report bundles: DynamoDB index + S3 canonical content + sidecar assets).
+
+AI-driven analysis tools (e.g. Technical Analysis, Portfolio Builder) produce **more than a plain-text markdown string**. The platform must support **raster or vector sidecar assets** (charts, tables exported as images, diagrams, indicator plots such as RSI / MACD / Bollinger Bands) stored alongside the narrative, then **integrated at HTML render time** in the Library (sanitized markdown → HTML with embedded or linked imagery).
+
+### Storage split
+
+- **DynamoDB (`ANALYSIS_REPORT` index rows):** metadata only for list and navigation — identifiers, type, title, short summary line, timestamps, creator, **`storageRoot` / manifest pointer** (S3 prefix + manifest object key), optional content hash and asset counts. **Do not persist full report body** as the long-term source of truth (avoids large items and keeps queries cheap). Interim implementations may still duplicate body bytes during migration; see ADR-013.
+- **Amazon S3 (canonical bundle):** immutable prefix per run/report, e.g. `reports/{portfolioId}/{runId}/` containing:
+  - primary markdown (`report.md` or equivalent),
+  - **`manifest.json`** (versioned contract: body path, asset list with ids, relative paths, MIME types, optional dimensions/roles),
+  - **`assets/*`** — PNG/SVG/PDF or other allowed binary sidecars referenced from markdown (relative `![](assets/...)` paths).
+
+### Generation pipeline
+
+- **Narrative:** LLM produces markdown per tool template.
+- **Structured visuals:** Prefer **deterministic** generation for time-series and indicators (same inputs → same image bytes) for auditability; optional LLM-assisted chart *specs* feeding a renderer. Multi-modal model output of raw images may be supported later but must land in the same **manifest + assets** contract.
+- **Persistence:** Upload markdown + manifest + assets under the bundle prefix; Dynamo row references that prefix only.
+
+### API and rendering
+
+- **List:** `GET /analysis/reports` returns **summaries** from Dynamo (no large bodies).
+- **Detail body:** Load markdown from S3 (or stream via API) using the manifest; resolve asset references to **session-scoped asset URLs** — either **authenticated proxy** routes (`GET /analysis/reports/:id/assets/:assetId`) or **short-lived presigned GET** URLs. Do not bake long-lived public S3 URLs into stored markdown.
+- **HTML:** Client or API assembles sanitized HTML (`marked` + `DOMPurify` or server-side equivalent) with `img` `src` pointing only at trusted proxy or time-bounded URLs.
+
+### Security
+
+- Asset access must enforce the same **portfolio/user authorization** as the report record.
+- Sanitize HTML; allowlisted tags/attributes for embedded media only.
 
 ---
 
@@ -681,12 +723,13 @@ This SAD adopts the username/password authentication model and supersedes earlie
 ## 23. Open Items and Future Evolution
 
 ## 23.1 Deferred Decisions / Future ADRs
-- Market data provider selection and adapter design details
+- Secondary market data sources or failover (beyond Yahoo Finance per **ADR-014**); crypto-specific provider choice
 - FX provider integration (manual-first in MVP)
 - Broker sync import architecture
 - Auto-trading execution subsystem and guardrails
 - Staging environment topology
 - Additional LLM providers beyond the supported MVP set (extend `ai` module adapters)
+- Fine-grained manifest schema versioning for analysis report bundles beyond ADR-013 baseline (if multiple concurrent formats are needed)
 
 ## 23.2 Expected Evolution Paths
 - Add provider adapters while preserving manual entry paths
@@ -710,6 +753,8 @@ This SAD implements the following accepted ADRs:
 - **ADR-008** User-configured LLM integration and validation pipeline
 - **ADR-009** REST JSON + typed DTOs
 - **ADR-010** Chart.js + CloudWatch logging
+- **ADR-013** Analysis report bundles (DynamoDB metadata + S3 markdown/manifest/sidecar assets)
+- **ADR-014** Market prices: Yahoo Finance as primary adapter for listed equities/ETFs
 
 ---
 

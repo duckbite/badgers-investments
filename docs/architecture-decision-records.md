@@ -17,6 +17,8 @@ This pack contains the initial Architecture Decision Records (ADRs) for the MVP.
 - ADR-008 — User-Configured LLM Recommendation Integration and Validation Pipeline
 - ADR-009 — API Style and Frontend Integration (REST JSON + Typed DTOs)
 - ADR-010 — Charting and Observability Baseline (Chart.js + CloudWatch Logs)
+- ADR-013 — Analysis Report Bundles (DynamoDB Metadata + S3 Canonical Content + Sidecar Assets)
+- ADR-014 — Market Prices: Yahoo Finance as Primary Provider (Listed Equities/ETFs)
 
 ---
 
@@ -461,6 +463,72 @@ Use **username + password** authentication for the single user.
 - Requires secure password hashing and handling.
 - Requires a password bootstrap/reset strategy (single-user ops decision).
 
+---
+
+## ADR-013 — Analysis Report Bundles (DynamoDB Metadata + S3 Canonical Content + Sidecar Assets)
+- **Status:** Accepted
+- **Date:** 2026-04-17
+
+### Context
+Analysis tools (Technical Analysis, Portfolio Builder, and future Explore tools) must persist **rich reports**: markdown narrative plus **binary sidecar assets** (charts, diagrams, indicator plots, exported tables as images). Storing full markdown bodies and large blobs in DynamoDB does not scale (item size limits, query cost) and duplicates the role of object storage.
+
+### Decision
+1. **DynamoDB** stores **index metadata only** for each `ANALYSIS_REPORT` row: identifiers, type, title, short summary for lists, timestamps, creator, and **pointers** to the canonical bundle (S3 prefix and/or manifest key). It must **not** be the long-term source of truth for full report content once migration is complete.
+2. **Amazon S3** stores the **immutable report bundle** per run under a stable prefix, including:
+   - primary markdown body,
+   - a small **manifest** (JSON, versioned) describing the body path and **assets** (id, relative path, MIME type, optional dimensions/role),
+   - **`assets/*`** for rasters/SVGs/PDFs referenced from markdown via relative paths.
+3. **Generation:** Combine LLM narrative with **deterministic** rendering where possible for financial charts (e.g. RSI, MACD, Bollinger) so outputs are reproducible; all emitted files are uploaded into the bundle and listed in the manifest.
+4. **Serving:** APIs return list rows from Dynamo; **detail** loads markdown from S3 (directly or via API streaming). Asset URLs MUST be **session-scoped** — authenticated proxy routes and/or **short-lived presigned GET** URLs — never long-lived public object URLs embedded in stored markdown.
+5. **Rendering:** Library (and similar UIs) convert markdown to HTML with a sanitizer; image `src` values resolve through the manifest to trusted URLs only.
+
+### Rationale
+- Aligns object size and cost with S3; keeps Dynamo queries fast for tables and filters.
+- Supports non-text artifacts required for credible technical analysis.
+- Clear security boundary for user-scoped blobs.
+
+### Consequences
+**Positive**
+- Scales to larger reports and many assets.
+- Reproducible, inspectable bundles for debugging and future re-rendering.
+
+**Negative**
+- Requires migration from today’s `markdownBody`-on-item pattern where it exists.
+- Additional moving parts (manifest schema, proxy or presigning, cache headers).
+
+### Migration (recommended)
+- Dual-write bundles to S3 + metadata while UI/API switches to fetch-from-S3.
+- Backfill historical rows; then stop persisting full body in Dynamo.
+
+---
+
+## ADR-014 — Market Prices: Yahoo Finance as Primary Provider (Listed Equities/ETFs)
+- **Status:** Accepted
+- **Date:** 2026-04-18
+
+### Context
+The product needs automatic **market prices** for stocks and ETFs beyond manual entry, with a **cost-conscious** MVP and a clear place to plug additional asset classes later. Earlier planning referenced **Alpha Vantage**; the product direction is now to standardize on **Yahoo Finance** as the primary upstream for listed equity/ETF quotes.
+
+### Decision
+1. Use **Yahoo Finance** as the **default/primary** source for **stock and ETF** daily (or batch) quotes, accessed through a **server-side adapter** in the API/worker (not from the browser).
+2. Persist ingested values as **`price_snapshot`** rows with explicit **provenance** (provider key/metadata), reusing existing snapshot invalidation when prices change.
+3. Keep a **provider abstraction** (fetch quote / daily close) so **other** sources (e.g. crypto-specific APIs) can be added without rewriting orchestration.
+4. Operate with **conservative rate limiting**, retries, and idempotent writes; MVP scope remains **daily/batch** refresh, not real-time streaming.
+
+### Rationale
+- Aligns with “low-cost/free where viable” product strategy for a single-user app.
+- Yahoo coverage is broad for common equity/ETF symbols used in personal portfolios.
+- Adapter isolates upstream churn (API shape, access method) from core ledger/snapshot logic.
+
+### Consequences
+**Positive**
+- Single clear target for DB-150-style implementation work.
+- Manual price path remains for unsupported symbols or asset types.
+
+**Negative / risks**
+- Yahoo’s terms of service and unofficial access patterns may change; the team must monitor breakage and may need to adjust the adapter or add a fallback provider later.
+- Not a substitute for a licensed real-time or regulatory-grade market data feed.
+
 ## Appendix A — Data Model Update Summary for Username/Password (ADR-011 + ADR-007)
 
 ### Replace email OTP auth model with username/password
@@ -487,7 +555,7 @@ No full audit table is required for MVP by current decision. Keep lightweight mu
 ---
 
 ## Appendix B — Deferred Items
-- Market data provider selection and integration details
+- Secondary or failover market data providers (beyond Yahoo Finance per ADR-014)
 - FX provider integration (manual-first accepted)
 - Broker sync architecture
 - Auto-trading execution architecture
