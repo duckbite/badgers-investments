@@ -87,3 +87,9 @@ variable "recommendation_processor_queue_url" {
   description = "SQS queue URL for event-driven recommendation processor dispatch. Empty disables SQS dispatch."
   default     = ""
 }
+
+variable "api_reports_bucket_name" {
+  type        = string
+  description = "S3 bucket for Explore/Library analysis report bundles (API_REPORTS_BUCKET_NAME). Empty skips S3 IAM and env."
+  default     = ""
+}

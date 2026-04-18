@@ -80,6 +80,7 @@ Required for the API:
 Optional:
 
 - `API_DYNAMODB_ENDPOINT` — custom endpoint only (e.g. LocalStack). Omit for real DynamoDB.
+- `API_REPORTS_BUCKET_NAME` — optional override for the **Explore/Library** analysis report S3 bucket. If unset, the API defaults to **`{API_DYNAMODB_TABLE_NAME}-analysis-reports`** (e.g. `badgers-investments-dev-analysis-reports`), which matches Terraform’s `analysis_reports_bucket_id`. Set `API_REPORTS_S3_DISABLED=true` to skip S3 and keep report bodies in DynamoDB only. **Do not** point local dev at the production reports bucket.
 - `WEB_PORT` — Vite dev server port (default `5173` if unset). Set `CORS_ORIGIN` to `http://localhost:<WEB_PORT>` when you use an explicit CORS allowlist and change the port.
 - `CORS_ORIGIN` — browser origin for the web app (e.g. `http://localhost:5173`, matching `WEB_PORT`). Set this when the UI and API run on different origins so `fetch` with cookies (`credentials: 'include'`) and `Set-Cookie` work for login.
 - `API_AI_MODEL_ANTHROPIC` — optional override for the Claude model id used server-side (see `.env.example`). Prefer **Settings → AI** for the encrypted per-user API key when `API_AI_SETTINGS_SECRET` is configured.
@@ -102,6 +103,8 @@ pnpm infra:dev:apply
 ```
 
 Outputs include `app_dynamodb_table_name` / `app_dynamodb_table_arn`. Set `API_DYNAMODB_TABLE_NAME=badgers-investments-dev` in `.env` (already the default in `.env.example`).
+
+The same apply creates an **S3 bucket** for dev analysis reports (`analysis_reports_bucket_id` / `analysis_reports_bucket_arn`). With the default dev table name (`badgers-investments-dev`), the API automatically targets **`badgers-investments-dev-analysis-reports`** unless you override `API_REPORTS_BUCKET_NAME` or set `API_REPORTS_S3_DISABLED=true`. Production uses a separate bucket from `infra/terraform/envs/prod`; the Lambda receives `API_REPORTS_BUCKET_NAME` from Terraform (same naming pattern as dev).
 
 4. **Readiness:** `GET /ready` calls `DescribeTable` on `API_DYNAMODB_TABLE_NAME`.
 

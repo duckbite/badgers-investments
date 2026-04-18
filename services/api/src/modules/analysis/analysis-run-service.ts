@@ -6,6 +6,8 @@ import type { UserAiSettingsRepository } from '../ai/user-ai-settings-repository
 import { PortfolioService } from '../portfolio/portfolio-service.js';
 import type { AnalysisReportRecord, AnalysisRunRecord, AnalysisRunSummaryDto, AnalysisStatus, AnalysisType } from './analysis-types.js';
 import { ANALYSIS_TYPES } from './analysis-types.js';
+import { buildAnalysisReportSummarySentence } from './build-analysis-report-summary-sentence.js';
+import { buildAnalysisReportStorageObjectKey } from './build-analysis-report-storage-key.js';
 import { AnalysisRunRepository } from './analysis-run-repository.js';
 
 const STATUS_PROCESSING: AnalysisStatus = 'PROCESSING';
@@ -85,10 +87,16 @@ export class AnalysisRunService {
       });
       const completedAtIso: string = new Date().toISOString();
       const storage = await this.persistReportToS3({
-        runId,
         type: input.type,
-        createdAtIso,
+        parameters: input.parameters,
+        reportTimestampIso: completedAtIso,
         markdownBody,
+      });
+      const summarySentence: string = await buildAnalysisReportSummarySentence({
+        type: input.type,
+        parameters: input.parameters,
+        markdownBody,
+        fallbackLine: processingRun.summary,
       });
       const reportRecord: AnalysisReportRecord = {
         reportId,
@@ -96,7 +104,7 @@ export class AnalysisRunService {
         portfolioId: portfolio.portfolioId,
         type: input.type,
         title: buildReportTitle({ type: input.type }),
-        summary: summarizeReport({ fallback: processingRun.summary, markdownBody }),
+        summary: summarySentence,
         markdownBody,
         storageBucket: storage.bucketName,
         storageKey: storage.storageKey,
@@ -171,16 +179,19 @@ export class AnalysisRunService {
   }
 
   private async persistReportToS3(input: {
-    readonly runId: string;
     readonly type: AnalysisType;
-    readonly createdAtIso: string;
+    readonly parameters: Record<string, unknown>;
+    readonly reportTimestampIso: string;
     readonly markdownBody: string;
   }): Promise<{ readonly bucketName: string | null; readonly storageKey: string | null }> {
     if (this.reportStorage.bucketName === null || this.reportStorage.s3Client === undefined) {
       return { bucketName: null, storageKey: null };
     }
-    const compactTimestamp: string = input.createdAtIso.replace(/[-:.]/g, '').replace('T', '-').replace('Z', '');
-    const storageKey: string = `${input.type}-${compactTimestamp}-${input.runId}.md`;
+    const storageKey: string = buildAnalysisReportStorageObjectKey({
+      type: input.type,
+      reportTimestampIso: input.reportTimestampIso,
+      parameters: input.parameters,
+    });
     await this.reportStorage.s3Client.send(
       new PutObjectCommand({
         Bucket: this.reportStorage.bucketName,
@@ -378,14 +389,6 @@ function parseRequiredNumber(input: { readonly value: unknown; readonly label: s
     throw new Error(`${input.label} is required and must be a valid number.`);
   }
   return input.value;
-}
-
-function summarizeReport(input: { readonly fallback: string; readonly markdownBody: string }): string {
-  const lines: readonly string[] = input.markdownBody
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0 && !line.startsWith('#') && !line.startsWith('*') && !line.startsWith('-'));
-  return lines[0] ?? input.fallback;
 }
 
 function buildReportTitle(input: { readonly type: AnalysisType }): string {

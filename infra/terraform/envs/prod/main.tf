@@ -37,6 +37,12 @@ module "app_dynamodb" {
   deletion_protection_enabled    = var.app_dynamodb_deletion_protection
 }
 
+module "analysis_reports_bucket" {
+  source      = "../../modules/analysis_reports_bucket"
+  name_prefix = "${var.project_name}-${var.environment}"
+  tags        = merge(local.tags, { Purpose = "analysis-reports" })
+}
+
 module "static_site" {
   source = "../../modules/static_site"
   providers = {
@@ -69,6 +75,7 @@ module "api_lambda" {
   api_ai_settings_secret             = module.secrets.api_ai_settings_secret
   api_privacy_secret                 = module.secrets.api_privacy_secret
   recommendation_processor_queue_url = module.worker_lambda.recommendation_queue_url
+  api_reports_bucket_name            = module.analysis_reports_bucket.bucket_id
 }
 
 module "worker_lambda" {

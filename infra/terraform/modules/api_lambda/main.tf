@@ -1,8 +1,11 @@
 locals {
   # Use var.manage_dns_records (not "zone_id non-empty") so plan works when zone_id is unknown (new zone).
-  manage_route53      = var.manage_dns_records
-  use_imported_tls    = !var.manage_dns_records && length(trimspace(var.api_tls_certificate_arn)) > 0
-  use_api_custom_host = var.manage_dns_records || local.use_imported_tls
+  manage_route53              = var.manage_dns_records
+  use_imported_tls            = !var.manage_dns_records && length(trimspace(var.api_tls_certificate_arn)) > 0
+  use_api_custom_host         = var.manage_dns_records || local.use_imported_tls
+  api_reports_bucket_trimmed  = trimspace(var.api_reports_bucket_name)
+  has_analysis_reports_bucket = length(local.api_reports_bucket_trimmed) > 0
+  api_lambda_env_extras       = local.has_analysis_reports_bucket ? { API_REPORTS_BUCKET_NAME = local.api_reports_bucket_trimmed } : {}
 }
 
 data "archive_file" "bootstrap" {
@@ -63,6 +66,30 @@ data "aws_iam_policy_document" "api_task" {
     actions   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
     resources = [var.secrets_arn]
   }
+
+  dynamic "statement" {
+    for_each = local.has_analysis_reports_bucket ? [local.api_reports_bucket_trimmed] : []
+    content {
+      sid    = "AnalysisReportsS3Objects"
+      effect = "Allow"
+      actions = [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject",
+      ]
+      resources = ["arn:aws:s3:::${statement.value}/*"]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = local.has_analysis_reports_bucket ? [local.api_reports_bucket_trimmed] : []
+    content {
+      sid       = "AnalysisReportsS3List"
+      effect    = "Allow"
+      actions   = ["s3:ListBucket"]
+      resources = ["arn:aws:s3:::${statement.value}"]
+    }
+  }
 }
 
 resource "aws_iam_role_policy" "api" {
@@ -84,19 +111,22 @@ resource "aws_lambda_function" "api" {
   tags             = var.tags
 
   environment {
-    variables = {
-      API_AI_MODEL_ANTHROPIC             = var.api_ai_model_anthropic
-      API_AI_SETTINGS_SECRET             = var.api_ai_settings_secret
-      API_DYNAMODB_TABLE_NAME            = var.dynamodb_table_name
-      API_DYNAMODB_REGION                = var.aws_region
-      API_NODE_ENV                       = var.api_node_env
-      API_PRIVACY_SECRET                 = var.api_privacy_secret
-      RECOMMENDATION_PROCESSOR_QUEUE_URL = var.recommendation_processor_queue_url
-      AWS_NODEJS_DISABLE_COLORS          = "1"
-      COOKIE_SECRET                      = var.cookie_secret
-      CORS_ORIGIN                        = var.cors_allow_origin
-      NODE_ENV                           = var.api_node_env
-    }
+    variables = merge(
+      {
+        API_AI_MODEL_ANTHROPIC             = var.api_ai_model_anthropic
+        API_AI_SETTINGS_SECRET             = var.api_ai_settings_secret
+        API_DYNAMODB_TABLE_NAME            = var.dynamodb_table_name
+        API_DYNAMODB_REGION                = var.aws_region
+        API_NODE_ENV                       = var.api_node_env
+        API_PRIVACY_SECRET                 = var.api_privacy_secret
+        RECOMMENDATION_PROCESSOR_QUEUE_URL = var.recommendation_processor_queue_url
+        AWS_NODEJS_DISABLE_COLORS          = "1"
+        COOKIE_SECRET                      = var.cookie_secret
+        CORS_ORIGIN                        = var.cors_allow_origin
+        NODE_ENV                           = var.api_node_env
+      },
+      local.api_lambda_env_extras
+    )
   }
 
   depends_on = [aws_cloudwatch_log_group.api]
