@@ -12,7 +12,7 @@
     "start": "dotenv -e ../../.env -- node dist/index.js",
     "lint": "eslint src",
     "build:lambda": "pnpm run build:lambda:daily",
-    "build:lambda:daily": "esbuild src/lambda-handler.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist-lambda/daily/index.mjs",
+    "build:lambda:daily": "pnpm --filter api build && esbuild src/lambda-handler.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist-lambda/daily/index.mjs",
     "build:lambda:all": "pnpm run build:lambda:daily",
     "clean": "rm -rf dist dist-lambda"
   },
