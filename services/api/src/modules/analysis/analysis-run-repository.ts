@@ -170,6 +170,8 @@ function parseReport(item: Record<string, unknown>): AnalysisReportRecord | unde
     markdownBody: item['markdownBody'],
     storageBucket: typeof item['storageBucket'] === 'string' ? item['storageBucket'] : null,
     storageKey: typeof item['storageKey'] === 'string' ? item['storageKey'] : null,
+    storageBundlePrefix: typeof item['storageBundlePrefix'] === 'string' ? item['storageBundlePrefix'] : null,
+    storageManifestKey: typeof item['storageManifestKey'] === 'string' ? item['storageManifestKey'] : null,
     createdAtIso: item['createdAtIso'],
     createdBy: item['createdBy'],
   };

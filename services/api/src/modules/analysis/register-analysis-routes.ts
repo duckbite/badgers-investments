@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { AnalysisComputationError } from './analysis-computation-error.js';
 import type { AnalysisRunService } from './analysis-run-service.js';
 import { isAnalysisType } from './analysis-run-service.js';
 import type { AnalysisReportSummaryDto } from './analysis-types.js';
@@ -33,14 +34,23 @@ export function registerAnalysisRoutes(input: {
       if (!isAnalysisType(body.type)) {
         return reply.code(400).send({ error: { code: 'ANALYSIS_TYPE_INVALID', message: 'Unsupported analysis type.' } });
       }
-      const run = await input.analysisRunService.createRun({
-        userId,
-        username,
-        now: new Date(),
-        type: body.type,
-        parameters: body.parameters,
-      });
-      return reply.send({ run });
+      try {
+        const run = await input.analysisRunService.createRun({
+          userId,
+          username,
+          now: new Date(),
+          type: body.type,
+          parameters: body.parameters,
+        });
+        return reply.send({ run });
+      } catch (error: unknown) {
+        if (error instanceof AnalysisComputationError) {
+          return reply.code(422).send({
+            error: { code: error.code, message: error.message },
+          });
+        }
+        throw error;
+      }
     },
   );
 
@@ -188,6 +198,8 @@ export function registerAnalysisRoutes(input: {
       if (report === undefined) {
         return reply.code(404).send({ error: 'Report not found.' });
       }
+      const bundleAssetUrls: Record<string, string> | null =
+        await input.analysisRunService.getPresignedBundleAssetUrlsForReport({ report });
       return {
         report: {
           reportId: report.reportId,
@@ -198,6 +210,9 @@ export function registerAnalysisRoutes(input: {
           markdownBody: report.markdownBody,
           storageBucket: report.storageBucket,
           storageKey: report.storageKey,
+          storageBundlePrefix: report.storageBundlePrefix,
+          storageManifestKey: report.storageManifestKey,
+          bundleAssetUrls,
           createdBy: report.createdBy,
           createdAt: report.createdAtIso,
         },

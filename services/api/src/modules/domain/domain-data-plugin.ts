@@ -124,6 +124,7 @@ const domainDataPluginImpl: FastifyPluginAsync = async (app): Promise<void> => {
     portfolioService,
     userAiSettingsRepository,
     reportStorage: { bucketName: analysisStorage.bucketName, s3Client: analysisS3Client },
+    log: app.log,
   });
   app.decorate('analysisRunService', analysisRunService);
   registerAnalysisRoutes({ app, analysisRunService });

@@ -60,3 +60,16 @@ export function buildAnalysisReportStorageObjectKey(input: {
   });
   return `${input.type}-${iso}-${subject}.md`;
 }
+
+/**
+ * S3 prefix for report bundles (every report is a folder): `{type}-{isoUtc}-{subject}/`
+ * Contains `report.md`, `manifest.json`, and `assets/*`.
+ */
+export function buildAnalysisReportBundleFolderPrefix(input: {
+  readonly type: AnalysisType;
+  readonly reportTimestampIso: string;
+  readonly parameters: Record<string, unknown>;
+}): string {
+  const key: string = buildAnalysisReportStorageObjectKey(input);
+  return `${key.replace(/\.md$/, '')}/`;
+}

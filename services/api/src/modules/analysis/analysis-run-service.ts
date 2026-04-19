@@ -1,4 +1,5 @@
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import type { S3Client } from '@aws-sdk/client-s3';
+import type { FastifyBaseLogger } from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { requestAnthropicRecommendationJson } from '../recommendations/anthropic-recommendation-llm-adapter.js';
 import { tryResolveUserAiCredentials } from '../ai/resolve-user-ai-credentials.js';
@@ -7,8 +8,21 @@ import { PortfolioService } from '../portfolio/portfolio-service.js';
 import type { AnalysisReportRecord, AnalysisRunRecord, AnalysisRunSummaryDto, AnalysisStatus, AnalysisType } from './analysis-types.js';
 import { ANALYSIS_TYPES } from './analysis-types.js';
 import { buildAnalysisReportSummarySentence } from './build-analysis-report-summary-sentence.js';
-import { buildAnalysisReportStorageObjectKey } from './build-analysis-report-storage-key.js';
+import { buildAnalysisReportBundleFolderPrefix } from './build-analysis-report-storage-key.js';
 import { AnalysisRunRepository } from './analysis-run-repository.js';
+import type { TechnicalAnalysisBundleChartContext } from './bundle-chart-context.js';
+import {
+  computeTechnicalAnalysisPayload,
+  logSanitizedTechnicalPayloadSummary,
+  type TechnicalAnalysisComputationPayload,
+} from './compute-technical-analysis-payload.js';
+import { loadBundleManifestFromS3 } from './load-bundle-manifest-from-s3.js';
+import { presignBundleAssetUrls } from './presign-analysis-bundle-assets.js';
+import {
+  appendUnreferencedTechnicalAnalysisChartAppendix,
+  buildTechnicalAnalysisChartEmbeddingPromptSection,
+} from './technical-analysis-chart-embed.js';
+import { uploadSimpleAnalysisReportBundle, uploadTechnicalAnalysisReportBundle } from './technical-analysis-bundle.js';
 
 const STATUS_PROCESSING: AnalysisStatus = 'PROCESSING';
 const STATUS_COMPLETED: AnalysisStatus = 'COMPLETED';
@@ -35,17 +49,20 @@ export class AnalysisRunService {
   private readonly portfolioService: PortfolioService;
   private readonly userAiSettingsRepository: UserAiSettingsRepository;
   private readonly reportStorage: ReportStorage;
+  private readonly log: FastifyBaseLogger;
 
   public constructor(input: {
     readonly analysisRunRepository: AnalysisRunRepository;
     readonly portfolioService: PortfolioService;
     readonly userAiSettingsRepository: UserAiSettingsRepository;
     readonly reportStorage: ReportStorage;
+    readonly log: FastifyBaseLogger;
   }) {
     this.analysisRunRepository = input.analysisRunRepository;
     this.portfolioService = input.portfolioService;
     this.userAiSettingsRepository = input.userAiSettingsRepository;
     this.reportStorage = input.reportStorage;
+    this.log = input.log;
   }
 
   public async createRun(input: {
@@ -77,25 +94,28 @@ export class AnalysisRunService {
     await this.analysisRunRepository.putRun({ userId: input.userId, record: processingRun });
 
     try {
-      const markdownBody: string = await this.generateReportMarkdown({
+      const generated = await this.generateReportMarkdown({
         userId: input.userId,
         type: input.type,
         summary: processingRun.summary,
         username: input.username,
         createdAtIso,
         parameters: input.parameters,
+        now: input.now,
       });
       const completedAtIso: string = new Date().toISOString();
       const storage = await this.persistReportToS3({
         type: input.type,
         parameters: input.parameters,
         reportTimestampIso: completedAtIso,
-        markdownBody,
+        markdownBody: generated.markdownBody,
+        technicalPayload: generated.technicalPayload,
+        technicalChartContext: generated.technicalChartContext,
       });
       const summarySentence: string = await buildAnalysisReportSummarySentence({
         type: input.type,
         parameters: input.parameters,
-        markdownBody,
+        markdownBody: storage.markdownBodyForRecord,
         fallbackLine: processingRun.summary,
       });
       const reportRecord: AnalysisReportRecord = {
@@ -105,9 +125,11 @@ export class AnalysisRunService {
         type: input.type,
         title: buildReportTitle({ type: input.type }),
         summary: summarySentence,
-        markdownBody,
+        markdownBody: storage.markdownBodyForRecord,
         storageBucket: storage.bucketName,
         storageKey: storage.storageKey,
+        storageBundlePrefix: storage.storageBundlePrefix,
+        storageManifestKey: storage.storageManifestKey,
         createdAtIso: completedAtIso,
         createdBy: input.username,
       };
@@ -178,29 +200,95 @@ export class AnalysisRunService {
     return reports.find((report) => report.reportId === input.reportId);
   }
 
+  /**
+   * Presigned URLs for bundle assets when ADR-013 manifest exists.
+   */
+  public async getPresignedBundleAssetUrlsForReport(input: {
+    readonly report: AnalysisReportRecord;
+  }): Promise<Record<string, string> | null> {
+    const bucket: string | null = input.report.storageBucket;
+    const prefix: string | null = input.report.storageBundlePrefix;
+    const manifestKey: string | null = input.report.storageManifestKey;
+    if (
+      bucket === null ||
+      prefix === null ||
+      manifestKey === null ||
+      this.reportStorage.s3Client === undefined
+    ) {
+      return null;
+    }
+    const manifest = await loadBundleManifestFromS3({
+      s3Client: this.reportStorage.s3Client,
+      bucketName: bucket,
+      manifestKey,
+    });
+    return presignBundleAssetUrls({
+      s3Client: this.reportStorage.s3Client,
+      bucketName: bucket,
+      bundlePrefix: prefix,
+      manifest,
+    });
+  }
+
   private async persistReportToS3(input: {
     readonly type: AnalysisType;
     readonly parameters: Record<string, unknown>;
     readonly reportTimestampIso: string;
     readonly markdownBody: string;
-  }): Promise<{ readonly bucketName: string | null; readonly storageKey: string | null }> {
+    readonly technicalPayload: TechnicalAnalysisComputationPayload | undefined;
+    readonly technicalChartContext: TechnicalAnalysisBundleChartContext | undefined;
+  }): Promise<{
+    readonly bucketName: string | null;
+    readonly storageKey: string | null;
+    readonly storageBundlePrefix: string | null;
+    readonly storageManifestKey: string | null;
+    readonly markdownBodyForRecord: string;
+  }> {
     if (this.reportStorage.bucketName === null || this.reportStorage.s3Client === undefined) {
-      return { bucketName: null, storageKey: null };
+      return {
+        bucketName: null,
+        storageKey: null,
+        storageBundlePrefix: null,
+        storageManifestKey: null,
+        markdownBodyForRecord: input.markdownBody,
+      };
     }
-    const storageKey: string = buildAnalysisReportStorageObjectKey({
+    const folderPrefix: string = buildAnalysisReportBundleFolderPrefix({
       type: input.type,
       reportTimestampIso: input.reportTimestampIso,
       parameters: input.parameters,
     });
-    await this.reportStorage.s3Client.send(
-      new PutObjectCommand({
-        Bucket: this.reportStorage.bucketName,
-        Key: storageKey,
-        Body: input.markdownBody,
-        ContentType: 'text/markdown; charset=utf-8',
-      }),
-    );
-    return { bucketName: this.reportStorage.bucketName, storageKey };
+    if (input.type === 'technical-analysis' && input.technicalPayload !== undefined && input.technicalChartContext !== undefined) {
+      const markdownForBundle: string = appendUnreferencedTechnicalAnalysisChartAppendix(input.markdownBody);
+      const bundle = await uploadTechnicalAnalysisReportBundle({
+        bucketName: this.reportStorage.bucketName,
+        s3Client: this.reportStorage.s3Client,
+        folderPrefix,
+        markdownBody: markdownForBundle,
+        payload: input.technicalPayload,
+        chartContext: input.technicalChartContext,
+      });
+      return {
+        bucketName: this.reportStorage.bucketName,
+        storageKey: bundle.bodyKey,
+        storageBundlePrefix: bundle.bundlePrefix,
+        storageManifestKey: bundle.manifestKey,
+        markdownBodyForRecord: markdownForBundle,
+      };
+    }
+    const bundle = await uploadSimpleAnalysisReportBundle({
+      bucketName: this.reportStorage.bucketName,
+      s3Client: this.reportStorage.s3Client,
+      folderPrefix,
+      markdownBody: input.markdownBody,
+    });
+    return {
+      bucketName: this.reportStorage.bucketName,
+      storageKey: bundle.bodyKey,
+      storageBundlePrefix: bundle.bundlePrefix,
+      storageManifestKey: bundle.manifestKey,
+      markdownBodyForRecord: input.markdownBody,
+    };
   }
 
   private async generateReportMarkdown(input: {
@@ -210,24 +298,38 @@ export class AnalysisRunService {
     readonly username: string;
     readonly createdAtIso: string;
     readonly parameters: Record<string, unknown>;
-  }): Promise<string> {
+    readonly now: Date;
+  }): Promise<{
+    readonly markdownBody: string;
+    readonly technicalPayload: TechnicalAnalysisComputationPayload | undefined;
+    readonly technicalChartContext: TechnicalAnalysisBundleChartContext | undefined;
+  }> {
     if (input.type !== 'technical-analysis' && input.type !== 'portfolio-builder') {
-      return buildMarkdownReport({
+      const markdownBody: string = buildMarkdownReport({
         type: input.type,
         summary: input.summary,
         username: input.username,
         createdAtIso: input.createdAtIso,
         parameters: input.parameters,
       });
+      return { markdownBody, technicalPayload: undefined, technicalChartContext: undefined };
     }
-    const prompt: string =
-      input.type === 'technical-analysis'
-        ? buildTechnicalAnalysisPrompt({
-            input: parseTechnicalAnalysisInput({ parameters: input.parameters }),
-          })
-        : buildPortfolioBuilderPrompt({
-            input: parsePortfolioBuilderInput({ parameters: input.parameters }),
-          });
+    let technicalPayload: TechnicalAnalysisComputationPayload | undefined;
+    let technicalChartContext: TechnicalAnalysisBundleChartContext | undefined;
+    let prompt: string;
+    if (input.type === 'technical-analysis') {
+      const parsed: TechnicalAnalysisInput = parseTechnicalAnalysisInput({ parameters: input.parameters });
+      const computed = await computeTechnicalAnalysisPayload({ symbol: parsed.symbol, now: input.now });
+      technicalPayload = computed.payload;
+      technicalChartContext = computed.chartContext;
+      logSanitizedTechnicalPayloadSummary({ payload: technicalPayload, log: this.log });
+      const basePrompt: string = buildTechnicalAnalysisPrompt({ input: parsed });
+      prompt = `${basePrompt}\n\n---\n\n## Deterministic computed market payload (JSON)\n\nUse these figures as ground truth for prices, indicators, and levels. Do not invent conflicting numbers.\n\n\`\`\`json\n${JSON.stringify(technicalPayload)}\n\`\`\`\n\n${buildTechnicalAnalysisChartEmbeddingPromptSection()}`;
+    } else {
+      prompt = buildPortfolioBuilderPrompt({
+        input: parsePortfolioBuilderInput({ parameters: input.parameters }),
+      });
+    }
     const userCredentials = await tryResolveUserAiCredentials({
       userAiSettingsRepository: this.userAiSettingsRepository,
       userId: input.userId,
@@ -236,7 +338,9 @@ export class AnalysisRunService {
       throw new Error('AI credentials are not configured. Please set your Anthropic API key in Settings.');
     }
     const systemPrompt: string =
-      'You are a senior quantitative trader writing actionable markdown investment reports. Return markdown only.';
+      input.type === 'technical-analysis'
+        ? 'You are a senior quantitative trader writing actionable markdown investment reports. Structure the document with clear section headings; embed pre-generated chart images from the user message (`assets/*.svg`) in the chapters where they belong (momentum, volume, levels, etc.). Return markdown only.'
+        : 'You are a senior quantitative trader writing actionable markdown investment reports. Return markdown only.';
     const reportMarkdown: string = await requestAnthropicRecommendationJson({
       apiKey: userCredentials.apiKey,
       model: userCredentials.modelId,
@@ -249,7 +353,7 @@ export class AnalysisRunService {
       }
       throw new Error('AI response was empty for portfolio builder.');
     }
-    return reportMarkdown.trim();
+    return { markdownBody: reportMarkdown.trim(), technicalPayload, technicalChartContext };
   }
 }
 

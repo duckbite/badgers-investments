@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { buildAnalysisReportStorageObjectKey } from './build-analysis-report-storage-key.js';
+import {
+  buildAnalysisReportBundleFolderPrefix,
+  buildAnalysisReportStorageObjectKey,
+} from './build-analysis-report-storage-key.js';
 
 describe('buildAnalysisReportStorageObjectKey', () => {
   it('builds technical-analysis key with ISO UTC time and ticker', () => {
@@ -27,5 +30,16 @@ describe('buildAnalysisReportStorageObjectKey', () => {
       parameters: {},
     });
     expect(actual).toBe('stock-screener-2026-04-18T14:28:30Z-report.md');
+  });
+});
+
+describe('buildAnalysisReportBundleFolderPrefix', () => {
+  it('matches object key basename with trailing slash', () => {
+    const actual = buildAnalysisReportBundleFolderPrefix({
+      type: 'technical-analysis',
+      reportTimestampIso: '2026-04-18T14:28:30.123Z',
+      parameters: { symbol: 'tsla' },
+    });
+    expect(actual).toBe('technical-analysis-2026-04-18T14:28:30Z-TSLA/');
   });
 });
