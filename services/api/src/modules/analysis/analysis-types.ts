@@ -35,7 +35,12 @@ export type AnalysisReportRecord = {
   readonly summary: string;
   readonly markdownBody: string;
   readonly storageBucket: string | null;
+  /** Primary markdown object key (legacy single upload) or bundle `report.md` key when bundle fields set. */
   readonly storageKey: string | null;
+  /** S3 prefix for report bundle folder: `{type}-{isoUtc}-{subject}/`. */
+  readonly storageBundlePrefix: string | null;
+  /** Manifest object key (e.g. `technical-analysis-2026-04-18T12:00:00Z-AAPL/manifest.json`). */
+  readonly storageManifestKey: string | null;
   readonly createdAtIso: string;
   readonly createdBy: string;
 };

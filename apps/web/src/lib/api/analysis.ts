@@ -36,6 +36,11 @@ export type AnalysisReportDetail = AnalysisReportSummary & {
   readonly markdownBody: string;
   readonly storageBucket: string | null;
   readonly storageKey: string | null;
+  /** S3 prefix for report bundle folder (`{type}-{isoUtc}-{subject}/`). */
+  readonly storageBundlePrefix: string | null;
+  readonly storageManifestKey: string | null;
+  /** Manifest-relative paths (e.g. `assets/payload.json`) → presigned GET URLs; null if not a bundle or presign failed. */
+  readonly bundleAssetUrls: Readonly<Record<string, string>> | null;
 };
 
 export async function createAnalysisRun(input: {

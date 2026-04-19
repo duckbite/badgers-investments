@@ -6,6 +6,7 @@
   import { apiClient } from '$lib/api/api-client-instance';
   import type { AnalysisReportDetail, AnalysisReportSummary, AnalysisType } from '$lib/api/analysis';
   import { exportAnalysisReport, getAnalysisReport, listAnalysisReports } from '$lib/api/analysis';
+  import { rewriteBundleAssetReferencesInMarkdown } from '$lib/api/rewrite-bundle-asset-markdown';
   import { formatAnalysisType } from '$lib/domain/analysis-tools';
   import { toast } from '$lib/toast/toast';
   import { Clock3, Download, FileText, Search, User, X } from 'lucide-svelte';
@@ -117,7 +118,11 @@
   });
 
   $: if (selectedReport !== null) {
-    const rawHtml = marked.parse(selectedReport.markdownBody);
+    const markdownForRender = rewriteBundleAssetReferencesInMarkdown(
+      selectedReport.markdownBody,
+      selectedReport.bundleAssetUrls,
+    );
+    const rawHtml = marked.parse(markdownForRender);
     const unsafeHtml = typeof rawHtml === 'string' ? rawHtml : '';
     selectedReportHtml = DOMPurify.sanitize(unsafeHtml, { USE_PROFILES: { html: true } });
   }
@@ -288,7 +293,11 @@
             <!-- eslint-disable-next-line svelte/no-at-html-tags -->
             {@html selectedReportHtml}
           </article>
-          {#if selectedReport.storageBucket !== null && selectedReport.storageKey !== null}
+          {#if selectedReport.storageBundlePrefix !== null && selectedReport.storageManifestKey !== null}
+            <p class="mt-4 text-xs text-gray-500 dark:text-muted-foreground">
+              Bundle: {selectedReport.storageBucket ?? '—'}/{selectedReport.storageManifestKey}
+            </p>
+          {:else if selectedReport.storageBucket !== null && selectedReport.storageKey !== null}
             <p class="mt-4 text-xs text-gray-500 dark:text-muted-foreground">
               Stored in S3: {selectedReport.storageBucket}/{selectedReport.storageKey}
             </p>

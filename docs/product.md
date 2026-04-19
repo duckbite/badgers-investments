@@ -346,3 +346,31 @@ For a single-user product, success should be tracked with pragmatic product metr
 - Tax optimisation and reporting
 - Public onboarding/billing
 
+---
+
+## 19. User Stories
+
+### US-1 — Real-time step feedback for asynchronous jobs
+
+**Tracking:** [DB-175](https://linear.app/duckbite/issue/DB-175/us-1-real-time-step-feedback-for-async-jobs-recommendations-analysis)
+
+**As** the primary user, **I want** in-progress recommendation runs and Explore/Library analysis runs to show **which step is currently executing** (not only a static placeholder title), **so that** long-running work feels transparent and I can tell the system is advancing.
+
+**Context**
+
+- Today, when an async job starts (e.g. **Run recommendation**, or an Explore tool such as Technical Analysis), a list row appears with status **Processing** and a temporary title (e.g. “Technical analysis prepared for TICKER”). That title does not change while work continues.
+- Desired behavior: the same surface (list cards and, where applicable, detail views) should display **live, human-readable step labels** such as: collecting latest market data, computing indicators (e.g. MACD), generating charts, writing report, invoking AI synthesis, persisting bundle — **specific labels depend on job type** and should reflect the actual pipeline for that run.
+
+**Acceptance criteria**
+
+1. While status is **processing** (or equivalent), the user sees a **current step** string that updates as the backend advances through defined phases; it replaces or augments the static tmp title so progress is obvious at a glance.
+2. Step updates are **near real-time** (same transport as existing run lifecycle updates, e.g. WebSocket push or equivalent; no requirement for sub-second latency).
+3. **Recommendation runs** and **analysis runs** (Explore tools / Library-originated jobs) both support step feedback where a multi-phase pipeline exists; purely instantaneous jobs may show a single step or omit fine-grained steps.
+4. On **failure** or **completion**, the last step may be cleared or replaced by the final status; no misleading “still running” copy after terminal state.
+5. Implementation respects existing **auditability** goals: step transitions should be attributable to server-side phases (not client-only fiction).
+
+**Out of scope for this story**
+
+- Full structured logs or downloadable traces in the UI (only the **current step** label for the active run is in scope unless extended later).
+- Historical replay of every past step after the run completes (optional follow-up).
+
