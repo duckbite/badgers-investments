@@ -10,7 +10,7 @@ export function collectFractalPivotHighs(input: { readonly highs: readonly numbe
   const { highs, k } = input;
   const out: FractalPivot[] = [];
   for (let i: number = k; i < highs.length - k; i++) {
-    const center: number = highs[i] as number;
+    const center: number = highs[i];
     if (!Number.isFinite(center)) {
       continue;
     }
@@ -19,7 +19,7 @@ export function collectFractalPivotHighs(input: { readonly highs: readonly numbe
       if (j === i) {
         continue;
       }
-      const v: number = highs[j] as number;
+      const v: number = highs[j];
       if (v >= center) {
         isMax = false;
         break;
@@ -36,7 +36,7 @@ export function collectFractalPivotLows(input: { readonly lows: readonly number[
   const { lows, k } = input;
   const out: FractalPivot[] = [];
   for (let i: number = k; i < lows.length - k; i++) {
-    const center: number = lows[i] as number;
+    const center: number = lows[i];
     if (!Number.isFinite(center)) {
       continue;
     }
@@ -45,7 +45,7 @@ export function collectFractalPivotLows(input: { readonly lows: readonly number[
       if (j === i) {
         continue;
       }
-      const v: number = lows[j] as number;
+      const v: number = lows[j];
       if (v <= center) {
         isMin = false;
         break;
@@ -61,7 +61,7 @@ export function collectFractalPivotLows(input: { readonly lows: readonly number[
 function minInRange(values: readonly number[], endInclusive: number): number {
   let m: number = Number.POSITIVE_INFINITY;
   for (let i: number = 0; i <= endInclusive && i < values.length; i++) {
-    const v: number = values[i] as number;
+    const v: number = values[i];
     if (Number.isFinite(v) && v < m) {
       m = v;
     }
@@ -72,7 +72,7 @@ function minInRange(values: readonly number[], endInclusive: number): number {
 function maxInRange(values: readonly number[], endInclusive: number): number {
   let m: number = Number.NEGATIVE_INFINITY;
   for (let i: number = 0; i <= endInclusive && i < values.length; i++) {
-    const v: number = values[i] as number;
+    const v: number = values[i];
     if (Number.isFinite(v) && v > m) {
       m = v;
     }

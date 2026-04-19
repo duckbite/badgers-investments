@@ -159,19 +159,19 @@ export async function fetchTechnicalAnalysisMarketData(input: {
   const lastDailyAdj: number = daily[daily.length - 1]?.adjClose ?? Number.NaN;
   const regularMarketPrice: number =
     typeof qr['regularMarketPrice'] === 'number' && Number.isFinite(qr['regularMarketPrice'])
-      ? (qr['regularMarketPrice'] as number)
+      ? (qr['regularMarketPrice'])
       : lastDailyAdj;
   const fiftyTwoWeekHigh: number =
     typeof qr['fiftyTwoWeekHigh'] === 'number' && Number.isFinite(qr['fiftyTwoWeekHigh'])
-      ? (qr['fiftyTwoWeekHigh'] as number)
+      ? (qr['fiftyTwoWeekHigh'])
       : Number.NaN;
   const fiftyTwoWeekLow: number =
     typeof qr['fiftyTwoWeekLow'] === 'number' && Number.isFinite(qr['fiftyTwoWeekLow'])
-      ? (qr['fiftyTwoWeekLow'] as number)
+      ? (qr['fiftyTwoWeekLow'])
       : Number.NaN;
   const regularMarketVolume: number =
     typeof qr['regularMarketVolume'] === 'number' && Number.isFinite(qr['regularMarketVolume'])
-      ? (qr['regularMarketVolume'] as number)
+      ? (qr['regularMarketVolume'])
       : daily[daily.length - 1]?.volume ?? Number.NaN;
   const currency: string = typeof qr['currency'] === 'string' ? qr['currency'] : 'USD';
 

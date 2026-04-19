@@ -1,4 +1,3 @@
-import type { S3Client } from '@aws-sdk/client-s3';
 import type { FastifyBaseLogger } from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { requestAnthropicRecommendationJson } from '../recommendations/anthropic-recommendation-llm-adapter.js';
@@ -7,42 +6,25 @@ import type { UserAiSettingsRepository } from '../ai/user-ai-settings-repository
 import { PortfolioService } from '../portfolio/portfolio-service.js';
 import type { AnalysisReportRecord, AnalysisRunRecord, AnalysisRunSummaryDto, AnalysisStatus, AnalysisType } from './analysis-types.js';
 import { ANALYSIS_TYPES } from './analysis-types.js';
-import { buildAnalysisReportSummarySentence } from './build-analysis-report-summary-sentence.js';
-import { buildAnalysisReportBundleFolderPrefix } from './build-analysis-report-storage-key.js';
+import { persistAnalysisReportBundle, type ReportStorage } from './analysis-report-storage.js';
 import { AnalysisRunRepository } from './analysis-run-repository.js';
+import { buildAnalysisReportSummarySentence } from './build-analysis-report-summary-sentence.js';
 import type { TechnicalAnalysisBundleChartContext } from './bundle-chart-context.js';
-import {
-  computeTechnicalAnalysisPayload,
-  logSanitizedTechnicalPayloadSummary,
-  type TechnicalAnalysisComputationPayload,
-} from './compute-technical-analysis-payload.js';
+import type { TechnicalAnalysisComputationPayload } from './compute-technical-analysis-payload.js';
 import { loadBundleManifestFromS3 } from './load-bundle-manifest-from-s3.js';
+import {
+  buildPortfolioBuilderPrompt,
+  parsePortfolioBuilderInput,
+  PORTFOLIO_BUILDER_SYSTEM_PROMPT,
+} from './portfolio-builder-run.js';
 import { presignBundleAssetUrls } from './presign-analysis-bundle-assets.js';
 import {
-  appendUnreferencedTechnicalAnalysisChartAppendix,
-  buildTechnicalAnalysisChartEmbeddingPromptSection,
-} from './technical-analysis-chart-embed.js';
-import { uploadSimpleAnalysisReportBundle, uploadTechnicalAnalysisReportBundle } from './technical-analysis-bundle.js';
+  prepareTechnicalAnalysisLlmContext,
+  TECHNICAL_ANALYSIS_SYSTEM_PROMPT,
+} from './technical-analysis-run.js';
 
 const STATUS_PROCESSING: AnalysisStatus = 'PROCESSING';
 const STATUS_COMPLETED: AnalysisStatus = 'COMPLETED';
-
-type ReportStorage = {
-  readonly bucketName: string | null;
-  readonly s3Client?: S3Client;
-};
-
-type TechnicalAnalysisInput = {
-  readonly symbol: string;
-  readonly includePosition: boolean;
-};
-type PortfolioBuilderInput = {
-  readonly age: number;
-  readonly income: number;
-  readonly savings: number;
-  readonly goals: string;
-  readonly riskTolerance: 'conservative' | 'moderate' | 'aggressive';
-};
 
 export class AnalysisRunService {
   private readonly analysisRunRepository: AnalysisRunRepository;
@@ -104,7 +86,8 @@ export class AnalysisRunService {
         now: input.now,
       });
       const completedAtIso: string = new Date().toISOString();
-      const storage = await this.persistReportToS3({
+      const storage = await persistAnalysisReportBundle({
+        reportStorage: this.reportStorage,
         type: input.type,
         parameters: input.parameters,
         reportTimestampIso: completedAtIso,
@@ -230,67 +213,6 @@ export class AnalysisRunService {
     });
   }
 
-  private async persistReportToS3(input: {
-    readonly type: AnalysisType;
-    readonly parameters: Record<string, unknown>;
-    readonly reportTimestampIso: string;
-    readonly markdownBody: string;
-    readonly technicalPayload: TechnicalAnalysisComputationPayload | undefined;
-    readonly technicalChartContext: TechnicalAnalysisBundleChartContext | undefined;
-  }): Promise<{
-    readonly bucketName: string | null;
-    readonly storageKey: string | null;
-    readonly storageBundlePrefix: string | null;
-    readonly storageManifestKey: string | null;
-    readonly markdownBodyForRecord: string;
-  }> {
-    if (this.reportStorage.bucketName === null || this.reportStorage.s3Client === undefined) {
-      return {
-        bucketName: null,
-        storageKey: null,
-        storageBundlePrefix: null,
-        storageManifestKey: null,
-        markdownBodyForRecord: input.markdownBody,
-      };
-    }
-    const folderPrefix: string = buildAnalysisReportBundleFolderPrefix({
-      type: input.type,
-      reportTimestampIso: input.reportTimestampIso,
-      parameters: input.parameters,
-    });
-    if (input.type === 'technical-analysis' && input.technicalPayload !== undefined && input.technicalChartContext !== undefined) {
-      const markdownForBundle: string = appendUnreferencedTechnicalAnalysisChartAppendix(input.markdownBody);
-      const bundle = await uploadTechnicalAnalysisReportBundle({
-        bucketName: this.reportStorage.bucketName,
-        s3Client: this.reportStorage.s3Client,
-        folderPrefix,
-        markdownBody: markdownForBundle,
-        payload: input.technicalPayload,
-        chartContext: input.technicalChartContext,
-      });
-      return {
-        bucketName: this.reportStorage.bucketName,
-        storageKey: bundle.bodyKey,
-        storageBundlePrefix: bundle.bundlePrefix,
-        storageManifestKey: bundle.manifestKey,
-        markdownBodyForRecord: markdownForBundle,
-      };
-    }
-    const bundle = await uploadSimpleAnalysisReportBundle({
-      bucketName: this.reportStorage.bucketName,
-      s3Client: this.reportStorage.s3Client,
-      folderPrefix,
-      markdownBody: input.markdownBody,
-    });
-    return {
-      bucketName: this.reportStorage.bucketName,
-      storageKey: bundle.bodyKey,
-      storageBundlePrefix: bundle.bundlePrefix,
-      storageManifestKey: bundle.manifestKey,
-      markdownBodyForRecord: input.markdownBody,
-    };
-  }
-
   private async generateReportMarkdown(input: {
     readonly userId: string;
     readonly type: AnalysisType;
@@ -318,13 +240,14 @@ export class AnalysisRunService {
     let technicalChartContext: TechnicalAnalysisBundleChartContext | undefined;
     let prompt: string;
     if (input.type === 'technical-analysis') {
-      const parsed: TechnicalAnalysisInput = parseTechnicalAnalysisInput({ parameters: input.parameters });
-      const computed = await computeTechnicalAnalysisPayload({ symbol: parsed.symbol, now: input.now });
-      technicalPayload = computed.payload;
-      technicalChartContext = computed.chartContext;
-      logSanitizedTechnicalPayloadSummary({ payload: technicalPayload, log: this.log });
-      const basePrompt: string = buildTechnicalAnalysisPrompt({ input: parsed });
-      prompt = `${basePrompt}\n\n---\n\n## Deterministic computed market payload (JSON)\n\nUse these figures as ground truth for prices, indicators, and levels. Do not invent conflicting numbers.\n\n\`\`\`json\n${JSON.stringify(technicalPayload)}\n\`\`\`\n\n${buildTechnicalAnalysisChartEmbeddingPromptSection()}`;
+      const ctx = await prepareTechnicalAnalysisLlmContext({
+        parameters: input.parameters,
+        now: input.now,
+        log: this.log,
+      });
+      technicalPayload = ctx.technicalPayload;
+      technicalChartContext = ctx.technicalChartContext;
+      prompt = ctx.prompt;
     } else {
       prompt = buildPortfolioBuilderPrompt({
         input: parsePortfolioBuilderInput({ parameters: input.parameters }),
@@ -338,9 +261,7 @@ export class AnalysisRunService {
       throw new Error('AI credentials are not configured. Please set your Anthropic API key in Settings.');
     }
     const systemPrompt: string =
-      input.type === 'technical-analysis'
-        ? 'You are a senior quantitative trader writing actionable markdown investment reports. Structure the document with clear section headings; embed pre-generated chart images from the user message (`assets/*.svg`) in the chapters where they belong (momentum, volume, levels, etc.). Return markdown only.'
-        : 'You are a senior quantitative trader writing actionable markdown investment reports. Return markdown only.';
+      input.type === 'technical-analysis' ? TECHNICAL_ANALYSIS_SYSTEM_PROMPT : PORTFOLIO_BUILDER_SYSTEM_PROMPT;
     const reportMarkdown: string = await requestAnthropicRecommendationJson({
       apiKey: userCredentials.apiKey,
       model: userCredentials.modelId,
@@ -395,104 +316,6 @@ function buildMarkdownReport(input: {
     '## Notes',
     'This MVP report is generated from the analysis run payload and persisted for Library retrieval.',
   ].join('\n');
-}
-
-function parseTechnicalAnalysisInput(input: { readonly parameters: Record<string, unknown> }): TechnicalAnalysisInput {
-  const rawSymbol: unknown = input.parameters['symbol'];
-  const rawIncludePosition: unknown = input.parameters['includePosition'];
-  const symbol: string = typeof rawSymbol === 'string' ? rawSymbol.trim().toUpperCase() : '';
-  if (symbol.length === 0) {
-    throw new Error('Ticker symbol is required for technical analysis.');
-  }
-  return {
-    symbol,
-    includePosition: rawIncludePosition === true,
-  };
-}
-
-function parsePortfolioBuilderInput(input: { readonly parameters: Record<string, unknown> }): PortfolioBuilderInput {
-  const age: number = parseRequiredNumber({ value: input.parameters['age'], label: 'Age' });
-  const income: number = parseRequiredNumber({ value: input.parameters['income'], label: 'Annual income' });
-  const savings: number = parseRequiredNumber({ value: input.parameters['savings'], label: 'Available savings' });
-  const goals: string = typeof input.parameters['goals'] === 'string' ? input.parameters['goals'].trim() : '';
-  const riskToleranceRaw: string =
-    typeof input.parameters['riskTolerance'] === 'string' ? input.parameters['riskTolerance'].trim().toLowerCase() : '';
-  if (riskToleranceRaw !== 'conservative' && riskToleranceRaw !== 'moderate' && riskToleranceRaw !== 'aggressive') {
-    throw new Error('Risk tolerance must be one of: conservative, moderate, aggressive.');
-  }
-  return {
-    age,
-    income,
-    savings,
-    goals,
-    riskTolerance: riskToleranceRaw,
-  };
-}
-
-function buildTechnicalAnalysisPrompt(input: { readonly input: TechnicalAnalysisInput }): string {
-  const positionClause: string = input.input.includePosition
-    ? `Current position context: Include current holdings context for ${input.input.symbol} if available.`
-    : `Current position context: Ignore portfolio position context and analyze ${input.input.symbol} standalone.`;
-  return `You are a senior quantitative trader at Badgers Finance who combines technical analysis with statistical models to time entries and exits.
-
-I need a full technical analysis breakdown of a stock.
-
-Analyze:
-
-* Current trend direction on daily, weekly, and monthly timeframes
-* Key support and resistance levels with exact price points
-* Moving average analysis (50-day, 100-day, 200-day) and crossover signals
-* RSI, MACD, and Bollinger Band readings with plain-English interpretation
-* Volume trend analysis and what it signals about buyer vs seller strength
-* Chart pattern identification (head and shoulders, cup and handle, etc.)
-* Fibonacci retracement levels for potential bounce zones
-* Ideal entry price, stop-loss level, and profit target
-* Risk-to-reward ratio for the current setup
-* Confidence rating: strong buy, buy, neutral, sell, strong sell
-
-Format as a technical analysis report card with a clear trade plan summary. Store as Markdown document.
-
-The stock to analyze: ${input.input.symbol}
-${positionClause}`;
-}
-
-function buildPortfolioBuilderPrompt(input: { readonly input: PortfolioBuilderInput }): string {
-  const goalsSection: string =
-    input.input.goals.length > 0 ? input.input.goals : 'Not provided. Infer sensible goals from risk tolerance.';
-  return `You are a senior portfolio strategist at Badgers Finance managing multi-asset portfolios worth $500M+ for institutional clients.
-
-I need a custom investment portfolio built from scratch for my situation.
-
-Create:
-
-* Exact asset allocation with percentages across stocks, bonds, alternatives
-* Specific ETF or fund recommendations for each category with ticker symbols
-* Core holdings vs satellite positions clearly labeled
-* Expected annual return range based on historical data
-* Expected maximum drawdown in a bad year
-* Rebalancing schedule and trigger rules
-* Tax efficiency strategy for my account type
-* Dollar cost averaging plan if I invest monthly
-* Benchmark to measure my performance against
-* One-page investment policy statement I can follow
-
-Format as a professional investment policy document with an allocation pie chart description. Store as Markdown document.
-
-My details:
-- Age: ${input.input.age}
-- Annual income (USD): ${input.input.income}
-- Available savings (USD): ${input.input.savings}
-- Investment goals: ${goalsSection}
-- Risk tolerance: ${input.input.riskTolerance}
-- Account type: Not provided
-`;
-}
-
-function parseRequiredNumber(input: { readonly value: unknown; readonly label: string }): number {
-  if (typeof input.value !== 'number' || Number.isNaN(input.value) || !Number.isFinite(input.value)) {
-    throw new Error(`${input.label} is required and must be a valid number.`);
-  }
-  return input.value;
 }
 
 function buildReportTitle(input: { readonly type: AnalysisType }): string {

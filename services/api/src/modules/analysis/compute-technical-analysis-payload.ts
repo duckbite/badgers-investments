@@ -96,8 +96,8 @@ function slopeLabelFromLast10Sma(smaSeries: readonly number[]): 'rising' | 'flat
   if (tail.length < 2) {
     return 'flat';
   }
-  const first: number = tail[0] as number;
-  const last: number = tail[tail.length - 1] as number;
+  const first: number = tail[0];
+  const last: number = tail[tail.length - 1];
   const avgDailyPct: number = (last - first) / first / (tail.length - 1);
   if (Math.abs(avgDailyPct) < SMA_SLOPE_FLAT_THRESHOLD) {
     return 'flat';
@@ -113,10 +113,10 @@ function detectCrossLast20(
   const n: number = Math.min(fast.length, slow.length);
   const start: number = Math.max(1, n - 20);
   for (let i: number = start; i < n; i++) {
-    const f0: number = fast[i - 1] as number;
-    const f1: number = fast[i] as number;
-    const s0: number = slow[i - 1] as number;
-    const s1: number = slow[i] as number;
+    const f0: number = fast[i - 1];
+    const f1: number = fast[i];
+    const s0: number = slow[i - 1];
+    const s1: number = slow[i];
     if (![f0, f1, s0, s1].every(Number.isFinite)) {
       continue;
     }
@@ -155,8 +155,8 @@ function classifyTrend(input: {
   const tail: number[] = smaSeriesForSlope.filter((x) => Number.isFinite(x)).slice(-10);
   let slope: number = 0;
   if (tail.length >= 2) {
-    slope = (tail[tail.length - 1] as number) - (tail[0] as number);
-    slope = slope / (tail[0] as number) / (tail.length - 1);
+    slope = (tail[tail.length - 1]) - (tail[0]);
+    slope = slope / (tail[0]) / (tail.length - 1);
   }
   if (Math.abs(dist) < TREND_SIDEWAYS_DISTANCE_DEADBAND && Math.abs(slope) < TREND_MIN_SMA_SLOPE_MAGNITUDE) {
     return 'sideways';
@@ -195,9 +195,9 @@ export async function computeTechnicalAnalysisPayload(input: {
   const sma50: number[] = sma({ period: 50, values: closes });
   const sma100: number[] = sma({ period: 100, values: closes });
   const sma200: number[] = sma({ period: 200, values: closes });
-  const lastSma50: number = sma50[sma50.length - 1] as number;
-  const lastSma100: number = sma100[sma100.length - 1] as number;
-  const lastSma200: number = sma200[sma200.length - 1] as number;
+  const lastSma50: number = sma50[sma50.length - 1];
+  const lastSma100: number = sma100[sma100.length - 1];
+  const lastSma200: number = sma200[sma200.length - 1];
   if (![lastSma50, lastSma100, lastSma200].every(Number.isFinite)) {
     throw new AnalysisComputationError('SMA outputs incomplete — insufficient overlapping history.');
   }
@@ -260,7 +260,7 @@ export async function computeTechnicalAnalysisPayload(input: {
   ) {
     throw new AnalysisComputationError('Bollinger Bands incomplete.');
   }
-  const lastClose: number = closes[closes.length - 1] as number;
+  const lastClose: number = closes[closes.length - 1];
   const bw: number = (lastBb.upper - lastBb.lower) / (lastBb.middle === 0 ? Number.NaN : lastBb.middle);
   if (!Number.isFinite(bw)) {
     throw new AnalysisComputationError('Bollinger bandwidth not finite.');
@@ -268,7 +268,7 @@ export async function computeTechnicalAnalysisPayload(input: {
   const bwWindow: number[] = bb
     .slice(-6, -1)
     .map((r) => (r?.upper !== undefined && r.middle !== undefined && r.lower !== undefined ? (r.upper - r.lower) / r.middle : Number.NaN))
-    .filter(Number.isFinite) as number[];
+    .filter(Number.isFinite);
   const bwMean: number = bwWindow.reduce((a, b) => a + b, 0) / bwWindow.length;
   let bwClass: 'expanding' | 'contracting' | 'neutral' = 'neutral';
   if (bw > bwMean * (1 + BOLLINGER_BW_NEUTRAL_TOLERANCE)) {
@@ -286,7 +286,7 @@ export async function computeTechnicalAnalysisPayload(input: {
   let downSum: number = 0;
   let downN: number = 0;
   for (let i: number = 0; i < last20.length; i++) {
-    const bar: OhlcvBar = last20[i] as OhlcvBar;
+    const bar: OhlcvBar = last20[i];
     if (bar.close >= bar.open) {
       upSum += bar.volume;
       upN += 1;
@@ -302,7 +302,7 @@ export async function computeTechnicalAnalysisPayload(input: {
   if (obvLast10.length !== 10 || !obvLast10.every(Number.isFinite)) {
     throw new AnalysisComputationError('OBV last 10 values incomplete.');
   }
-  const latestVol: number = volumes[volumes.length - 1] as number;
+  const latestVol: number = volumes[volumes.length - 1];
   let volVs: 'above' | 'below' | 'neutral' = 'neutral';
   if (latestVol > avgVol20 * (1 + VOLUME_CLASSIFICATION_EPSILON)) {
     volVs = 'above';
@@ -340,13 +340,13 @@ export async function computeTechnicalAnalysisPayload(input: {
   const monthlyCloses: number[] = monthly.map((b) => b.adjClose);
   const sma10w: number[] = sma({ period: 10, values: weeklyCloses });
   const sma6m: number[] = sma({ period: 6, values: monthlyCloses });
-  const wClose: number = weeklyCloses[weeklyCloses.length - 1] as number;
-  const mClose: number = monthlyCloses[monthlyCloses.length - 1] as number;
-  const wSma: number = sma10w[sma10w.length - 1] as number;
-  const mSma: number = sma6m[sma6m.length - 1] as number;
+  const wClose: number = weeklyCloses[weeklyCloses.length - 1];
+  const mClose: number = monthlyCloses[monthlyCloses.length - 1];
+  const wSma: number = sma10w[sma10w.length - 1];
+  const mSma: number = sma6m[sma6m.length - 1];
 
   const atrSeries: number[] = atr({ high: highs, low: lows, close: closes, period: 14 });
-  const atrLatest: number = atrSeries[atrSeries.length - 1] as number;
+  const atrLatest: number = atrSeries[atrSeries.length - 1];
   if (!Number.isFinite(atrLatest)) {
     throw new AnalysisComputationError('ATR(14) not finite.');
   }
