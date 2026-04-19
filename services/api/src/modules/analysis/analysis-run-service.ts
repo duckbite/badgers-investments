@@ -25,6 +25,11 @@ import {
 
 const STATUS_PROCESSING: AnalysisStatus = 'PROCESSING';
 const STATUS_COMPLETED: AnalysisStatus = 'COMPLETED';
+const ANALYSIS_STEP_VALIDATING_INPUTS: string = 'Validating analysis inputs';
+const ANALYSIS_STEP_PREPARING_DATA: string = 'Preparing analysis data';
+const ANALYSIS_STEP_RESOLVING_AI: string = 'Resolving AI credentials';
+const ANALYSIS_STEP_INVOKING_AI: string = 'Invoking AI synthesis';
+const ANALYSIS_STEP_PERSISTING_REPORT: string = 'Persisting report bundle';
 
 export class AnalysisRunService {
   private readonly analysisRunRepository: AnalysisRunRepository;
@@ -68,6 +73,7 @@ export class AnalysisRunService {
       status: STATUS_PROCESSING,
       parametersJson: JSON.stringify(input.parameters),
       summary: buildRunSummary({ type: input.type, parameters: input.parameters }),
+      currentStep: ANALYSIS_STEP_VALIDATING_INPUTS,
       createdAtIso,
       completedAtIso: null,
       reportId: null,
@@ -75,15 +81,33 @@ export class AnalysisRunService {
     };
     await this.analysisRunRepository.putRun({ userId: input.userId, record: processingRun });
 
+    let inProgressRun: AnalysisRunRecord = processingRun;
     try {
+      inProgressRun = await this.persistRunCurrentStep({
+        userId: input.userId,
+        run: processingRun,
+        currentStep: ANALYSIS_STEP_PREPARING_DATA,
+      });
       const generated = await this.generateReportMarkdown({
         userId: input.userId,
         type: input.type,
-        summary: processingRun.summary,
+        summary: inProgressRun.summary,
         username: input.username,
         createdAtIso,
         parameters: input.parameters,
         now: input.now,
+        onStepChanged: async (currentStep: string): Promise<void> => {
+          inProgressRun = await this.persistRunCurrentStep({
+            userId: input.userId,
+            run: inProgressRun,
+            currentStep,
+          });
+        },
+      });
+      inProgressRun = await this.persistRunCurrentStep({
+        userId: input.userId,
+        run: inProgressRun,
+        currentStep: ANALYSIS_STEP_PERSISTING_REPORT,
       });
       const completedAtIso: string = new Date().toISOString();
       const storage = await persistAnalysisReportBundle({
@@ -117,20 +141,22 @@ export class AnalysisRunService {
         createdBy: input.username,
       };
       const completedRun: AnalysisRunRecord = {
-        ...processingRun,
+        ...inProgressRun,
         status: STATUS_COMPLETED,
         completedAtIso,
         reportId,
         summary: reportRecord.summary,
+        currentStep: null,
       };
       await this.analysisRunRepository.putReport({ userId: input.userId, record: reportRecord });
       await this.analysisRunRepository.putRun({ userId: input.userId, record: completedRun });
       return toRunSummaryDto({ run: completedRun });
     } catch (error) {
       const failedRun: AnalysisRunRecord = {
-        ...processingRun,
+        ...inProgressRun,
         status: 'FAILED',
         completedAtIso: new Date().toISOString(),
+        currentStep: null,
         errorMessage: error instanceof Error ? error.message : 'Failed to generate analysis report.',
       };
       await this.analysisRunRepository.putRun({ userId: input.userId, record: failedRun });
@@ -221,6 +247,7 @@ export class AnalysisRunService {
     readonly createdAtIso: string;
     readonly parameters: Record<string, unknown>;
     readonly now: Date;
+    readonly onStepChanged?: (currentStep: string) => Promise<void>;
   }): Promise<{
     readonly markdownBody: string;
     readonly technicalPayload: TechnicalAnalysisComputationPayload | undefined;
@@ -253,6 +280,9 @@ export class AnalysisRunService {
         input: parsePortfolioBuilderInput({ parameters: input.parameters }),
       });
     }
+    if (input.onStepChanged !== undefined) {
+      await input.onStepChanged(ANALYSIS_STEP_RESOLVING_AI);
+    }
     const userCredentials = await tryResolveUserAiCredentials({
       userAiSettingsRepository: this.userAiSettingsRepository,
       userId: input.userId,
@@ -262,6 +292,9 @@ export class AnalysisRunService {
     }
     const systemPrompt: string =
       input.type === 'technical-analysis' ? TECHNICAL_ANALYSIS_SYSTEM_PROMPT : PORTFOLIO_BUILDER_SYSTEM_PROMPT;
+    if (input.onStepChanged !== undefined) {
+      await input.onStepChanged(ANALYSIS_STEP_INVOKING_AI);
+    }
     const reportMarkdown: string = await requestAnthropicRecommendationJson({
       apiKey: userCredentials.apiKey,
       model: userCredentials.modelId,
@@ -275,6 +308,19 @@ export class AnalysisRunService {
       throw new Error('AI response was empty for portfolio builder.');
     }
     return { markdownBody: reportMarkdown.trim(), technicalPayload, technicalChartContext };
+  }
+
+  private async persistRunCurrentStep(input: {
+    readonly userId: string;
+    readonly run: AnalysisRunRecord;
+    readonly currentStep: string;
+  }): Promise<AnalysisRunRecord> {
+    if (input.run.currentStep === input.currentStep) {
+      return input.run;
+    }
+    const nextRun: AnalysisRunRecord = { ...input.run, currentStep: input.currentStep };
+    await this.analysisRunRepository.putRun({ userId: input.userId, record: nextRun });
+    return nextRun;
   }
 }
 
@@ -338,6 +384,7 @@ function toRunSummaryDto(input: { readonly run: AnalysisRunRecord }): AnalysisRu
     createdAt: input.run.createdAtIso,
     completedAt: input.run.completedAtIso,
     summary: input.run.summary,
+    currentStep: input.run.currentStep,
     reportId: input.run.reportId,
     errorMessage: input.run.errorMessage,
   };

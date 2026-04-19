@@ -57,6 +57,7 @@ type AnalysisRunSnapshot = {
 function buildRunSignature(input: { readonly run: RecommendationRunSummaryDto }): string {
   return [
     input.run.runStatus,
+    input.run.currentStep ?? '',
     input.run.completedAt ?? '',
     input.run.runItemCount.toString(),
     input.run.runActionableCount.toString(),
@@ -66,7 +67,7 @@ function buildRunSignature(input: { readonly run: RecommendationRunSummaryDto })
 }
 
 function buildAnalysisRunSignature(input: { readonly run: AnalysisRunSummaryDto }): string {
-  return [input.run.status, input.run.completedAt ?? '', input.run.reportId ?? '', input.run.summary].join('|');
+  return [input.run.status, input.run.currentStep ?? '', input.run.completedAt ?? '', input.run.reportId ?? '', input.run.summary].join('|');
 }
 
 function buildRunSnapshot(input: {

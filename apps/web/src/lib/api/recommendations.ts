@@ -13,6 +13,7 @@ export type RecommendationRunSummary = {
   readonly aiProvider: string | null;
   readonly aiModel: string | null;
   readonly portfolioLevelSummary: string;
+  readonly currentStep: string | null;
   readonly runItemCount: number;
   readonly runActionableCount: number;
   readonly runMaxStrengthScore: string | null;

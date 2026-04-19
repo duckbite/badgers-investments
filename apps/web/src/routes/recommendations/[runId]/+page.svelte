@@ -64,6 +64,13 @@
     return null;
   }
 
+  function processingStepLabel(currentStep: string | null): string {
+    if (currentStep === null || currentStep.trim().length === 0) {
+      return 'Processing';
+    }
+    return currentStep;
+  }
+
   function isActionableItem(it: RecommendationItemDto): boolean {
     return it.recommendationType === 'BUY' || it.recommendationType === 'SELL';
   }
@@ -229,7 +236,7 @@
             class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-gray-200 border-t-emerald-600 dark:border-muted dark:border-t-emerald-400"
             aria-hidden="true"
           ></span>
-          Processing…
+          {processingStepLabel(detail.currentStep)}…
         </div>
       {:else}
         <p class="text-sm text-gray-600 dark:text-muted-foreground">

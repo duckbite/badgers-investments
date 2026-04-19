@@ -92,6 +92,9 @@
 
   function runCardDescription(run: RecommendationRunSummary): string {
     if (run.runStatus === 'PROCESSING') {
+      if (run.currentStep !== null && run.currentStep.trim().length > 0) {
+        return run.currentStep;
+      }
       return 'We are analysing your portfolio snapshot and rules. Open this run to watch progress — results appear when processing finishes.';
     }
     if (run.runStatus === 'FAILED') {
@@ -481,6 +484,11 @@
                 <p class="text-sm leading-relaxed text-gray-600 dark:text-muted-foreground">
                   {runCardDescription(run)}
                 </p>
+                {#if run.runStatus === 'PROCESSING' && run.currentStep}
+                  <p class="text-xs font-medium text-blue-700 dark:text-blue-300">
+                    Current step: {run.currentStep}
+                  </p>
+                {/if}
                 <p class="text-xs text-gray-500 dark:text-muted-foreground">
                   {new Date(run.startedAt).toLocaleString()}
                   {#if run.completedAt}
