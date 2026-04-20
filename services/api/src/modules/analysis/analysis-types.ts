@@ -18,6 +18,7 @@ export type AnalysisRunRecord = {
   readonly portfolioId: string;
   readonly type: AnalysisType;
   readonly status: AnalysisStatus;
+  readonly currentStep: string | null;
   readonly parametersJson: string;
   readonly summary: string;
   readonly createdAtIso: string;
@@ -50,6 +51,7 @@ export type AnalysisRunSummaryDto = {
   readonly portfolioId: string;
   readonly type: AnalysisType;
   readonly status: Lowercase<AnalysisStatus>;
+  readonly currentStep: string | null;
   readonly createdAt: string;
   readonly completedAt: string | null;
   readonly summary: string;

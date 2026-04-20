@@ -34,6 +34,7 @@ export type RecommendationRunHeaderRecord = {
   readonly aiError: string | null;
   readonly aiOutputJson: string | null;
   readonly portfolioLevelSummary: string;
+  readonly currentStep: string | null;
   /** Rule findings snapshot for async workers (set while `runStatus` is PROCESSING). */
   readonly ruleFindingsJson: string | null;
   /** Number of recommendation lines persisted for this run (0 while processing). */
@@ -115,6 +116,7 @@ export class RecommendationRunRepository {
           aiError: input.record.aiError,
           aiOutputJson: input.record.aiOutputJson,
           portfolioLevelSummary: input.record.portfolioLevelSummary,
+          currentStep: input.record.currentStep,
           ruleFindingsJson: input.record.ruleFindingsJson,
           runItemCount: input.record.runItemCount,
           runActionableCount: input.record.runActionableCount,
@@ -404,6 +406,7 @@ function parseRunHeader(input: { readonly item: Record<string, unknown> }): Reco
   const aiError: unknown = input.item['aiError'];
   const aiOutputJson: unknown = input.item['aiOutputJson'];
   const portfolioLevelSummary: unknown = input.item['portfolioLevelSummary'];
+  const currentStep: unknown = input.item['currentStep'];
   const completedAtIso: unknown = input.item['completedAtIso'];
   const ruleFindingsJson: unknown = input.item['ruleFindingsJson'];
   const runItemCount: unknown = input.item['runItemCount'];
@@ -451,6 +454,7 @@ function parseRunHeader(input: { readonly item: Record<string, unknown> }): Reco
     aiError: typeof aiError === 'string' ? aiError : null,
     aiOutputJson: typeof aiOutputJson === 'string' ? aiOutputJson : null,
     portfolioLevelSummary,
+    currentStep: typeof currentStep === 'string' ? currentStep : null,
     ruleFindingsJson: typeof ruleFindingsJson === 'string' ? ruleFindingsJson : null,
     runItemCount: typeof runItemCount === 'number' ? runItemCount : 0,
     runActionableCount: typeof runActionableCount === 'number' ? runActionableCount : 0,

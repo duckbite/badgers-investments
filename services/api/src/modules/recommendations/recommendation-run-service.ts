@@ -35,6 +35,12 @@ import {
 } from './recommendation-run-repository.js';
 
 const PROCESSING_TIMEOUT_MS: number = 10 * 60 * 1000;
+const RECOMMENDATION_STEP_QUEUED: string = 'Queued for asynchronous processing';
+const RECOMMENDATION_STEP_LOADING_CONTEXT: string = 'Loading queued run context';
+const RECOMMENDATION_STEP_RESOLVING_AI: string = 'Resolving AI credentials';
+const RECOMMENDATION_STEP_INVOKING_AI: string = 'Invoking AI synthesis';
+const RECOMMENDATION_STEP_BUILDING_DETERMINISTIC: string = 'Building deterministic recommendations';
+const RECOMMENDATION_STEP_PERSISTING_RESULTS: string = 'Persisting findings and recommendations';
 const sqsClient: SQSClient = new SQSClient({});
 
 export type RecommendationPreconditionError = {
@@ -57,6 +63,7 @@ export type RecommendationRunSummaryDto = {
   readonly aiProvider: string | null;
   readonly aiModel: string | null;
   readonly portfolioLevelSummary: string;
+  readonly currentStep: string | null;
   readonly runItemCount: number;
   readonly runActionableCount: number;
   readonly runMaxStrengthScore: string | null;
@@ -283,6 +290,7 @@ export class RecommendationRunService {
       aiError: null,
       aiOutputJson: null,
       portfolioLevelSummary: 'Generating portfolio insights…',
+      currentStep: RECOMMENDATION_STEP_QUEUED,
       ruleFindingsJson: JSON.stringify([...findings]),
       runItemCount: 0,
       runActionableCount: 0,
@@ -440,16 +448,21 @@ export class RecommendationRunService {
       await deleteJob();
       return;
     }
+    const processingHeader: RecommendationRunHeaderRecord = await this.persistCurrentStep({
+      userId: input.userId,
+      header,
+      step: RECOMMENDATION_STEP_LOADING_CONTEXT,
+    });
     let payload: RecommendationAnalyticsPayload;
     let baseline: BaselineRecommendationResult;
     try {
-      payload = JSON.parse(header.analyticsPayloadJson) as RecommendationAnalyticsPayload;
-      baseline = JSON.parse(header.baselineJson) as BaselineRecommendationResult;
+      payload = JSON.parse(processingHeader.analyticsPayloadJson) as RecommendationAnalyticsPayload;
+      baseline = JSON.parse(processingHeader.baselineJson) as BaselineRecommendationResult;
     } catch {
       await this.markRunFailed({
         userId: input.userId,
         portfolioId: input.portfolioId,
-        header,
+        header: processingHeader,
         message: 'Stored analytics payload is invalid.',
         now: input.now,
       });
@@ -463,16 +476,35 @@ export class RecommendationRunService {
         portfolioId: input.portfolioId,
         runId: input.runId,
         now: input.now,
-        processingHeader: header,
+        processingHeader,
         payload,
         findings,
         baseline,
       });
     } catch (err) {
       const message: string = err instanceof Error ? err.message : 'Recommendation run failed.';
-      await this.markRunFailed({ userId: input.userId, portfolioId: input.portfolioId, header, message, now: input.now });
+      await this.markRunFailed({
+        userId: input.userId,
+        portfolioId: input.portfolioId,
+        header: processingHeader,
+        message,
+        now: input.now,
+      });
     }
     await deleteJob();
+  }
+
+  private async persistCurrentStep(input: {
+    readonly userId: string;
+    readonly header: RecommendationRunHeaderRecord;
+    readonly step: string;
+  }): Promise<RecommendationRunHeaderRecord> {
+    if (input.header.currentStep === input.step) {
+      return input.header;
+    }
+    const nextHeader: RecommendationRunHeaderRecord = { ...input.header, currentStep: input.step };
+    await this.recommendationRunRepository.putRunHeader({ userId: input.userId, record: nextHeader });
+    return nextHeader;
   }
 
   public async processRecommendationJobQueue(input: { readonly now: Date; readonly maxJobs: number }): Promise<number> {
@@ -507,6 +539,7 @@ export class RecommendationRunService {
       aiStatus: 'SKIPPED',
       aiError: input.message,
       aiOutputJson: null,
+      currentStep: null,
       ruleFindingsJson: null,
       runItemCount: 0,
       runActionableCount: 0,
@@ -532,6 +565,7 @@ export class RecommendationRunService {
       aiStatus: 'SKIPPED',
       aiError: 'Run timed out after 10 minutes.',
       aiOutputJson: null,
+      currentStep: null,
       ruleFindingsJson: null,
       runItemCount: 0,
       runActionableCount: 0,
@@ -551,6 +585,11 @@ export class RecommendationRunService {
     readonly findings: readonly RuleFinding[];
     readonly baseline: BaselineRecommendationResult;
   }): Promise<void> {
+    let processingHeader: RecommendationRunHeaderRecord = await this.persistCurrentStep({
+      userId: input.userId,
+      header: input.processingHeader,
+      step: RECOMMENDATION_STEP_RESOLVING_AI,
+    });
     const credentials = await tryResolveUserAiCredentials({
       userAiSettingsRepository: this.userAiSettingsRepository,
       userId: input.userId,
@@ -568,6 +607,11 @@ export class RecommendationRunService {
       aiModel = credentials.modelId;
       aiStatus = 'FAILED';
       synthesisSource = 'DETERMINISTIC';
+      processingHeader = await this.persistCurrentStep({
+        userId: input.userId,
+        header: processingHeader,
+        step: RECOMMENDATION_STEP_INVOKING_AI,
+      });
       try {
         const raw: string = await requestRecommendationLlmJson({
           apiKey: credentials.apiKey,
@@ -607,6 +651,11 @@ export class RecommendationRunService {
       }
     }
     if (synthesisSource === 'DETERMINISTIC') {
+      processingHeader = await this.persistCurrentStep({
+        userId: input.userId,
+        header: processingHeader,
+        step: RECOMMENDATION_STEP_BUILDING_DETERMINISTIC,
+      });
       const attemptedAi: boolean = credentials !== undefined;
       const deterministicLines: RecommendationItemRecord[] = [];
       deterministicLines.push({
@@ -644,22 +693,27 @@ export class RecommendationRunService {
       itemsToPersist = deterministicLines;
       portfolioLevelSummary = input.baseline.portfolio_summary.headline;
     }
+    processingHeader = await this.persistCurrentStep({
+      userId: input.userId,
+      header: processingHeader,
+      step: RECOMMENDATION_STEP_PERSISTING_RESULTS,
+    });
     const agg = computeRunAggregateMeta({ items: itemsToPersist });
     const completedHeader: RecommendationRunHeaderRecord = {
       runId: input.runId,
       portfolioId: input.portfolioId,
-      configVersionId: input.processingHeader.configVersionId,
-      runTriggerType: input.processingHeader.runTriggerType,
+      configVersionId: processingHeader.configVersionId,
+      runTriggerType: processingHeader.runTriggerType,
       runStatus: 'COMPLETED',
-      startedAtIso: input.processingHeader.startedAtIso,
+      startedAtIso: processingHeader.startedAtIso,
       completedAtIso: input.now.toISOString(),
-      analyticsInputHash: input.processingHeader.analyticsInputHash,
+      analyticsInputHash: processingHeader.analyticsInputHash,
       analyticsSchemaVersion: ANALYTICS_SCHEMA_VERSION,
       ruleSetVersion: RULE_SET_VERSION,
       dedupeEngineVersion: DEDUPE_ENGINE_VERSION,
       promptVersion: AI_PROMPT_VERSION,
-      analyticsPayloadJson: input.processingHeader.analyticsPayloadJson,
-      baselineJson: input.processingHeader.baselineJson,
+      analyticsPayloadJson: processingHeader.analyticsPayloadJson,
+      baselineJson: processingHeader.baselineJson,
       synthesisSource,
       aiProvider,
       aiModel,
@@ -667,6 +721,7 @@ export class RecommendationRunService {
       aiError,
       aiOutputJson,
       portfolioLevelSummary,
+      currentStep: null,
       ruleFindingsJson: null,
       runItemCount: agg.runItemCount,
       runActionableCount: agg.runActionableCount,
@@ -898,6 +953,7 @@ function toSummaryDto(input: { readonly record: RecommendationRunHeaderRecord })
     aiProvider: input.record.aiProvider,
     aiModel: input.record.aiModel,
     portfolioLevelSummary: input.record.portfolioLevelSummary,
+    currentStep: input.record.currentStep,
     runItemCount: input.record.runItemCount,
     runActionableCount: input.record.runActionableCount,
     runMaxStrengthScore: input.record.runMaxStrengthScore,

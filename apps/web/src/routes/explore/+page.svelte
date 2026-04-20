@@ -76,6 +76,13 @@
     return 'Pending';
   }
 
+  function statusDetail(run: AnalysisRunSummary): string {
+    if (run.status === 'processing' && run.currentStep !== null && run.currentStep.trim().length > 0) {
+      return run.currentStep;
+    }
+    return run.summary;
+  }
+
   function openDialog(tool: AnalysisType): void {
     activeDialog = tool;
   }
@@ -338,7 +345,7 @@
                       {statusLabel(run.status)}
                     </span>
                   </div>
-                  <p class="text-sm text-gray-600 dark:text-muted-foreground">{run.summary}</p>
+                  <p class="text-sm text-gray-600 dark:text-muted-foreground">{statusDetail(run)}</p>
                   <p class="mt-1 text-xs text-gray-500 dark:text-muted-foreground">
                     Started {new Date(run.createdAt).toLocaleString()}
                     {#if run.completedAt}

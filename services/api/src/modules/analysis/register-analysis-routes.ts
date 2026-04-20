@@ -25,6 +25,32 @@ export function registerAnalysisRoutes(input: {
             parameters: { type: 'object', additionalProperties: true },
           },
         },
+        response: {
+          200: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['run'],
+            properties: {
+              run: {
+                type: 'object',
+                additionalProperties: false,
+                required: ['runId', 'portfolioId', 'type', 'status', 'currentStep', 'createdAt', 'completedAt', 'summary', 'reportId', 'errorMessage'],
+                properties: {
+                  runId: { type: 'string' },
+                  portfolioId: { type: 'string' },
+                  type: { type: 'string' },
+                  status: { type: 'string' },
+                  currentStep: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+                  createdAt: { type: 'string' },
+                  completedAt: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+                  summary: { type: 'string' },
+                  reportId: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+                  errorMessage: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+                },
+              },
+            },
+          },
+        },
       },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
@@ -68,6 +94,16 @@ export function registerAnalysisRoutes(input: {
             status: { type: 'string' },
           },
         },
+        response: {
+          200: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['items'],
+            properties: {
+              items: { type: 'array' },
+            },
+          },
+        },
       },
     },
     async (request: FastifyRequest) => {
@@ -101,6 +137,40 @@ export function registerAnalysisRoutes(input: {
           additionalProperties: false,
           required: ['id'],
           properties: { id: { type: 'string' } },
+        },
+        response: {
+          200: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['run'],
+            properties: {
+              run: {
+                type: 'object',
+                additionalProperties: false,
+                required: ['runId', 'portfolioId', 'type', 'status', 'currentStep', 'createdAt', 'completedAt', 'summary', 'reportId', 'errorMessage'],
+                properties: {
+                  runId: { type: 'string' },
+                  portfolioId: { type: 'string' },
+                  type: { type: 'string' },
+                  status: { type: 'string' },
+                  currentStep: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+                  createdAt: { type: 'string' },
+                  completedAt: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+                  summary: { type: 'string' },
+                  reportId: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+                  errorMessage: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+                },
+              },
+            },
+          },
+          404: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['error'],
+            properties: {
+              error: { type: 'string' },
+            },
+          },
         },
       },
     },

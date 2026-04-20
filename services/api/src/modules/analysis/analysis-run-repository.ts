@@ -132,6 +132,7 @@ function parseRun(item: Record<string, unknown>): AnalysisRunRecord | undefined 
     status: analysisStatus,
     parametersJson: item['parametersJson'],
     summary: item['summary'],
+    currentStep: typeof item['currentStep'] === 'string' ? item['currentStep'] : null,
     createdAtIso: item['createdAtIso'],
     completedAtIso: typeof item['completedAtIso'] === 'string' ? item['completedAtIso'] : null,
     reportId: typeof item['reportId'] === 'string' ? item['reportId'] : null,

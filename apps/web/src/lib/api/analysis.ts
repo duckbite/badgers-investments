@@ -15,6 +15,7 @@ export type AnalysisRunSummary = {
   readonly portfolioId: string;
   readonly type: AnalysisType;
   readonly status: 'pending' | 'processing' | 'completed' | 'failed';
+  readonly currentStep: string | null;
   readonly createdAt: string;
   readonly completedAt: string | null;
   readonly summary: string;
