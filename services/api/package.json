@@ -29,7 +29,7 @@
     "clean": "rm -rf dist dist-lambda dist-lambda-recommendation-processor"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.88.0",
+    "@anthropic-ai/sdk": "^0.91.1",
     "@aws-sdk/client-dynamodb": "^3.1027.0",
     "@aws-sdk/client-s3": "^3.1030.0",
     "@aws-sdk/client-sqs": "^3.1030.0",
