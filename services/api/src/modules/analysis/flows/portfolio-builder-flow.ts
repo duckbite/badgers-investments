@@ -1,3 +1,6 @@
+import type { LlmCredentials } from '../steps/call-analysis-llm.js';
+import { callAnalysisLlm } from '../steps/call-analysis-llm.js';
+
 export const PORTFOLIO_BUILDER_SYSTEM_PROMPT =
   'You are a senior quantitative trader writing actionable markdown investment reports. Return markdown only.';
 
@@ -19,18 +22,12 @@ export function parsePortfolioBuilderInput(input: { readonly parameters: Record<
   if (riskToleranceRaw !== 'conservative' && riskToleranceRaw !== 'moderate' && riskToleranceRaw !== 'aggressive') {
     throw new Error('Risk tolerance must be one of: conservative, moderate, aggressive.');
   }
-  return {
-    age,
-    income,
-    savings,
-    goals,
-    riskTolerance: riskToleranceRaw,
-  };
+  return { age, income, savings, goals, riskTolerance: riskToleranceRaw };
 }
 
-export function buildPortfolioBuilderPrompt(input: { readonly input: PortfolioBuilderInput }): string {
-  const goalsSection: string =
-    input.input.goals.length > 0 ? input.input.goals : 'Not provided. Infer sensible goals from risk tolerance.';
+function buildUserPrompt(input: { readonly pbInput: PortfolioBuilderInput }): string {
+  const { pbInput } = input;
+  const goalsSection: string = pbInput.goals.length > 0 ? pbInput.goals : 'Not provided. Infer sensible goals from risk tolerance.';
   return `You are a senior portfolio strategist at Badgers Finance managing multi-asset portfolios worth $500M+ for institutional clients.
 
 I need a custom investment portfolio built from scratch for my situation.
@@ -51,13 +48,28 @@ Create:
 Format as a professional investment policy document with an allocation pie chart description. Store as Markdown document.
 
 My details:
-- Age: ${input.input.age}
-- Annual income (USD): ${input.input.income}
-- Available savings (USD): ${input.input.savings}
+- Age: ${pbInput.age}
+- Annual income (USD): ${pbInput.income}
+- Available savings (USD): ${pbInput.savings}
 - Investment goals: ${goalsSection}
-- Risk tolerance: ${input.input.riskTolerance}
+- Risk tolerance: ${pbInput.riskTolerance}
 - Account type: Not provided
 `;
+}
+
+export async function runPortfolioBuilderFlow(input: {
+  readonly parameters: Record<string, unknown>;
+  readonly credentials: LlmCredentials;
+}): Promise<{ readonly markdownBody: string }> {
+  const pbInput = parsePortfolioBuilderInput({ parameters: input.parameters });
+  const userPrompt = buildUserPrompt({ pbInput });
+  const markdownBody = await callAnalysisLlm({
+    systemPrompt: PORTFOLIO_BUILDER_SYSTEM_PROMPT,
+    userPrompt,
+    credentials: input.credentials,
+    emptyResponseError: 'AI response was empty for portfolio builder.',
+  });
+  return { markdownBody };
 }
 
 function parseRequiredNumber(input: { readonly value: unknown; readonly label: string }): number {

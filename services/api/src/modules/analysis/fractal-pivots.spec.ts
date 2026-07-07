@@ -3,7 +3,7 @@ import {
   collectFractalPivotHighs,
   collectFractalPivotLows,
   selectFibonacciSwingFromFractals,
-} from './fractal-pivots.js';
+} from './indicators/fractal-pivots.js';
 
 describe('selectFibonacciSwingFromFractals', () => {
   it('uses the last completed up-leg: most recent swing low before the latest swing high', () => {

@@ -1,4 +1,4 @@
-import { AnalysisComputationError } from './analysis-computation-error.js';
+import { AnalysisComputationError } from '../analysis-computation-error.js';
 
 /**
  * Fractal swing highs/lows (same 2k+1 window as AC7 support/resistance).

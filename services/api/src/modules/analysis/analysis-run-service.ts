@@ -1,6 +1,5 @@
 import type { FastifyBaseLogger } from 'fastify';
 import { randomUUID } from 'node:crypto';
-import { requestAnthropicRecommendationJson } from '../recommendations/anthropic-recommendation-llm-adapter.js';
 import { tryResolveUserAiCredentials } from '../ai/resolve-user-ai-credentials.js';
 import type { UserAiSettingsRepository } from '../ai/user-ai-settings-repository.js';
 import { PortfolioService } from '../portfolio/portfolio-service.js';
@@ -12,16 +11,9 @@ import { buildAnalysisReportSummarySentence } from './build-analysis-report-summ
 import type { TechnicalAnalysisBundleChartContext } from './bundle-chart-context.js';
 import type { TechnicalAnalysisComputationPayload } from './compute-technical-analysis-payload.js';
 import { loadBundleManifestFromS3 } from './load-bundle-manifest-from-s3.js';
-import {
-  buildPortfolioBuilderPrompt,
-  parsePortfolioBuilderInput,
-  PORTFOLIO_BUILDER_SYSTEM_PROMPT,
-} from './portfolio-builder-run.js';
 import { presignBundleAssetUrls } from './presign-analysis-bundle-assets.js';
-import {
-  prepareTechnicalAnalysisLlmContext,
-  TECHNICAL_ANALYSIS_SYSTEM_PROMPT,
-} from './technical-analysis-run.js';
+import { runTechnicalAnalysisFlow } from './flows/technical-analysis-flow.js';
+import { runPortfolioBuilderFlow } from './flows/portfolio-builder-flow.js';
 
 const STATUS_PROCESSING: AnalysisStatus = 'PROCESSING';
 const STATUS_COMPLETED: AnalysisStatus = 'COMPLETED';
@@ -263,23 +255,6 @@ export class AnalysisRunService {
       });
       return { markdownBody, technicalPayload: undefined, technicalChartContext: undefined };
     }
-    let technicalPayload: TechnicalAnalysisComputationPayload | undefined;
-    let technicalChartContext: TechnicalAnalysisBundleChartContext | undefined;
-    let prompt: string;
-    if (input.type === 'technical-analysis') {
-      const ctx = await prepareTechnicalAnalysisLlmContext({
-        parameters: input.parameters,
-        now: input.now,
-        log: this.log,
-      });
-      technicalPayload = ctx.technicalPayload;
-      technicalChartContext = ctx.technicalChartContext;
-      prompt = ctx.prompt;
-    } else {
-      prompt = buildPortfolioBuilderPrompt({
-        input: parsePortfolioBuilderInput({ parameters: input.parameters }),
-      });
-    }
     if (input.onStepChanged !== undefined) {
       await input.onStepChanged(ANALYSIS_STEP_RESOLVING_AI);
     }
@@ -290,24 +265,25 @@ export class AnalysisRunService {
     if (userCredentials === undefined) {
       throw new Error('AI credentials are not configured. Please set your Anthropic API key in Settings.');
     }
-    const systemPrompt: string =
-      input.type === 'technical-analysis' ? TECHNICAL_ANALYSIS_SYSTEM_PROMPT : PORTFOLIO_BUILDER_SYSTEM_PROMPT;
+    const credentials = { apiKey: userCredentials.apiKey, modelId: userCredentials.modelId };
     if (input.onStepChanged !== undefined) {
       await input.onStepChanged(ANALYSIS_STEP_INVOKING_AI);
     }
-    const reportMarkdown: string = await requestAnthropicRecommendationJson({
-      apiKey: userCredentials.apiKey,
-      model: userCredentials.modelId,
-      system: systemPrompt,
-      user: prompt,
-    });
-    if (reportMarkdown.trim().length === 0) {
-      if (input.type === 'technical-analysis') {
-        throw new Error('AI response was empty for technical analysis.');
-      }
-      throw new Error('AI response was empty for portfolio builder.');
+    if (input.type === 'technical-analysis') {
+      const result = await runTechnicalAnalysisFlow({
+        parameters: input.parameters,
+        now: input.now,
+        credentials,
+        log: this.log,
+      });
+      return {
+        markdownBody: result.markdownBody,
+        technicalPayload: result.technicalPayload,
+        technicalChartContext: result.technicalChartContext,
+      };
     }
-    return { markdownBody: reportMarkdown.trim(), technicalPayload, technicalChartContext };
+    const result = await runPortfolioBuilderFlow({ parameters: input.parameters, credentials });
+    return { markdownBody: result.markdownBody, technicalPayload: undefined, technicalChartContext: undefined };
   }
 
   private async persistRunCurrentStep(input: {
