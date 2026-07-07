@@ -10,6 +10,7 @@
     "dev": "dotenv -e ../../.env -- tsx watch src/index.ts",
     "build": "tsc",
     "start": "dotenv -e ../../.env -- node dist/index.js",
+    "test": "echo 'No tests yet' && exit 0",
     "lint": "eslint src",
     "build:lambda": "pnpm run build:lambda:daily",
     "build:lambda:daily": "pnpm --filter api build && esbuild src/lambda-handler.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist-lambda/daily/index.mjs",
