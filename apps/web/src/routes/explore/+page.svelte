@@ -2,6 +2,7 @@
   import { onDestroy, onMount } from 'svelte';
   import type { PortfolioConfigDto } from '$lib/api/build-portfolio-config-put-body';
   import { apiClient } from '$lib/api/api-client-instance';
+  import { ApiError } from '$lib/api/api-error';
   import type { AnalysisRunSummary, AnalysisType } from '$lib/api/analysis';
   import { createAnalysisRun, listAnalysisRuns } from '$lib/api/analysis';
   import { ANALYSIS_TOOL_DEFINITIONS, formatAnalysisType } from '$lib/domain/analysis-tools';
@@ -176,7 +177,10 @@
       mergeRun(run);
       toast.success('Analysis started', { description: `${formatAnalysisType(type)} is now processing.` });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to start analysis');
+      const message = error instanceof ApiError
+        ? error.message
+        : error instanceof Error ? error.message : 'Failed to start analysis';
+      toast.error(message);
     } finally {
       isSubmitting = false;
     }

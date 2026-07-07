@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { buildNotFoundErrorBody, buildValidationErrorBody } from '../domain/domain-error-bodies.js';
-import { LedgerValidationError, type LedgerService, type TransactionDto, type TransactionPatchBody, type TransactionWriteBody } from './ledger-service.js';
+import { buildNotFoundErrorBody } from '../domain/domain-error-bodies.js';
+import type { LedgerService, TransactionDto, TransactionPatchBody, TransactionWriteBody } from './ledger-service.js';
 
 const transactionTypeEnum = ['BUY', 'SELL', 'DIVIDEND', 'INTEREST', 'FEE', 'ADJUSTMENT'] as const;
 
@@ -155,23 +155,19 @@ export function registerLedgerRoutes(input: { readonly app: FastifyInstance; rea
         },
       },
     },
-    async (request: FastifyRequest, reply: FastifyReply) => {
+    async (request: FastifyRequest) => {
       const userId: string = request.authUser?.userId ?? '';
       const query: { readonly assetId?: string; readonly includeDeleted?: 'true' | 'false' } = request.query as {
         readonly assetId?: string;
         readonly includeDeleted?: 'true' | 'false';
       };
-      try {
-        const items: readonly TransactionDto[] = await input.ledgerService.listTransactions({
-          userId,
-          assetId: query.assetId,
-          includeDeleted: query.includeDeleted === 'true',
-          now: new Date(),
-        });
-        return { items };
-      } catch (err) {
-        return handleLedgerError({ err, reply, request });
-      }
+      const items: readonly TransactionDto[] = await input.ledgerService.listTransactions({
+        userId,
+        assetId: query.assetId,
+        includeDeleted: query.includeDeleted === 'true',
+        now: new Date(),
+      });
+      return { items };
     },
   );
   input.app.post(
@@ -188,12 +184,8 @@ export function registerLedgerRoutes(input: { readonly app: FastifyInstance; rea
     async (request: FastifyRequest, reply: FastifyReply) => {
       const userId: string = request.authUser?.userId ?? '';
       const body: TransactionWriteBody = request.body as TransactionWriteBody;
-      try {
-        const created: TransactionDto = await input.ledgerService.createTransaction({ userId, body, now: new Date() });
-        return reply.code(201).send(created);
-      } catch (err) {
-        return handleLedgerError({ err, reply, request });
-      }
+      const created: TransactionDto = await input.ledgerService.createTransaction({ userId, body, now: new Date() });
+      return reply.code(201).send(created);
     },
   );
   input.app.patch(
@@ -217,20 +209,16 @@ export function registerLedgerRoutes(input: { readonly app: FastifyInstance; rea
       const userId: string = request.authUser?.userId ?? '';
       const params: { readonly transactionId: string } = request.params as { readonly transactionId: string };
       const body: TransactionPatchBody = request.body as TransactionPatchBody;
-      try {
-        const updated: TransactionDto | undefined = await input.ledgerService.updateTransaction({
-          userId,
-          transactionId: params.transactionId,
-          body,
-          now: new Date(),
-        });
-        if (updated === undefined) {
-          return reply.code(404).send(buildNotFoundErrorBody({ requestId: String(request.id), message: 'Transaction not found.' }));
-        }
-        return updated;
-      } catch (err) {
-        return handleLedgerError({ err, reply, request });
+      const updated: TransactionDto | undefined = await input.ledgerService.updateTransaction({
+        userId,
+        transactionId: params.transactionId,
+        body,
+        now: new Date(),
+      });
+      if (updated === undefined) {
+        return reply.code(404).send(buildNotFoundErrorBody({ requestId: String(request.id), message: 'Transaction not found.' }));
       }
+      return updated;
     },
   );
   input.app.delete(
@@ -252,19 +240,15 @@ export function registerLedgerRoutes(input: { readonly app: FastifyInstance; rea
     async (request: FastifyRequest, reply: FastifyReply) => {
       const userId: string = request.authUser?.userId ?? '';
       const params: { readonly transactionId: string } = request.params as { readonly transactionId: string };
-      try {
-        const updated: TransactionDto | undefined = await input.ledgerService.softDeleteTransaction({
-          userId,
-          transactionId: params.transactionId,
-          now: new Date(),
-        });
-        if (updated === undefined) {
-          return reply.code(404).send(buildNotFoundErrorBody({ requestId: String(request.id), message: 'Transaction not found.' }));
-        }
-        return updated;
-      } catch (err) {
-        return handleLedgerError({ err, reply, request });
+      const updated: TransactionDto | undefined = await input.ledgerService.softDeleteTransaction({
+        userId,
+        transactionId: params.transactionId,
+        now: new Date(),
+      });
+      if (updated === undefined) {
+        return reply.code(404).send(buildNotFoundErrorBody({ requestId: String(request.id), message: 'Transaction not found.' }));
       }
+      return updated;
     },
   );
   input.app.get(
@@ -277,34 +261,22 @@ export function registerLedgerRoutes(input: { readonly app: FastifyInstance; rea
         },
       },
     },
-    async (request: FastifyRequest, reply: FastifyReply) => {
+    async (request: FastifyRequest) => {
       const userId: string = request.authUser?.userId ?? '';
-      try {
-        const result = await input.ledgerService.getHoldings({ userId, now: new Date() });
-        const lotLinks = result.lotLinks.map((row) => ({
-          linkId: row.linkId,
-          sellTransactionId: row.sellTransactionId,
-          buyTransactionId: row.buyTransactionId,
-          matchedQuantity: row.matchedQuantity,
-          buyUnitPrice: row.buyUnitPrice,
-          sellUnitPrice: row.sellUnitPrice,
-          realisedPnlAmount: row.realisedPnlAmount,
-          currencyCode: row.currencyCode,
-          createdAt: row.createdAtIso,
-        }));
-        return { holdings: result.holdings, lotLinks };
-      } catch (err) {
-        return handleLedgerError({ err, reply, request });
-      }
+      const result = await input.ledgerService.getHoldings({ userId, now: new Date() });
+      const lotLinks = result.lotLinks.map((row) => ({
+        linkId: row.linkId,
+        sellTransactionId: row.sellTransactionId,
+        buyTransactionId: row.buyTransactionId,
+        matchedQuantity: row.matchedQuantity,
+        buyUnitPrice: row.buyUnitPrice,
+        sellUnitPrice: row.sellUnitPrice,
+        realisedPnlAmount: row.realisedPnlAmount,
+        currencyCode: row.currencyCode,
+        createdAt: row.createdAtIso,
+      }));
+      return { holdings: result.holdings, lotLinks };
     },
   );
 }
 
-function handleLedgerError(input: { readonly err: unknown; readonly reply: FastifyReply; readonly request: FastifyRequest }) {
-  if (input.err instanceof LedgerValidationError) {
-    return input.reply
-      .code(400)
-      .send(buildValidationErrorBody({ requestId: String(input.request.id), code: input.err.code, message: input.err.message }));
-  }
-  throw input.err;
-}
