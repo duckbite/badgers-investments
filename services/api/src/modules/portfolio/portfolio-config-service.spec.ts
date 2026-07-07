@@ -62,9 +62,10 @@ describe('PortfolioConfigService', () => {
       latestVersion: 0,
       portfolioBaseCurrency: 'USD',
     });
-    getVersionByNumber.mockImplementation(async (args: { readonly versionNumber: number }) => {
+    // eslint-disable-next-line @typescript-eslint/no-misused-promises
+    getVersionByNumber.mockImplementation((args: { readonly versionNumber: number }) => {
       if (args.versionNumber === 1) {
-        return {
+        return Promise.resolve({
           configVersionId: 'cv1',
           portfolioId: 'p1',
           userId: 'u1',
@@ -79,9 +80,9 @@ describe('PortfolioConfigService', () => {
           notes: undefined,
           createdByUserId: 'u1',
           createdAtIso: '2026-01-01T00:00:00.000Z',
-        };
+        });
       }
-      return undefined;
+      return Promise.resolve(undefined);
     });
     const actual = await service.upsertNewVersionForUser({
       userId: 'u1',
