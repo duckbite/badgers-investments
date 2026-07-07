@@ -1,7 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import fastify from 'fastify';
+import { AnalysisComputationError } from '../modules/analysis/analysis-computation-error.js';
+import { AssetValidationError } from '../modules/assets/asset-service.js';
+import { FifoValidationError } from '../modules/ledger/fifo-holdings-service.js';
+import { LedgerValidationError } from '../modules/ledger/ledger-service.js';
 import { buildApiPinoLoggerOptions } from '../config/build-api-pino-logger-options.js';
 import { registerModules } from './register-modules.js';
 
@@ -27,6 +31,34 @@ function genReqId(req: IncomingMessage): string {
   );
 }
 
+export function buildDomainErrorHandler() {
+  return async function domainErrorHandler(
+    error: FastifyError,
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ): Promise<void> {
+    const requestId: string = String(request.id);
+    if (error instanceof AnalysisComputationError) {
+      return reply.code(422).send({
+        error: { code: error.code, message: error.message, requestId },
+      });
+    }
+    if (
+      error instanceof LedgerValidationError ||
+      error instanceof FifoValidationError ||
+      error instanceof AssetValidationError
+    ) {
+      return reply.code(400).send({
+        error: { code: error.code, message: error.message, requestId },
+      });
+    }
+    request.log.error({ err: error }, 'Unhandled error');
+    return reply.code(500).send({
+      error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred.', requestId },
+    });
+  };
+}
+
 export async function createServer(): Promise<FastifyInstance> {
   const app: FastifyInstance = fastify({
     logger: buildApiPinoLoggerOptions(),
@@ -34,6 +66,7 @@ export async function createServer(): Promise<FastifyInstance> {
     requestIdHeader: 'x-request-id',
     genReqId,
   });
+  app.setErrorHandler(buildDomainErrorHandler());
   await registerModules({ app });
   return app;
 }
