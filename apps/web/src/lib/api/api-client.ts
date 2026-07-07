@@ -1,3 +1,5 @@
+import { ApiError } from './api-error.js';
+
 type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 
 type ApiClientOptions = Readonly<{
@@ -43,8 +45,7 @@ export class ApiClient {
       return JSON.parse(text) as TResponse;
     }
     const errorPayload: unknown = await this.tryParseJson(response);
-    const message: string = this.resolveErrorMessage({ response, errorPayload });
-    throw new Error(message);
+    throw this.resolveApiError({ response, errorPayload });
   }
 
   private buildUrl(options: Readonly<{ readonly path: string; readonly query?: ApiRequestOptions<unknown>['query'] }>): URL {
@@ -83,23 +84,29 @@ export class ApiClient {
     }
   }
 
-  private resolveErrorMessage(options: Readonly<{ readonly response: Response; readonly errorPayload: unknown }>): string {
+  private resolveApiError(options: Readonly<{ readonly response: Response; readonly errorPayload: unknown }>): ApiError {
     const payload: unknown = options.errorPayload;
     if (typeof payload === 'object' && payload !== null) {
       const record: Record<string, unknown> = payload as Record<string, unknown>;
       const nestedError: unknown = record['error'];
       if (typeof nestedError === 'object' && nestedError !== null) {
-        const nestedMessage: unknown = (nestedError as Record<string, unknown>)['message'];
-        if (typeof nestedMessage === 'string' && nestedMessage.length > 0) {
-          return nestedMessage;
-        }
+        const nested = nestedError as Record<string, unknown>;
+        const code: string = typeof nested['code'] === 'string' ? nested['code'] : 'UNKNOWN_ERROR';
+        const message: string = typeof nested['message'] === 'string' && nested['message'].length > 0
+          ? nested['message']
+          : `Request failed (${options.response.status})`;
+        return new ApiError(code, message, options.response.status);
       }
       const topMessage: unknown = record['message'];
       if (typeof topMessage === 'string' && topMessage.length > 0) {
-        return topMessage;
+        return new ApiError('UNKNOWN_ERROR', topMessage, options.response.status);
       }
     }
-    return `Request failed (${options.response.status} ${options.response.statusText})`;
+    return new ApiError(
+      'UNKNOWN_ERROR',
+      `Request failed (${options.response.status} ${options.response.statusText})`,
+      options.response.status,
+    );
   }
 }
 
