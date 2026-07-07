@@ -16,8 +16,8 @@ export function classifyTrend(input: {
   const tail: number[] = smaSeriesForSlope.filter((x) => Number.isFinite(x)).slice(-10);
   let slope = 0;
   if (tail.length >= 2) {
-    const first = tail[0] as number;
-    slope = ((tail[tail.length - 1] as number) - first) / first / (tail.length - 1);
+    const first = tail[0];
+    slope = (tail[tail.length - 1] - first) / first / (tail.length - 1);
   }
   if (Math.abs(dist) < TREND_SIDEWAYS_DISTANCE_DEADBAND && Math.abs(slope) < TREND_MIN_SMA_SLOPE_MAGNITUDE) return 'sideways';
   if (dist > TREND_SIDEWAYS_DISTANCE_DEADBAND && slope >= -TREND_MIN_SMA_SLOPE_MAGNITUDE) return 'uptrend';

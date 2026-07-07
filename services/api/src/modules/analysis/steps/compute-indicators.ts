@@ -13,7 +13,7 @@ import {
 } from '../indicators/fractal-pivots.js';
 import { computeLevels } from '../indicators/levels.js';
 import { computeMacd } from '../indicators/macd.js';
-import { computeMovingAverages, slopeLabelFromLast10Sma } from '../indicators/moving-averages.js';
+import { computeMovingAverages } from '../indicators/moving-averages.js';
 import { computeRsi14 } from '../indicators/rsi.js';
 import { classifyTrend } from '../indicators/trend.js';
 import { computeVolumeAnalysis } from '../indicators/volume.js';
@@ -73,10 +73,10 @@ export async function computeIndicators(input: {
   const monthlyCloses: number[] = monthly.map((b) => b.adjClose);
   const sma10w: number[] = sma({ period: 10, values: weeklyCloses });
   const sma6m: number[] = sma({ period: 6, values: monthlyCloses });
-  const wClose: number = weeklyCloses[weeklyCloses.length - 1] as number;
-  const mClose: number = monthlyCloses[monthlyCloses.length - 1] as number;
-  const wSma: number = sma10w[sma10w.length - 1] as number;
-  const mSma: number = sma6m[sma6m.length - 1] as number;
+  const wClose: number = weeklyCloses[weeklyCloses.length - 1];
+  const mClose: number = monthlyCloses[monthlyCloses.length - 1];
+  const wSma: number = sma10w[sma10w.length - 1];
+  const mSma: number = sma6m[sma6m.length - 1];
 
   const chartStart: number = Math.max(0, closes.length - BUNDLE_CHART_TAIL_BARS);
   const dailyTail: readonly OhlcvBar[] = daily.slice(chartStart);
@@ -110,9 +110,9 @@ export async function computeIndicators(input: {
     bbMiddle: bbFull.slice(chartStart).map((r) => (r?.middle !== undefined && Number.isFinite(r.middle) ? r.middle : Number.NaN)),
     bbLower: bbFull.slice(chartStart).map((r) => (r?.lower !== undefined && Number.isFinite(r.lower) ? r.lower : Number.NaN)),
     obv: obvFull.slice(chartStart),
-    sma50: maResult.sma50.slice(chartStart) as number[],
-    sma100: maResult.sma100.slice(chartStart) as number[],
-    sma200: maResult.sma200.slice(chartStart) as number[],
+    sma50: maResult.sma50.slice(chartStart),
+    sma100: maResult.sma100.slice(chartStart),
+    sma200: maResult.sma200.slice(chartStart),
     atr: atrFull.slice(chartStart),
   };
 
@@ -122,9 +122,9 @@ export async function computeIndicators(input: {
     quote,
     seriesLengths: { daily: daily.length, weekly: weekly.length, monthly: monthly.length },
     movingAverages: {
-      sma50: maResult.sma50.slice(-10) as number[],
-      sma100: maResult.sma100.slice(-10) as number[],
-      sma200: maResult.sma200.slice(-10) as number[],
+      sma50: maResult.sma50.slice(-10),
+      sma100: maResult.sma100.slice(-10),
+      sma200: maResult.sma200.slice(-10),
       sma50SlopeLabel: maResult.sma50SlopeLabel,
       sma100SlopeLabel: maResult.sma100SlopeLabel,
       sma200SlopeLabel: maResult.sma200SlopeLabel,
@@ -147,7 +147,7 @@ export async function computeIndicators(input: {
       fib: levelsResult.fib,
     },
     trend: {
-      daily: classifyTrend({ price: quote.regularMarketPrice, sma: maResult.sma50[maResult.sma50.length - 1] as number, smaSeriesForSlope: maResult.sma50 }),
+      daily: classifyTrend({ price: quote.regularMarketPrice, sma: maResult.sma50[maResult.sma50.length - 1], smaSeriesForSlope: maResult.sma50 }),
       weekly: classifyTrend({ price: wClose, sma: wSma, smaSeriesForSlope: sma10w }),
       monthly: classifyTrend({ price: mClose, sma: mSma, smaSeriesForSlope: sma6m }),
     },

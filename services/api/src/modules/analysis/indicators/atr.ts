@@ -17,7 +17,7 @@ export function computeAtr14(input: {
     close: input.closes as number[],
     period: 14,
   });
-  const latest: number = series[series.length - 1] as number;
+  const latest: number = series[series.length - 1];
   if (!Number.isFinite(latest)) {
     throw new AnalysisComputationError('ATR(14) not finite.');
   }

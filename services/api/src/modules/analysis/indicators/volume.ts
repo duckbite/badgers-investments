@@ -32,7 +32,7 @@ export function computeVolumeAnalysis(input: {
   if (obvLast10.length !== 10 || !obvLast10.every(Number.isFinite)) {
     throw new AnalysisComputationError('OBV last 10 values incomplete.');
   }
-  const latestVol: number = volumes[volumes.length - 1] as number;
+  const latestVol: number = volumes[volumes.length - 1];
   let latestVsAvg20: 'above' | 'below' | 'neutral' = 'neutral';
   if (latestVol > avgVol20 * (1 + VOLUME_CLASSIFICATION_EPSILON)) latestVsAvg20 = 'above';
   else if (latestVol < avgVol20 * (1 - VOLUME_CLASSIFICATION_EPSILON)) latestVsAvg20 = 'below';

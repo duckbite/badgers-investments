@@ -19,7 +19,7 @@ export function computeBollingerBands(closes: readonly number[]): BollingerBands
   ) {
     throw new AnalysisComputationError('Bollinger Bands incomplete.');
   }
-  const lastClose: number = closes[closes.length - 1] as number;
+  const lastClose: number = closes[closes.length - 1];
   const bw: number = (lastBb.upper - lastBb.lower) / (lastBb.middle === 0 ? Number.NaN : lastBb.middle);
   if (!Number.isFinite(bw)) {
     throw new AnalysisComputationError('Bollinger bandwidth not finite.');
